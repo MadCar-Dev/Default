@@ -1,4 +1,12 @@
 !script {{  
+  --/|Script Name : Dawnbringer
+  --/|Version     : 1.0
+  --/|Requires SC : 1.3.7+, TokenMod, NoteLog
+  --/|Author      : Will M.
+
+  --/|Description : Implements the effects of Dawnbringer sword
+
+
   --#title|Dawnbringer
   --#reentrant|Dawnbringer
   --#leftsub|
