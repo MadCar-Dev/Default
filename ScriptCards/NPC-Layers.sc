@@ -1,12 +1,11 @@
 !scriptcard {{ 
-  
 
   --/|Script Name : NPC Layers
   --/|Version     : 4.0
   --/|Requires SC : 1.3.7+, TokenMod, ping-token
   --/|Author      : Will M.
 
-  --/|Description : A quick tool that lists NPCs and lets you assign a layer 
+  --/|Description : Lists NPCs and lets you quickly toggle them between layers
 
 
   --:TOP|

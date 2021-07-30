@@ -1,0 +1,15 @@
+!gmnote --charnote
+
+!gmnote --bio
+
+!gmnote --avatar  ?{Show Title|Yes, |No, --notitle}
+
+!gmnote --image ?{Show Title|Yes, |No, --notitle}
+
+!add-cgmnote ?{Note}
+
+!gmnote --config
+
+!gmnote --token
+
+!add-gmnote ?{Note}
