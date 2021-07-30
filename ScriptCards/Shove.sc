@@ -1,4 +1,12 @@
 !script {{  
+  --/|Script Name : Shove
+  --/|Version     : 1.0
+  --/|Requires SC : 1.3.9+, TokenMod
+  --/|Author      : Will M.
+
+  --/|Description : Action card that lets player or foe attempt a 5e Shove Attack action
+  --/|              
+
   --#title|Shove
   --#reentrant|Shove
   --#emoteText|attempts to shove

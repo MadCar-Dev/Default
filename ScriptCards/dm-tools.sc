@@ -1,5 +1,12 @@
 !scriptcard {{ 
-  --:|___DM TOOLS_3.3________
+
+  --/|Script Name : DMTools
+  --/|Version     : 4.0
+  --/|Requires SC : 1.3.7+, TokenMod, NoteLog, Chatsetattr, ping-token
+  --/|Author      : Will M.
+
+  --/|Description : A collection of utility functions against party characters
+
   --:TOP|
   --#title|DM Tools
   --#titleCardBackground|#03038a

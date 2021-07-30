@@ -1,4 +1,16 @@
 !script {{  
+  --/|Script Name : Health Check
+  --/|Version     : 2.0
+  --/|Requires SC : 1.3.7+, TokenMod, NoteLog, Chatsetattr, ping-token
+  --/|Author      : Will M.
+
+  --/|Description : Utility card to simulate a character attempting to understand the 
+  --/|              health status of a friend or foe.
+
+  --/| Purpose of this script is to allow a user to inspect a token's health status
+  --/| based on the character's Perception and distance to target, they'll get different levels of ideas.  
+  --/| It uses the character's Medicine and Perception abilities as an adder
+
   --#title|Health Check
   --#reentrant|HealthStatus @{selected|character_id}
   --#titleCardBackground|#932729
@@ -15,10 +27,6 @@
   --#debug|1
   --&DBUG|2
   --&DBUG_Msg|
-
-  --/| Purpose of this script is to allow a user to inspect a token's health status
-  --/| based on the character's Perception and distance to target, they'll get different levels of ideas.  
-  --/| I may use the character's Medicine ability as an adder
   
   --/| First get the source and destination tokens
 
@@ -42,11 +50,11 @@
   --:ALIVE|
 
   --/| Compute the distance between the tokens to add a difficulty rating
-  --/| 0-15        :Advantage
-  --/| 15.1 - 30   :Normal
-  --/| 30.1 - 60   :-1
-  --/| 60.1 - 120  :-3
-  --/| 120+        :Disadvantage
+  --/| 0-20        :Advantage
+  --/| 20.1 - 40   :Normal
+  --/| 40.1 - 100   :-1
+  --/| 100.1 - 150  :-3
+  --/| 150+        :Disadvantage
 
   --/:CHECK DISTANCE IN ft.|
   --~d|euclideanlong;[&STokenId];[&TTokenId]
@@ -54,11 +62,11 @@
   --=Scale|[*P:scale_number] --~Scale|math;max;1;[$Scale]
   --=DIST|[$d] / [$SnapInc] * [$Scale] --~DIST|math;round;[$DIST]
 
-  --?[$DIST] -gt 120|&ChkDice;2d20kl1
-  --?[$DIST] -le 120|&ChkDice;1d20 - 3
-  --?[$DIST] -le 60|&ChkDice;1d20 - 1
-  --?[$DIST] -le 30|&ChkDice;1d20 
-  --?[$DIST] -le 15|&ChkDice;2d20kh1
+  --?[$DIST] -gt 150|&ChkDice;2d20kl1
+  --?[$DIST] -le 150|&ChkDice;1d20 - 3
+  --?[$DIST] -le 100|&ChkDice;1d20 - 1
+  --?[$DIST] -le 40|&ChkDice;1d20 
+  --?[$DIST] -le 20|&ChkDice;2d20kh1
 
   -->LOG|2;Dist;[$DIST]ft. Dice:[&ChkDice]
 
@@ -69,7 +77,7 @@
 
   --/| use 1/2 perception and 1/2 medicine skill as bonus to roll
   --=Bonus|[&PerceptionBonus] + [&MedicineBonus]
-  --=Bonus|[$Bonus]/2
+  --/|=Bonus|[$Bonus]/2
   -->LOG|2;Bonus;[$Bonus] or (Avg of Pcep:[&PerceptionBonus] and Med:[&MedicineBonus])
 
   --#rightsub|Bonus:[$Bonus]
