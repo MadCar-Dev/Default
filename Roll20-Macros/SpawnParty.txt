@@ -1,0 +1,6 @@
+!Spawn --name|Eliza Redburrow --offset|1,-1
+!Spawn --name|Shaper --offset|2,0
+!Spawn --name|Steel Defender (Shaper) --Offset|1,0
+!Spawn --name|Kharg --offset|2,-1
+!Spawn --name|Jokaryn --offset|2,1
+!Spawn --name|Xaral Mind-drinker --offset|1,1 --DeleteTarget|?{Delete spawn token?|Yes|No}
