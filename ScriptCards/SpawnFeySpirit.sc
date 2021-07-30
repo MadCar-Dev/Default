@@ -4,7 +4,7 @@
   --/|Version     : 2.0
   --/|Requires SC : 1.3.7+, TokenMod, Chatsetattr, SelectManager, SpawnDefaultToken*
   --/|Author      : Will M.
-
+ 
   --/|Description : Spawn Fey Spirt token and assign abilities
   --/|              based on level and type
 
@@ -56,7 +56,7 @@
 
 --/|======== Subroutines ==================
 --:SPAWN_FEY_SPIRIT|
-	--@forselected+|Spawn _name|[&ASName] _offset|1,0 _expand|40,20 _size|1,1
+	--@forselected+|Spawn _name|[&ASName] _offset|1,0 _expand|40,20 _size|1,1 _side|4
 --<|
 
 --:FIND_TOKEN_BY_NAME|Token Name
@@ -144,10 +144,7 @@
 
 	--:MODIFY_SHEET|
 
-	--@token-mod|_set currentside|[&MoodSide] bar1_value|[*[&FChar_Id]:hp^] bar1_max|[*[&FChar_Id]:hp^] bar1_link| bar2_value|[*[&FChar_Id]:npc_ac] bar2_link|npc_ac _off showname showplayers_name showplayers_bar3 _ids [&FTOKEN_ID]
-
 	--@setattr|_charid [&FChar_Id] _spell_level|[$Spell_Level.Total] _hp|[$HP.Total]|[$HP.Total] _npc_hpformula|30 + 10 for each spell level above 3rd _npc_ac|[$AC.Total] _npc_actype|(Natural Armor) _silent
-
 
 	--/| Set Spirit fey's short-sword attack to add spell_level to piercing damage
 	--/| attack_damage = 1d6 + 3 + Spell_Level
@@ -174,6 +171,10 @@
 	--\+debug|Desc: [&MA_Desc]
 	--@setattr|_charid [&FChar_Id] _[*R>description]|[&MA_Desc]  _silent
 	--:MA_ATK_NOT_FOUND|
+
+
+	--@token-mod|_set currentside|[&MoodSide] bar1_value|[*[&FChar_Id]:hp^] bar1_max|[*[&FChar_Id]:hp^] bar1_link|hp bar2_value|[*[&FChar_Id]:npc_ac] bar2_link|npc_ac _off showname showplayers_name showplayers_bar3 _ids [&FTOKEN_ID] _ignore-selected
+	--@token-mod|_set currentside|[&MoodSide] _ids [&FTOKEN_ID] _ignore-selected
 
 
 --#Title|Fey Spirit Spawned

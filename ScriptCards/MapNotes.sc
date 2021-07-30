@@ -1,24 +1,20 @@
-This file contains two scripts
-  - One to list and manage MapNotes and one to create them.  
-
 !scriptcard {{ 
   --/|Script Name : Map Note Tools
-  --/|Version     : 3.0
-  --/|Requires SC : 1.3.7+, TokenMod, Chatsetattr, gmnotes, SelectManager, SpawnDefaultToken*
+  --/|Version     : 3.1
+  --/|Requires SC : 1.3.7+, TokenMod, Chatsetattr, gmnotes, SelectManager, SpawnDefaultToken
   --/|Author      : Will M.
 
   --/|Description : Allows DM to add Site Note Tokens for location based notes
   --/|
+  --/|Updates: 7/30/2021: Now works with latest One-Click version of SpawnDefaultToken
+  --/|Known Issues: When updating the list of notes due to a change in the name or type, it may not represent the new name/type in the list.
+  --/|              This is due to a timing issue between calls to TokenMod and Reading the token data.  Just refresh again to see the change. 
 
   --/|Setup: 
   --/| 1 - A new Character Sheet named MapNote
   --/| 2 - Create a rollable token table with 9 different tokens images
   --/|  (1-Site, 2-info, 3-Encounter, 4-Trap, 5-Secret, 6-Shop, 7-Clue, 8-Quest, 9-Other)
   --/| 3 - Assign this multisided Rollable Token to the MapNote character sheet
-
-  --/| Possible issue:  I modified a version of the SpawnDefaultToken to let me pass it a new name
-  --/|                  I will need to adjust this code to utilize the one-click version that was recently
-  --/|                  updated with the same functionality.
 
   --/| Characteristics of a MapNote:
   --/|  TokenName: Note Name (Info, Barbershop, Baker, Event, Encounter, ...)
@@ -121,7 +117,46 @@ This file contains two scripts
   -->FOOTER_BUTTONS_MAIN|  
   --X|
 
+--:FIND_TOKEN_BY_NAME|Token Name
+--/| Parameters: Token Name
+--/| Returns/Sets: [&FTOKEN_ID], returns #NA if not available
+  --&TN|[%1%]
+  --&FTOKEN_ID|#NA
+
+  --~tc|array;pagetokens;PTAry;@{selected|token_id}
+  --~tempid|array;getfirst;PTAry
+
+  --:FT_LOOPSTART|
+  --?[&tempid] -eq ArrayError|FT_ENDLOOP
+    --?"[*[&tempid]:t-name]" -eq "[&TN]"|FT_FOUND
+    --~tempid|array;getnext;PTAry
+    --?[&tempid] -ne ArrayError|FT_LOOPSTART|FT_EXIT
+  --:FT_FOUND|
+    --&FTOKEN_ID|[&tempid]
+    --/|*FTBN|Found - TokenId: [&FTOKEN_ID]  
+  --:FT_EXIT|
+  --<|
+
 --/|==================  ReEntry Function ========================
+--:SPAWN_MAPNOTE|
+  --#title|Create New Map Note
+  --#whisper|gm
+  --#debug|0
+  --#hidecard|0
+
+  --/| Spawn Initial token
+  --@forselected+|Spawn _name|MapNote _bar1|MapNote _bar2|Site  _layer|gm _offset|1,0 _side|1 _order|ToFront _isDrawing|1 
+
+  --/|*SMN1|Spawned Note Token
+
+  --&reentryval|NEW
+  -->CHANGE_NOTE_NAME|
+  --/|*SMN2|TokenId: [&TokenId]  
+
+  --&reentryval|[&TokenId] 
+  -->CHANGE_NOTE_TYPE|
+
+--x|
 
 --:READ_NOTE|
 --:OPEN_NOTE|
@@ -145,15 +180,37 @@ This file contains two scripts
 
 --:CHANGE_NOTE_NAME|
   --&TokenId|[&reentryval]
-  --&TName|[*[&TokenId]:t-name]
-  --I;Change MapNote Name for: [&TName]|q;NoteName;New MapNote Name?
+  --/|&TName|[*[&TokenId]:t-name]
+
+  --/|*CNN1|TokenId: [&TokenId]  
+
+  --I;What is the MapNote Name?|q;NoteName;New MapNote Name?
+
+  --/| For new tokens, there is now TokenId yet established and we need to find it for the token named MapNote
+  --&NewToken|0
+  --?[&TokenId] -ne NEW|CNN_APPLY
+
+    --&NewToken|1
+    -->FIND_TOKEN_BY_NAME|MapNote
+    --&TokenId|[&FTOKEN_ID]
+    --?[&FTOKEN_ID] -ne #NA|CNN_APPLY
+      --+Error|MapNote Not Found 
+      --x|
+
+  --:CNN_APPLY|
+
+  --/|*CNN2|TokenId: [&TokenId]    
   --@token-mod|_set name|"[&NoteName]" _ids [&TokenId] _ignore-selected
-  --^TOP|
+
+  --?[&NewToken] -ne 1|TOP
+    --<|
 --x|
 
 --:CHANGE_NOTE_TYPE|
   --&TokenId|[&reentryval]
   --&TName|[*[&TokenId]:t-name]
+
+  --/|*CNT|TokenId: [&TokenId]  
 
   --I;Change MapNote Type for: [&TName]|q;NoteType;New MapNote Type?|Site|Info|Encounter|Trap|Secret|Shop|Clue|Quest|Other
 
@@ -172,7 +229,7 @@ This file contains two scripts
 
   --:CHANGE_TYPE|
 
-  --*API|@token-mod|_set bar2_value|"[&NoteType]" currentside|[$Side.Raw] _ids [&TokenId] _ignore-selected
+  --/|*API|@token-mod|_set bar2_value|"[&NoteType]" currentside|[$Side.Raw] _ids [&TokenId] _ignore-selected
   --@token-mod|_set bar2_value|"[&NoteType]" currentside|[$Side.Raw] _ids [&TokenId] _ignore-selected
 
   --^TOP|
@@ -233,7 +290,7 @@ This file contains two scripts
 --<|
 
 --:FOOTER_BUTTONS_MAIN|
-    --+|[l][button]+MapNote::~Mule|Spawn-MapNote[/button][/l]
+    --+|[l][rbutton]+MapNote::~Mule|SPAWN_MAPNOTE[/rbutton][/l]
             [r][button]MapNotes::~Mule|MapNote-Tools[/button]
             [button]NPC::~Mule|NPC-Tools[/button]
             [button]DM::~Mule|DM-Tools[/button]
@@ -379,34 +436,3 @@ This file contains two scripts
 --<|
 
 }}
-
-
-!script {{  
-  --#title|Spawn Mapnote
-  --#whisper|gm
-  --#debug|0
-  --#hidecard|1
-
-  --&Name|?{Name?}  
-  --&Type|?{Type?|Site|Info|Encounter|Trap|Secret|Shop|Clue|Quest|Other}
-
-  --C[&Type]|Site:>Site|Info:>Info|Encounter:>Encounter|Trap:>Trap|Secret:>Secret|Shop:>Shop|Clue:>Clue|Quest:>Quest|Other:>Other
-
-  --=Side|9 --^SPAWN|
-
-  --:Site| --=Side|1 --^SPAWN|
-  --:Info| --=Side|2 --^SPAWN|
-  --:Encounter| --=Side|3 --^SPAWN|
-  --:Trap| --=Side|4 --^SPAWN|
-  --:Secret| --=Side|5 --^SPAWN|
-  --:Shop| --=Side|6 --^SPAWN|
-  --:Clue| --=Side|7 --^SPAWN|
-  --:Quest| --=Side|8 --^SPAWN|
-  --:Other| --=Side|9 --^SPAWN|
-
-  --:SPAWN|
-    --/|@forselected+|Spawn _name|MapNote _bar1|NewMapNote _bar2|[&Type] _bar3|[&Name] _layer|gm _offset|1,0 _side|[$Side] _order|ToFront _isDrawing|1 _sheet|Mule _ability|Spawn-MapNote-P2
-    --@forselected+|Spawn _name|MapNote _bar1|MapNote _bar2|[&Type]  _layer|gm _offset|1,0 _side|[$Side] _order|ToFront _isDrawing|1 _newname|[&Name]
- 
-}}
-

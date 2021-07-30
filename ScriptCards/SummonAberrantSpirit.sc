@@ -14,11 +14,8 @@
   --/|     1-Beholderkin, 2-Slaad, 3-StarSpawn, 4-Smoke (used as initial token)
   --/| 3 - Assign this rollable table to the character sheet, just as you would
   --/|     for a multi-sided character/npc token
-  --/| Possible issue:  I modified a version of the SpawnDefaultToken to let me pass it a new name
-  --/| 									I will need to adjust this code to utilize the one-click version that was recently
-  --/| 									updated with the same functionality.
 
-
+  --/| Set to the name you give your Aberrant Spirt character sheet 
 	--&ASName|Aberrant Spirit(Xaral)
 
   --:TOP|
