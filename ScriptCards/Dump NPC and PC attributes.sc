@@ -1,0 +1,447 @@
+--/| Handy routine I pulled from forums listing all NPC and PC attributes and how to pull them
+
+===================NPC Attribute Dump ==================================
+
+!script {{
+--#sourceToken|@{selected|token_id}
+--#title|@{selected|token_name}
+--#rightsub|Challenge: [*S:npc_challenge] XP: [*S:npc_xp]
+--#leftsub|@{selected|npc_type}
+--+[c]NON-REPEATING INFO|[/c]
+--+Armor Class:|[*S:npc_ac] [*S:npc_actype]
+--+HP:|[*S:hp] [*S:npc_hpformula]
+--+Speed:|[*S:npc_speed]
+--+Attributes:|STR: [*S:strength] DEX: [*S:dexterity] CON: [*S:constitution] INT: [*S:intelligence] WIS: [*S:wisdom] CHA: [*S:charisma]
+--+Saves:|STR: [*S:npc_str_save] DEX: [*S:npc_dex_save] CON: [*S:npc_con_save] INT: [*S:npc_int_save] WIS: [*S:npc_wis_save] CHA: [*S:npc_cha_save]
+--+Skills|Acrobatics: [*S:npc_acrobatics] Animal Handling: [*S:npc_animal_handling] Arcana: [*S:npc_athletics] Athletics: [*S:npc_athletics] Deception: [*S:npc_deception] History: [*S:npc_history] Insight: [*S:npc_insight] Intimidation: [*S:npc_intimidation] Investigation: [*S:npc_investigation] Medicine: [*S:npc_medicine] Nature: [*S:npc_nature] Perception: [*S:npc_perception] Performance: [*S:npc_performance] Persuasion: [*S:npc_persuasion] Religion: [*S:npc_religion] Sleight Of Hand: [*S:npc_sleight_of_hand] Stealth: [*S:npc_stealth] Survival: [*S:npc_survival] 
+--+VRI| Vulnerabilities: [*S:npc_vulnerabilities] Resistances: [*S:npc_resistances] Immunities: [*S:npc_immunities] Condition Immunities: [*S:npc_condition_immunities]
+--+Senses:|[*S:npc_senses]
+--+Languages:|[*S:npc_languages]
+--+Spellcasting:| Flag: [*S:npcspellcastingflag] Spellcasting Ability: [*S:spellcasting_ability] Spell DC: [*S:spell_dc_mod] Spell Attack Mod: [*S:globalmagicmod]
+--+Reactions:| Flag: [*S:npcreactionsflag]
+--+Bonus Actions:| Flag: [*S:npcbonusactionsflag]
+
+-->npctraitSection|
+-->npcactionSection|
+-->npcaction-lSection|
+-->npcreactionsSection|
+-->npcbonusactionSection|
+-->npcSpellCantripsSection|
+-->npcSpell1Section|
+-->npcSpell2Section|
+-->npcSpell3Section|
+-->npcSpell4Section|
+-->npcSpell5Section|
+-->npcSpell6Section|
+-->npcSpell7Section|
+-->npcSpell8Section|
+-->npcSpell9Section|
+--X|
+--:npctraitSection|
+--+[c]NPC TRAITS[/c]|
+ --Rfirst|@{selected|character_id};repeating_npctrait
+ --:npctraitLoop|
+ --?"[*R:name]" -eq NoRepeatingAttributeLoaded|endTraits
+ --+[*R:name]:|[*R:description]
+ --Rnext|
+ -->npctraitLoop|  
+ --:endTraits|
+--<|
+--:npcactionSection|
+--+[c]NPC ACTIONS[/c]|
+ --Rfirst|@{selected|character_id};repeating_npcaction
+ --:npcactionLoop|
+ --?"[*R:name]" -eq NoRepeatingAttributeLoaded|endAction
+ --+[*R:name]:|Attack Flag: [*R:attack_flag] Attack Type: [*R:attack_type] Attack Range: [*R:attack_range] To Hit: [*R:attack_tohit] Target: [*R:attack_target] Damage: [*R:attack_damage] Damage Type: [*R:attack_damagetype] Damage2: [*R:attack_damage2] Damage2 Type: [*R:attack_damagetype2] Description: [*R:description]
+ --Rnext|
+ -->npcactionLoop|  
+ --:endAction|
+--<|
+--:npcaction-lSection|
+--+[c]NPC LENGENDARY ACTIONS[/c]|
+ --Rfirst|@{selected|character_id};repeating_npcaction-l
+ --:npcaction-lLoop|
+ --?"[*R:name]" -eq NoRepeatingAttributeLoaded|endAction-l
+ --+[*R:name]:|Attack Flag: [*R:attack_flag] Attack Type: [*R:attack_type] Attack Range: [*R:attack_range] To Hit: [*R:attack_tohit] Target: [*R:attack_target] Damage: [*R:attack_damage] Damage Type: [*R:attack_damagetype] Damage2: [*R:attack_damage2] Damage2 Type: [*R:attack_damagetype2] Description: [*R:description]
+ --Rnext|
+ -->npcaction-lLoop|  
+ --:endAction-l|
+--<|
+--:npcreactionsSection|
+--+[c]NPC REACTIONS[/c]|
+ --Rfirst|@{selected|character_id};repeating_npcreaction
+ --:npcreactionsLoop|
+ --?"[*R:name]" -eq NoRepeatingAttributeLoaded|endReactions
+ --+[*R:name]:|Attack Flag: [*R:attack_flag] Attack Type: [*R:attack_type] Attack Range: [*R:attack_range] To Hit: [*R:attack_tohit] Target: [*R:attack_target] Damage: [*R:attack_damage] Damage Type: [*R:attack_damagetype] Damage2: [*R:attack_damage2] Damage2 Type: [*R:attack_damagetype2] Description: [*R:description]
+ --Rnext|
+ -->npcreactionsLoop|  
+ --:endReactions|
+--<|
+--:npcbonusactionSection|
+--+[c]NPC BONUS ACTIONS[/c]|
+ --Rfirst|@{selected|character_id};repeating_npcbonusaction
+ --:npcbonusactionLoop|
+ --?"[*R:name]" -eq NoRepeatingAttributeLoaded|endBonusactions
+ --+[*R:name]:|Attack Flag: [*R:attack_flag] Attack Type: [*R:attack_type] Attack Range: [*R:attack_range] To Hit: [*R:attack_tohit] Target: [*R:attack_target] Damage: [*R:attack_damage] Damage Type: [*R:attack_damagetype] Damage2: [*R:attack_damage2] Damage2 Type: [*R:attack_damagetype2] Description: [*R:description]
+ --Rnext|
+ -->npcbonusactionLoop|  
+ --:endBonusactions|
+--<|
+--:npcSpellCantripsSection|
+--+[c]NPC CANTRIPS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-cantrip
+ --:npcspellCantripLoop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpellCantrip
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspellCantripLoop|  
+ --:endNpcSpellCantrip|
+--<|
+--:npcSpell1Section|
+--+[c]NPC 1st LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-1
+ --:npcspell1Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell1
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell1Loop|  
+ --:endNpcSpell1|
+--<|
+--:npcSpell2Section|
+--+[c]NPC 2nd LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-2
+ --:npcspell2Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell2
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell2Loop|  
+ --:endNpcSpell2|
+--<|
+--:npcSpell3Section|
+--+[c]NPC 3rd LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-3
+ --:npcspell3Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell3
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell3Loop|  
+ --:endNpcSpell3|
+--<|
+--:npcSpell4Section|
+--+[c]NPC 4th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-4
+ --:npcspell4Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell4
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell4Loop|  
+ --:endNpcSpell4|
+--<|
+--:npcSpell5Section|
+--+[c]NPC 5th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-5
+ --:npcspell5Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell5
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell5Loop|  
+ --:endNpcSpell5|
+--<|
+--:npcSpell6Section|
+--+[c]NPC 6th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-6
+ --:npcspell6Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell6
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell6Loop|  
+ --:endNpcSpell6|
+--<|
+--:npcSpell7Section|
+--+[c]NPC 7th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-7
+ --:npcspell7Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell7
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell7Loop|  
+ --:endNpcSpell7|
+--<|
+--:npcSpell8Section|
+--+[c]NPC 8th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-8
+ --:npcspell8Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell8
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell8Loop|  
+ --:endNpcSpell8|
+--<|
+--:npcSpell9Section|
+--+[c]NPC 9th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-9
+ --:npcspell9Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endNpcSpell9
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rdump| 
+--Rnext|
+ -->npcspell9Loop|  
+ --:endNpcSpell9|
+--<|
+--X|
+}}
+
+
+==============PC Info Script.  Good for attribute lookup ============================
+!script {{
+--#sourceToken|@{selected|token_id}
+--#title|@{selected|token_name}
+--#rightsub|Challenge: 
+--#leftsub|
+--+[c]NON-REPEATING INFO|[/c]
+--+Armor Class:|[*S:ac]
+--+HP:|[*S:hp]
+--+Speed:|[*S:speed]
+--+Attributes:|STR: [*S:strength] DEX: [*S:dexterity] CON: [*S:constitution] INT: [*S:intelligence] WIS: [*S:wisdom] CHA: [*S:charisma]
+--+Saves:|STR: [*S:strength_save_bonus] DEX: [*S:dexterity_save_bonus] CON: [*S:constitution_save_bonus] INT: [*S:intelligence_save_bonus] WIS: [*S:wisdom_save_bonus] CHA: [*S:charisma_save_bonus]
+--+Skills|Acrobatics: [*S:acrobatics_bonus] Animal Handling: [*S:animal_handling_bonus] Arcana: [*S:arcana_bonus] Athletics: [*S:athletics_bonus] Deception: [*S:deception_bonus] History: [*S:history_bonus] Insight: [*S:insight_bonus] Intimidation: [*S:intimidation_bonus] Investigation: [*S:investigation_bonus] Medicine: [*S:medicine_bonus] Nature: [*S:nature_bonus] Perception: [*S:perception_bonus] Performance: [*S:performance_bonus] Persuasion: [*S:persuasion_bonus] Religion: [*S:religion_bonus] Sleight Of Hand: [*S:sleight_of_hand_bonus] Stealth: [*S:stealth_bonus] Survival: [*S:survival_bonus] 
+--+VRI| Vulnerabilities: [*S:vulnerabilities] Resistances: [*S:resistances] Immunities: [*S:immunities] Condition Immunities: [*S:condition_immunities]
+
+
+-->attackSection|
+-->traitsSection|
+-->proficienciesSection|
+-->globaldmgmodSection|
+-->globalsavemodSection|
+-->globaltohitmodSection|
+-->globalskillmodSection|
+-->globalacmodSection|
+-->SpellCantripsSection|
+-->Spell1Section|
+-->Spell2Section|
+-->Spell3Section|
+-->Spell4Section|
+-->Spell5Section|
+-->Spell6Section|
+-->Spell7Section|
+-->Spell8Section|
+-->Spell9Section|
+-->toolsSection|
+-->inventorySection|
+--X|
+--:attackSection|
+--+[c]ATTACKS[/c]|
+ --Rfirst|@{selected|character_id};repeating_attack
+ --:attackLoop|
+ --?"[*R:atkname]" -eq NoRepeatingAttributeLoaded|endAttack
+ --+[*R:atkname]:|Attack Base: [*R:atkattr_base] Options Flag: [*R:options-flag] Spell ID: [*R:spellid] Spell Level: [*R:spelllevel] Save DC: [*R:savedc] Attack Flag: [*R:atkflag] Damage Base: [*R:dmgbase] Damage Flag: [*R:dmgflag] Damage Attribute: [*R:dmgattr] Damage Type: [*R:dmgtype] Damage2 Base: [*R:dmg2base] Damage2 Type: [*R:dmg2type] Damage2 Attribute: [*R:dmg2attr] Atack Range: [*R:atkrange] Save Flag: [*R:saveflag] Save Effect: [*R:saveeffect] Higher Level Damage: [*R:hldmg] Innate Spellcasting: [*R:spell_innate] Attack Description: [*R:atk_desc] Attack Damage Type: [*R:atkdmgtype] Attack Bonus: [*R:atkbonus]
+ --Rnext|
+ -->attackLoop|  
+ --:endAttack|
+--<|
+--:traitsSection|
+--+[c]TRAITS[/c]|
+ --Rfirst|@{selected|character_id};repeating_traits
+ --:traitsLoop|
+ --?"[*R:name]" -eq NoRepeatingAttributeLoaded|endtraits
+ --+[*R:name]:| Description: [*R:description] Source Type: [*R:source_type] Source: [*R:source] Options Flag: [*R:options-flag] Display Flag: [*R:display_flag]
+ --Rnext|
+ -->traitsLoop|  
+ --:endtraits|
+--<|
+--:globaldmgmodSection|
+--+[c]GLOBAL DAMAGE MODIFIERS[/c]|
+ --Rfirst|@{selected|character_id};repeating_damagemod
+ --:damgemodLoop|
+ --?"[*R:global_damage_name]" -eq NoRepeatingAttributeLoaded|enddamagemod
+ --+[*R:global_damage_name]:| Global Damage Damage: [*R:global_damage_damage] Global Damage Type: [*R:global_damage_type] Global Damage Active Flag: [*R:global_damage_active_flag]
+ --Rnext|
+ -->damgemodLoop|  
+ --:enddamagemod|
+--<|
+--:globalsavemodSection|
+--+[c]GLOBAL SAVE MODIFIERS[/c]|
+ --Rfirst|@{selected|character_id};repeating_savemod
+ --:savemodLoop|
+ --?"[*R:global_save_name]" -eq NoRepeatingAttributeLoaded|endsavemod
+ --+[*R:global_save_name]:| Global Save Roll: [*R:global_save_roll] Global Save Active Flag: [*R:global_save_active_flag] Options Flag:[*R:options-flag]
+ --Rnext|
+ -->savemodLoop|  
+ --:endsavemod|
+--<|
+--:globaltohitmodSection|
+--+[c]GLOBAL TO HIT MODIFIERS[/c]|
+ --Rfirst|@{selected|character_id};repeating_tohitmod
+ --:attackmodLoop|
+ --?"[*R:global_attack_name]" -eq NoRepeatingAttributeLoaded|endattackmod
+ --+[*R:global_attack_name]:| Global Attack Roll: [*R:global_attack_roll] Global Attack Active Flag: [*R:global_attack_active_flag] Options Flag:[*R:options-flag]
+ --Rnext|
+ -->attackmodLoop|  
+ --:endattackmod|
+--<|
+--:globalskillmodSection|
+--+[c]GLOBAL SKILL MODIFIERS[/c]|
+ --Rfirst|@{selected|character_id};repeating_skillmod
+ --:skillmodLoop|
+ --?"[*R:global_skill_name]" -eq NoRepeatingAttributeLoaded|endskillmod
+ --+[*R:global_skill_name]:| Global Skill Roll: [*R:global_skill_roll] Global Skill Active Flag: [*R:global_skill_active_flag] Options Flag:[*R:options-flag]
+ --Rnext|
+ -->skillmodLoop|  
+ --:endskillmod|
+--<|
+--:globalacmodSection|
+--+[c]GLOBAL AC MODIFIERS[/c]|
+ --Rfirst|@{selected|character_id};repeating_acmod
+ --:acmodLoop|
+ --?"[*R:global_ac_name]" -eq NoRepeatingAttributeLoaded|endacmod
+ --+[*R:global_ac_name]:| Global AC Value: [*R:global_ac_val] Global AC Active Flag: [*R:global_ac_active_flag]
+ --Rnext|
+ -->acmodLoop|  
+ --:endacmod|
+--<|
+
+
+
+--:SpellCantripsSection|
+--+[c]CANTRIPS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-cantrip
+ --:spellCantripLoop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpellCantrip
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spellCantripLoop|  
+ --:endSpellCantrip|
+--<|
+--:Spell1Section|
+--+[c]1st LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-1
+ --:spell1Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell1
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell1Loop|  
+ --:endSpell1|
+--<|
+--:Spell2Section|
+--+[c]2nd LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-2
+ --:spell2Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell2
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell2Loop|  
+ --:endSpell2|
+--<|
+--:Spell3Section|
+--+[c] 3rd LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-3
+ --:spell3Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell3
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell3Loop|  
+ --:endSpell3|
+--<|
+--:Spell4Section|
+--+[c]4th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-4
+ --:spell4Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell4
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell4Loop|  
+ --:endSpell4|
+--<|
+--:Spell5Section|
+--+[c]5th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-5
+ --:spell5Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell5
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell5Loop|  
+ --:endSpell5|
+--<|
+--:Spell6Section|
+--+[c]6th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-6
+ --:spell6Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell6
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell6Loop|  
+ --:endSpell6|
+--<|
+--:Spell7Section|
+--+[c]7th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-7
+ --:spell7Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell7
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell7Loop|  
+ --:endSpell7|
+--<|
+--:Spell8Section|
+--+[c]8th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-8
+ --:spell8Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell8
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell8Loop|  
+ --:endSpell8|
+--<|
+--:Spell9Section|
+--+[c]9th LEVEL SPELLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_spell-9
+ --:spell9Loop|
+ --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|endSpell9
+ --+[*R:spellname]:|Spell Prepared: [*R:spellprepared] Spell School: [*R:spellschool] Spell Ritual Flag: [*R:spellritualflag] Spell Casting Time: [*R:spellcastingtime] Spell Range: [*R:spellrange] Spell Target: [*R:spelltarget] Spell Comp V: [*R:spellcomp_v] Spell Comp S: [*R:spellcomp_v] Spell Comp M: [*R:spellcomp_m] Spell Comp Materials: [*R:spellcomp_materials] Concentration Flag: [*R:spellconcentrationflag] Spell Duration: [*R:spellduration] Spell Output: [*R:spelloutput] Spell Attack: [*R:spellattack] Spell Damage: [*R:spelldamage] Spell Damage Type: [*R:spelldamagetype] Spell Damage2[*R:spelldamage2] Spell Damage2 Type: [*R:spelldamagetype2] Spell Healing: [*R:spellhealing] Spell Damage Mod: [*R:spelldmgmod] Spell Save: [*R:spellsave] Spell Save Success: [*R:spellsavesuccess] Spell Higher Level Die: [*R:spellhldie] Spell Higher Level Die Type: [*R:spellhldietype] Spell Higher Level Bonus: [*R:spellhlbonus] Description: [*R:spelldescription] Spell at the Highe Levels: [*R:spellathigherlevels] Prep Toggle: [*R:prep] Spell Name [*R:spellname]
+--Rnext|
+ -->spell9Loop|  
+ --:endSpell9|
+--<|
+--:inventorySection|
+--+[c]INVENTORY[/c]|
+--+Coins:| CP:[*S:cp] SP:[*S:sp] EP:[*S:ep] GP:[*S:gp] PP:[*S:pp]
+ --Rfirst|@{selected|character_id};repeating_inventory
+ --:inventoryLoop|
+ --?"[*R:itemname]" -eq NoRepeatingAttributeLoaded|endinventory
+ --+[*R:itemcount] [*R:itemname]:| Weight: [*R:itemweight] Equipped: [*R:equipped] Used As Resource: [*R:useasresource] Has Attack: [*R:hasattack] Properties: [*R:itemproperties] Modifiers: [*R:itemmodifiers] Content: [*R:itemcontent]
+ --Rnext|
+ -->inventoryLoop|  
+ --:endinventory|
+--<|
+--:proficienciesSection|
+--+[c]PROFICIENCIES[/c]|
+ --Rfirst|@{selected|character_id};repeating_proficiencies
+ --:proficienciesLoop|
+ --?"[*R:name]" -eq NoRepeatingAttributeLoaded|endproficiencies
+ --+[*R:name]:| Proficiency Type: [*R:prof_type]
+ --Rnext|
+ -->proficienciesLoop|  
+ --:endproficiencies|
+--<|
+--:toolsSection|
+--+[c]TOOLS[/c]|
+ --Rfirst|@{selected|character_id};repeating_tool
+ --:toolLoop|
+ --?"[*R:toolname]" -eq NoRepeatingAttributeLoaded|endtool
+ --+[*R:toolname]:| Tool Bonus Base: [*R:toolbonus_base] Tool Attribute Base: [*R:toolattr_base] Options Flag: [*R:options-flag] Tool Attribute: [*R:toolattr]
+--Rdump|
+ --Rnext|
+ -->toolLoop|  
+ --:endtool|
+--<|
+--X|
+}}
