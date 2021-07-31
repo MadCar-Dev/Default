@@ -1,0 +1,20 @@
+ScriptCards - Getting user input:
+
+Include:
+* Examples
+* Thoughts on when to use different methods
+* Pros/Cons of each method
+* Considerations
+
+1) [?{}] Chat Query Functionality 
+
+2) [--I] q/t input commands
+
+3) [button]caption::action[/button]
+	where: Caption is text or emojii escape characters
+					action: ...
+
+4) [rbutton]
+
+
+5) [sheetbutton]

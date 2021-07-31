@@ -1,0 +1,27 @@
+Seting up New API Environment - Initial Config Items:
+
+GroupInit
+---------
+* Apply D&D 5e Roll20 Config
+* Tiebreaker (!group-init --add-group --tie-breaker dexterity)
+* Remove initiative_bonus from tie-breaker
+
+GroupCheck
+----------
+* Apply D&D 5e Roll20 Config (!group-check-config --import 5E-OGL)
+	
+TokenMod
+--------
+* Player can IDs - Turn On
+
+AudioMaster
+------------
+	* Load playlist (!roll20AM --config)
+
+ChatSetAttr
+------------
+	* Turn on all options (!setattr-config)
+
+
+
+
