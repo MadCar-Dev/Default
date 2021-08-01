@@ -1,15 +1,30 @@
 !script {{  
+  
+  --/|Script Name : Potions and Scrolls
+  --/|Version     : 0.1
+  --/|Requires SC : 1.4.0+, Chatsetattr
+  --/|Author      : Will M.
+
+  --/|Description : A consumables management tool. Supports the following:
+  --/|            :  * Reports Potions, Scrolls, Oils, Dust in players inventory grouped by character
+  --/|            :  * Adding a new item to players inventory
+  --/|            :  * Increasing and decreasing item counts 
+  --/|            :  * Transfering/Moving items between player inventory
+  --/|            :  * A Player can Only Add/Inc/Dec/Move from CharacterSheets they control
+  --/|            :  * A player can Move an item from a charactersheet they control to one they don't
+  --/|            :  * Display compendium info for well-known Potions and such 
+
+
   --#title|Potions & Scrolls
   --#reentrant|Potions
   --:TOP|
 
-  --&FColor1|#66FF66 
-  --&FColor1|#f0fff8
-  --&FColor2|#00FF66
-  --&BColor1|#282828
-  --&BColor2|#282828
-
-  --#titlecardbackgroundimage| linear-gradient(to bottom, #000000, [&BColor1])   
+  --&FColor1|#000000
+  --&FColor2|#000000
+  --&BColor1|#FFFFFF
+  --&BColor2|#e6e3e3
+  
+  --#titleCardBackground|[&SendingPlayerColor]
   --#titlefontsize|1.0em
   --#titlefontlineheight|1.2em
   --#titlefontface|Courier
@@ -20,47 +35,45 @@
   --#oddrowbackground|[&BColor1]
   --#oddrowfontcolor|[&FColor2]
   --#evenrowbackground|[&BColor1]
-  --#evenrowfontcolor|[&FColor1]
+  --#evenrowfontcolor|[&FColor2]
   --#buttonbackground|[&BColor1]
-  --#buttontextcolor|[&FColor1]
   --#buttonbordercolor|[&BColor1]
-  --#buttonfontsize|x-small
-  --#buttonfontface|Courier
-  --#whisper|self
+  --#buttontextcolor|#0905f2
+
+  --#whisper|self, gm
   --#debug|1
 
-  --+GM|[&SendingPlayerIsGM]
-  --+ID|[&SendingPlayerID]
-  --+Name|[&SendingPlayerName]
-  --+As|[&SendingPlayerSpeakingAs]
-  --+Color|[&SendingPlayerColor]
-
+  --#rightsub|IsGM: [&SendingPlayerIsGM]
+  --/+ID|[&SendingPlayerID]
+  --#leftsub|[&SendingPlayerName]
+  --/+As|[&SendingPlayerSpeakingAs]
+  --/+Color|[&SendingPlayerColor][hr]
 
   --&tStyle|style="width:100%;text-align:left;padding:0px;border-spacing:0px;border-collapse:collapse;text-shadow: 0px 0px 0px [&BColor1];border: 0px dashed [&BColor1];"
   --&trStyle1|style="border:0px dashed [&FColor2];"
   --&trStyle2|style="border:0px dashed [&BColor1];"
-  --&tdStyle1|style="width:5%;text-align:left;background-color:[&BColor1];font-size:100%"
-  --&tdStyle2|style="width:65%;text-align:left;background-color:[&BColor1];font-size:100%"
-  --&tdStyle3|style="width:30%;text-align:right;background-color:[&BColor1];font-size:100%"
+  --&tdStyle1|style="width:5%;text-align:center;background-color:[&BColor1];font-size:110%;font-weight:bold;"
+  --&tdStyle2|style="width:65%;text-align:left;background-color:[&BColor1];font-size:100%;font-weight:bold;"
+  --&tdStyle3|style="width:30%;text-align:right;background-color:[&BColor1];font-size:80%;font-weight:bold;"
   
   --&t|
-  --=PCntr|1
+  --=PCntr|0
 
-  --/|Load list of player characterIds into gCharIds variable
-  -->LOAD_CHARACTERIDS| 
+  --~tokencnt|array;pagetokens;alltokens;@{selected|token_id};pc
+  --~TokenId|array;getfirst;alltokens
 
-  --~|array;fromstring;aryCharIds;,;[&gCharIds]
-  --~CharId|array;getfirst;aryCharIds
-	--~CharId|string;trim;[&CharId]
   --:CHAR_LOOP_START| Loop through all the items in the list
-  --?[&CharId] -eq ArrayError|DONE
+  --?[&TokenId] -eq ArrayError|DONE
 
-		--&[&EditRights]|0
+		--/|Filter out MapNotes
+		--?"[*[&TokenId]:t-bar1_value]" -eq "MapNote" |NEXT_CHAR
+
+	  --&CharId|[*[&TokenId]:t-represents]
+
+		--&EditRights|0
 		--?[&SendingPlayerIsGM] -eq 1|&EditRights;1
-		--?"[*[&CharId]:controlledby]" -inc "[&SendingPlayerID]"|&EditRights;1
-		--?"[*[&CharId]:controlledby]" -inc "all"|&EditRights;1
-
-		--+EditRights|[&EditRights]
+		--?"[*[&CharId]:controlledby]" -inc [&SendingPlayerID]|&EditRights;1
+		--?"[*[&CharId]:controlledby]" -inc all|&EditRights;1
 
 	  --Rfirst|[&CharId];repeating_inventory
 	  --:INV_LOOP_TOP|
@@ -68,6 +81,7 @@
 	    --?"[*R:name]" -eq NoRepeatingAttributeLoaded|INV_LOOP_END
 	    --~ITEM|string;touppercase;[*R:itemname]
 
+	    --/| List of items to show in List of consumable items
 	    --?"[&ITEM]" -inc "POTION"|ADD_ITEM
 	    --?"[&ITEM]" -inc "OIL"|ADD_ITEM
 	    --?"[&ITEM]" -inc "DUST"|ADD_ITEM
@@ -88,7 +102,7 @@
 
 
 		    --?[&EditRights] -eq 1|ADD_COMMANDS
-			    --&t|+ [td [&tdStyle3]]XXX[/td][/tr]
+			    --&t|+ [td [&tdStyle3]][/td][/tr]
 			    --^SKIP_ITEM|
 		    --:ADD_COMMANDS|
 			    --&t|+ [td [&tdStyle3]][rbutton]+::INC_ITEMCOUNT;[&CharId]\[*R>itemcount][/rbutton]
@@ -101,30 +115,42 @@
 	  --^INV_LOOP_TOP|Back to top of loop
 	  --:INV_LOOP_END|
 
-	  --/|?[$PCntr.Total] -eq 0|NEXT_CHAR
-	  	--&CN|[*[&CharId]:character_name]  -->SHORT_NAME|[&CN]
+  	--&CN|[*[&CharId]:character_name]
+  	--&ImgLink|[*[&TokenId]:t-imgsrc]
+		--&AddBtn|
+    --?[&EditRights] -ne 1|SKIP_NEWITEM_BUTTON
+	  	--&AddBtn|[rbutton]Add Potion/Scroll::ADD_NEW_ITEM;[&CharId][/rbutton]
 
-	    --?[&EditRights] -eq 1|ADD_NEWITEM_BUTTON
-				--&Hdr|"[&gSN]"
-				--^SKIP_NEWITEM_BUTTON|
-	    --:ADD_NEWITEM_BUTTON|
-		  	--&Hdr|"[&gSN]&nbsp;&nbsp;[rbutton]+::ADD_NEW_ITEM;[&CharId][/rbutton]"
-			--:SKIP_NEWITEM_BUTTON|
+		--:SKIP_NEWITEM_BUTTON|
 
-	  	-->SECTION_HEADER|[&Hdr]
-	  	
-	  	--+Controlled By|[*[&CharId]:controlledby]
+	  --&hdrstyle_T|style="width:100%;padding:0px;border-spacing:0px;border-collapse:collapse;border:1px solid [&FColor1]"
+	  --&hdrstyle_TR|style="border:0px solid #FFFFFF"
+	  --&hdrstyle_TD1|style="width:70%;background-color:[&BColor2]; color:[&FColor1]; font-size:110%;font-weight:bold;text-align:left"
+	  --&hdrstyle_TD2|style="width:30%;background-color:[&BColor2]; color:[&FColor1]; font-size:110%;font-weight:bold;text-align:right"	  
+	 	--#buttonbackground|[&BColor2]
+	  --#buttonbordercolor|[&BColor2]
+	  --+|[t [&hdrstyle_T]][tr [&hdrstyle_TR]][td [&hdrstyle_TD1]][img width=30][&ImgLink][/img] [&CN][/td]
+	  																				[td [&hdrstyle_TD2]] [&AddBtn][/td][/tr][/t]
+	 	--#buttonbackground|[&BColor1]
+  	--#buttonbordercolor|[&BColor1]	 	
 
+  	--/|+Controlled By|[*[&CharId]:controlledby]
+
+	  --?[$PCntr.Raw] -eq 0|[
+	  	--+|[B][I][c]No potions or scrolls found in inventory[/c][/I][/B]
+	  --]|[
 		  --&t|[t [&tStyle]] [&t] [/t]
 		  --+|[&t]
+		--]|
 
-		--:NEXT_CHAR|
+	--:NEXT_CHAR|
 
-  	--~CharId|array;getnext;aryCharIds
-		--&t|
-		--=PCntr|0
-  	--^CHAR_LOOP_START|
-  --:DONE|
+	--~TokenId|array;getnext;alltokens
+
+	--&t|
+	--=PCntr|0
+	--^CHAR_LOOP_START|
+--:DONE|
 
   -->FOOTER_BUTTONS_MAIN|
   --X|
@@ -298,18 +324,24 @@
 --<|
 
 --:SECTION_HEADER|Title
-  --&hdrstyle_T|style="width:100%;padding:1px;border-spacing:0px;border-collapse:collapse;text-shadow: 0px 0px 0px [&BColor1];border:1px solid [&FColor2];"
-  --&hdrstyle_TR|style="border:0px solid #FFFFFF;"
-  --&hdrstyle_TD|style="width:100%;background-color:[&FColor2]; color:#000000; font-size:110%;font-weight:bold;text-align:center"
-  --+|[t [&hdrstyle_T]][tr [&hdrstyle_TR]][td [&hdrstyle_TD]][c][%1%][%2%][/c][/td][/tr][/t]
+  --&hdrstyle_T|style="width:100%;padding:1px;border-spacing:0px;border-collapse:collapse;border:1px solid #FFFFFF;"
+  --&hdrstyle_TR|style="border:0px solid #000000;"
+  --&hdrstyle_TD|style="width:100%;background-color:[&FColor2]; color:#FFFFFF; font-size:110%;font-weight:bold;text-align:left"
+  --+|[t [&hdrstyle_T]][tr [&hdrstyle_TR]][td [&hdrstyle_TD][%1%][%2%][/td][/tr][/t]
 --<|
 
 --:FOOTER_BUTTONS_MAIN|
+
+	--?[&SendingPlayerIsGM] -eq 1|[
     --+|[l][rbutton]Refresh::TOP[/rbutton][/l]
             [r][button]MapNotes::~Mule|MapNote-Tools[/button]
             [button]NPC::~Mule|NPC-Tools[/button]
-            [button]DM::~Mule|DM-Tools[/button]
-            [/r]
+            [button]DM::~Mule|DM-Tools[/button][/r]
+
+  --]|[
+    --+|[r][rbutton]Refresh::TOP[/rbutton][/r]
+ 	--]
+
 --<|
 
 --:LOG|Text to log

@@ -1,12 +1,13 @@
 !script {{  
   
   --/|Script Name : Player Macros
-  --/|Version     : 4.0
+  --/|Version     : 4.1
   --/|Requires SC : 1.3.7+, Mule character sheet with referenced macros installed
   --/|Author      : Will M.
 
   --/|Description : A quick menu system agregating a number of useful player facing macros
   --/|              gmsheet, set status/condition, Enlarge/Reduce, Wild magic, rest, healing, party funds, spell templates
+  --/|Updates     : 4.1 - Added Potions/Scrolls report
 
 
   --#title|Player Macros
@@ -38,6 +39,7 @@
   --+|[button]🧪::~Mule|Healing-Potion[/button] Healing potion
   --+|[button]🔥::~Mule|Set-Light[/button] / [button]🔦::~Mule|Lighting-Report[/button] Light Set/Report
   --+|[button]💰::~Mule|PartyFunds-Report[/button] Party Funds
+  --+|[button]⚗️::~Mule|Potions[/button] Party Potions and Scrolls
 
   --+[c][#C43112]🎆 Magic Stuff 🎆[/#][/c]|
   --+|[button]📗::~Mule|SpellBook[/button] Spell Book
@@ -51,7 +53,7 @@
 
   --#title|Find My Friends
 
-  --~tokencnt|array;pagetokens;alltokens;@{selected|token_id}
+  --~tokencnt|array;pagetokens;alltokens;@{selected|token_id};pc
   --/|Loop through all of the tokens in "alltokens" 
   --~TokenId|array;getfirst;alltokens
   --&CharId|[*[&TokenId]:t-represents]

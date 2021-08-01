@@ -60,9 +60,10 @@
         [/c]
 
   -->SECTION_HEADER|Character Reports
+
   --~tokencnt|array;pagetokens;alltokens;@{selected|token_id};pc
   --/|Loop through all of the tokens in "alltokens" 
-  --~TokenId|array;getfirst;alltokens;pc
+  --~TokenId|array;getfirst;alltokens
   --&CharId|[*[&TokenId]:t-represents]
   --?[&TokenId] -eq ArrayError|ENDLOOP
 
@@ -73,27 +74,15 @@
     --&CharId|[*[&TokenId]:t-represents]
     --/+Debug|[*[&TokenId]:t-name]
 
-    --/|Characters with PlayerCharacter flag set are either characters or companions/party NPCs
-    --/|  If this script is used by others, just add a PlayerCharacter attribute, set to 1 to force any
-    --/|  character sheet to be flagged as a character.  The next couple tests assume this flag wasn't 
-    --/|  set and continue to filter out other token types.  Not adding the attribute only means that 
-    --/|  your party companions/npcs may not be included in the DM-Tools reporting.  
-    --?"[*[&CharId]:PlayerCharacter]" -eq "1"|START
-
     --/|Skip tokens that are not on the token layer - this is a good indicator that the token is not associated with the party
     --?[*[&TokenId]:t-layer] -ne objects|CONTINUE
 
-    --/|tokens that are represented by a character sheet and are not NPCs are probably characters
-    --/|?"[*[&TokenId]:t-represents]" -inc "-" -and "[*[&TokenId]:NPC]" -ne "1"|START
+    --/|Filter out MapNotes
     --?"[*[&TokenId]:t-bar1_value]" -eq "MapNote" |CONTINUE
 
-    --/|If you made it this far, the token isn't in the party and we jump to the end of the loop and 
-    --/|  advance to the next token
-    --/|CONTINUE|
    --:START|
     --&CharId|[*[&TokenId]:t-represents]
     -->SHORT_NAME|[*[&CharId]:character_name]
---/+Debug|[&gSN]
 
     --/| Create a row for each identified character.  Remove the [rbutton] syntax if you don't plan to use the PingToken API functionality
     --&tbl|+ 
@@ -1362,7 +1351,7 @@
 
 --:FIND_TOKEN|TokenId
   --#hidecard|1  
-  --@ping-token|_[&reentryval] _[&SendingPlayerID]
+  --@ping-token|_[&reentryval]
   --X|
 --<|
 
