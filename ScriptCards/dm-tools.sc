@@ -52,7 +52,7 @@
 
   --/| This is a collection of reports that aggregate party information
   -->SECTION_HEADER|Party Reports
-  --+|[c][rbutton][&#x1F497;::PARTY_HEALTH_REPORT[/rbutton]
+  --+|[c][rbutton]&#x1F497;::PARTY_HEALTH_REPORT[/rbutton]
         [rbutton]&#x1F520;::PARTY_RESOURCES_REPORT[/rbutton]
         [rbutton]&#x1F4AC;::PARTY_LANG_REPORT[/rbutton]
         [rbutton]&#x1F4B0;::PARTY_FUNDS_REPORT[/rbutton]

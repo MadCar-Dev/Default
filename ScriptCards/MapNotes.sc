@@ -1,7 +1,7 @@
 !scriptcard {{ 
   --/|Script Name : Map Note Tools
-  --/|Version     : 3.1
-  --/|Requires SC : 1.3.7+, TokenMod, Chatsetattr, gmnotes, SelectManager, SpawnDefaultToken
+  --/|Version     : 4.0
+  --/|Requires SC : 1.4.0+, TokenMod, Chatsetattr, gmnotes, SelectManager, SpawnDefaultToken
   --/|Author      : Will M.
 
   --/|Description : Allows DM to add Site Note Tokens for location based notes
