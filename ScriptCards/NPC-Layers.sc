@@ -59,7 +59,7 @@
 		--:BUILDROW|
 
     --&tbl|+ [tr][td style="width:68%;text-align:left;background-color:#BADFBB;font-size:80%"] 
-    						[b][rbutton][*[&TokenId]:t-name]::FIND_TOKEN;[&TokenId][/rbutton][/b][/td]
+    						[b][img width=30 height=30][*[&TokenId]:t-imgsrc][/img][rbutton][*[&TokenId]:t-name]::FIND_TOKEN;[&TokenId][/rbutton][/b][/td]
         				[td style="width:8%;text-align:center;background-color:#BADFBB;font-size:80%"][rbutton][&ObjMark]::SET_LAYER;[&TokenId]\objects[/rbutton][/td]
         				[td style="width:8%;text-align:center;background-color:#BADFBB;font-size:80%"][rbutton][&GMMark]::SET_LAYER;[&TokenId]\gmlayer[/rbutton][/td]
         				[td style="width:8%;text-align:center;background-color:#BADFBB;font-size:80%"][rbutton][&MapMark]::SET_LAYER;[&TokenId]\map[/rbutton][/td]

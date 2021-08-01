@@ -14,7 +14,6 @@
   --/|            :  * A player can Move an item from a charactersheet they control to one they don't
   --/|            :  * Display compendium info for well-known Potions and such 
 
-
   --#title|Potions & Scrolls
   --#reentrant|Potions
   --:TOP|

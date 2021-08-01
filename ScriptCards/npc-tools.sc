@@ -79,8 +79,8 @@
   --&tStyle|style="width:100%;text-align:left;padding:1px;border-spacing:0px;border-collapse:collapse;text-shadow: 0px 0px 0px black;border: 0px dashed black;"  
   --&trStyle1|style="border:1px dashed black;"
   --&trStyle2|style="border:0px dashed black;"
-  --&tdStyle1|style="width:50%;text-align:left;background-color:[&BColor1];font-size:50%;"
-  --&tdStyle2|style="width:50%;text-align:left;background-color:[&BColor1];font-size:50%;"
+  --&tdStyle1|style="width:60%;text-align:left;background-color:[&BColor1];font-size:50%;"
+  --&tdStyle2|style="width:40%;text-align:left;background-color:[&BColor1];font-size:50%;"
   --&tdStyle3|style="width:100%;background-color:edf7f0;font-size:100%;font-weight:bold;text-align:center;" colspan=2  
   
   --&ObjRows|F --&GMRows|F --&MapRows|F --&WallsRows|F --&OtherRows|F 
@@ -130,7 +130,7 @@
     
     --/|?[$Rng.Text] -eq TO|&TNInfo;[&TNInfo][i] P-[&gTO_ITEM_POS][/i]
 
-    --&t|[tr [&trStyle1]][td [&tdStyle1]] 
+    --&t|[tr [&trStyle1]][td [&tdStyle1]] [img width=30 height=30][*[&TokenId]:t-imgsrc][/img]
           [b][rbutton][*[&TokenId]:t-name]::FIND_TOKEN;[&TokenId][/rbutton][/b][&TNInfo][/td]
           [td [&tdStyle2]]
             [rbutton][&visbtn];::TOGGLE_LAYER;[&TokenId][/rbutton]

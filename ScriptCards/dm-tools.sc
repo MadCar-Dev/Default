@@ -86,7 +86,7 @@
 
     --/| Create a row for each identified character.  Remove the [rbutton] syntax if you don't plan to use the PingToken API functionality
     --&tbl|+ 
-        [tr][td style="width:30%;text-align:left;background-color:#FFFFFF"][b][rbutton][&gSN]::FIND_TOKEN;[&TokenId][/rbutton][/b][/td]
+        [tr][td style="width:30%;text-align:left;background-color:#FFFFFF"][b][img width=30 height=30][*[&TokenId]:t-imgsrc][/img][rbutton][&gSN]::FIND_TOKEN;[&TokenId][/rbutton][/b][/td]
           [td style="width:70%;text-align:right;background-color:#FFFFFF"]
             [rbutton]&#x1F4C3;::CHAR_DETAILS_REPORT;[&CharId]\[&TokenId]\[/rbutton]
             [rbutton]&#x1F3F9;::ATTACKS_REPORT;[&CharId]\[&TokenId]\[/rbutton]
