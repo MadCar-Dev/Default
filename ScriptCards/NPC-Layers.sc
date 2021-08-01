@@ -1,12 +1,14 @@
 !scriptcard {{ 
 
   --/|Script Name : NPC Layers
-  --/|Version     : 4.0
-  --/|Requires SC : 1.3.7+, TokenMod, ping-token
+  --/|Version     : 4.1
+  --/|Requires SC : 1.4.0+, TokenMod, ping-token
   --/|Author      : Will M.
 
   --/|Description : Lists NPCs and lets you quickly toggle them between layers
 
+  --/|Updates     : 4.1 - Added pagetokens prefilter (NPC) to speed up code; 
+  --/|                    Cleaned up formatting
 
   --:TOP|
   --#reentrant|NPCLayerTool  
@@ -21,10 +23,10 @@
   --#hidecard|0    
   --#bodyFontSize|11px
   --#whisper|gm
-  --#debug|1
+  --#debug|0
   --Ssettings|NPCLayers
 
-  --~tokencnt|array;pagetokens;alltokens;@{selected|token_id}
+  --~tokencnt|array;pagetokens;alltokens;@{selected|token_id};npc
   --/|Loop through all of the tokens in "alltokens" 
   --~TokenId|array;getfirst;alltokens
 	--?[&TokenId] -eq ArrayError|ENDLOOP
@@ -35,10 +37,10 @@
     --/+Debug|[*[&TokenId]:t-name], [*[&TokenId]:t-layer], [*[&TokenId]:npc], [*[&TokenId]:t-represents]
 
     --/|Skip targets that are not NPCs
-    --/?[*[&TokenId]:t-layer] -ne objects|CONTINUE
-    --?"[*[&TokenId]:npc]" -ne 1|CONTINUE
-    --?"[*[&TokenId]:t-represents]" -inc "-"|START
-    --^CONTINUE|
+    --/|?[*[&TokenId]:t-layer] -ne objects|CONTINUE
+    --/|?"[*[&TokenId]:npc]" -ne 1|CONTINUE
+    --/|?"[*[&TokenId]:t-represents]" -inc "-"|START
+    --/|^CONTINUE|
 
    --:START|
 

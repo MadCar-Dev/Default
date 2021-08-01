@@ -1,11 +1,15 @@
 !scriptcard {{ 
 
   --/|Script Name : DMTools
-  --/|Version     : 4.0
-  --/|Requires SC : 1.3.7+, TokenMod, NoteLog, Chatsetattr, ping-token
+  --/|Version     : 4.1
+  --/|Requires SC : 1.4.0+, TokenMod, NoteLog, Chatsetattr, ping-token
   --/|Author      : Will M.
 
   --/|Description : A collection of utility functions against party characters
+
+  --/|Updates     : 4.1 - Added pagetokens prefilter (pc) to speed up code; 
+  --/|                    Cleaned up formatting
+  --/|                    Changed TurnorderMacros name to CombatMacros 
 
   --:TOP|
   --#title|DM Tools
@@ -23,7 +27,7 @@
   --#timezone|America/Chicago
   --#bodyFontSize|11px
   --#whisper|gm
-  --#debug|1
+  --#debug|0
   --Ssettings|DMTools
   --:SETTINGS_BOTTOM|
   --#reentrant|DMTools
@@ -35,29 +39,30 @@
 
   --/|  your own macro utilities
   -->SECTION_HEADER|Macros
-  --+|[c][button][&#x1F4CD;](" class="showtip" title="Page Assets Report")::~Mule|Page-Assets[/button]
-         [button][&#x1F4CB;](#" class="showtip" title="Character and Token Info")::~Mule|Menu-Char-Token-Info[/button]
-         [button][&#x1F527;](#" class="showtip" title="Utility Macros")::~Mule|Menu-Utility-Macros[/button]
-         [button][&#x1F6A6;](#" class="showtip" title="Combat Macros")::~Mule|Menu-TurnOrder-Macros[/button]
-         [button][&#x1F3AD;](#" class="showtip" title="Player Macros")::~Mule|Player-Macros[/button]
-         [button][&#x1F310;](#" class="showtip" title="Helpful Web Links")::~Mule|DM-Links[/button]
-         [button][&#x1F39A;](#" class="showtip" title="NPC Layers")::~Mule|NPC-Layers[/button]
-         [button][&#x1F9DB;](#" class="showtip" title="NPC Tools")::~Mule|NPC-Tools[/button]
+  --+|[c][button]&#x1F4CD;::~Mule|Page-Assets[/button]
+         [button]&#x1F4CB;::~Mule|Menu-Char-Token-Info[/button]
+         [button]&#x1F527;::~Mule|Menu-Utility-Macros[/button]
+         [button]&#x2694;::~Mule|Menu-Combat-Macros[/button]
+         [button]&#x1F3AD;::~Mule|Player-Macros[/button]
+         [rbutton]&#x2699;::GLOBAL_NPC_SETTINGS[/rbutton]         
+         [button]&#x1F310;::~Mule|DM-Links[/button]
+         [button]&#x1F39A;::~Mule|NPC-Layers[/button]
+         [button]&#x1F9DB;::~Mule|NPC-Tools[/button]
      [/c]
 
   --/| This is a collection of reports that aggregate party information
   -->SECTION_HEADER|Party Reports
-  --+|[c][rbutton][&#x1F497;](#" class="showtip" title="Party Health Report")::PARTY_HEALTH_REPORT[/rbutton]
-        [rbutton][&#x1F520;](#" class="showtip" title="Party Resources Report")::PARTY_RESOURCES_REPORT[/rbutton]
-        [rbutton][&#x1F4AC;](#" class="showtip" title="Party Languages Report")::PARTY_LANG_REPORT[/rbutton]
-        [rbutton][&#x1F4B0;](#" class="showtip" title="Party Funds Report")::PARTY_FUNDS_REPORT[/rbutton]
-        [rbutton][&#x1F453;](#" class="showtip" title="UDL Lighting Report")::PARTY_UDL_REPORT[/rbutton]
+  --+|[c][rbutton][&#x1F497;::PARTY_HEALTH_REPORT[/rbutton]
+        [rbutton]&#x1F520;::PARTY_RESOURCES_REPORT[/rbutton]
+        [rbutton]&#x1F4AC;::PARTY_LANG_REPORT[/rbutton]
+        [rbutton]&#x1F4B0;::PARTY_FUNDS_REPORT[/rbutton]
+        [rbutton]&#x1F453;::PARTY_UDL_REPORT[/rbutton]
         [/c]
 
   -->SECTION_HEADER|Character Reports
-  --~tokencnt|array;pagetokens;alltokens;@{selected|token_id}
+  --~tokencnt|array;pagetokens;alltokens;@{selected|token_id};pc
   --/|Loop through all of the tokens in "alltokens" 
-  --~TokenId|array;getfirst;alltokens
+  --~TokenId|array;getfirst;alltokens;pc
   --&CharId|[*[&TokenId]:t-represents]
   --?[&TokenId] -eq ArrayError|ENDLOOP
 
@@ -79,28 +84,27 @@
     --?[*[&TokenId]:t-layer] -ne objects|CONTINUE
 
     --/|tokens that are represented by a character sheet and are not NPCs are probably characters
-    --?"[*[&TokenId]:t-represents]" -inc "-" -and "[*[&TokenId]:NPC]" -ne "1"|START
+    --/|?"[*[&TokenId]:t-represents]" -inc "-" -and "[*[&TokenId]:NPC]" -ne "1"|START
+    --?"[*[&TokenId]:t-bar1_value]" -eq "MapNote" |CONTINUE
 
     --/|If you made it this far, the token isn't in the party and we jump to the end of the loop and 
     --/|  advance to the next token
-    --^CONTINUE|
+    --/|CONTINUE|
    --:START|
     --&CharId|[*[&TokenId]:t-represents]
     -->SHORT_NAME|[*[&CharId]:character_name]
 --/+Debug|[&gSN]
 
-    --&gSN|[[&gSN] --&gSN|+]
-
     --/| Create a row for each identified character.  Remove the [rbutton] syntax if you don't plan to use the PingToken API functionality
     --&tbl|+ 
-        [tr][td style="width:30%;text-align:left;background-color:#FFFFFF"][b][rbutton][&gSN](#" class="showtip" title="Ping Character Token")::FIND_TOKEN;[&TokenId][/rbutton][/b][/td]
+        [tr][td style="width:30%;text-align:left;background-color:#FFFFFF"][b][rbutton][&gSN]::FIND_TOKEN;[&TokenId][/rbutton][/b][/td]
           [td style="width:70%;text-align:right;background-color:#FFFFFF"]
-            [rbutton][&#x1F4C3;](#" class="showtip" title="Character Quick Sheet")::CHAR_DETAILS_REPORT;[&CharId]\[&TokenId]\[/rbutton]
-            [rbutton][&#x1F3F9;](#" class="showtip" title="Attacks")::ATTACKS_REPORT;[&CharId]\[&TokenId]\[/rbutton]
-            [rbutton][&#x1F393;](#" class="showtip" title="Features")::FEATURES_REPORT;[&CharId]\[&TokenId]\[/rbutton]
-            [rbutton][&#x1F4AB;](#" class="showtip" title="Spellbook")::SPELLBOOK_REPORT;[&CharId]\[&TokenId]\[/rbutton]
-            [rbutton][&#x1F392;](#" class="showtip" title="Inventory")::INV_REPORT;[&CharId]\[&TokenId]\[/rbutton]
-            [rbutton][&#x1F520;](#" class="showtip" title="Resources")::RESOURCES_REPORT;[&CharId]\[&TokenId]\[/rbutton]
+            [rbutton]&#x1F4C3;::CHAR_DETAILS_REPORT;[&CharId]\[&TokenId]\[/rbutton]
+            [rbutton]&#x1F3F9;::ATTACKS_REPORT;[&CharId]\[&TokenId]\[/rbutton]
+            [rbutton]&#x1F393;::FEATURES_REPORT;[&CharId]\[&TokenId]\[/rbutton]
+            [rbutton]&#x1F4AB;::SPELLBOOK_REPORT;[&CharId]\[&TokenId]\[/rbutton]
+            [rbutton]&#x1F392;::INV_REPORT;[&CharId]\[&TokenId]\[/rbutton]
+            [rbutton]&#x1F520;::RESOURCES_REPORT;[&CharId]\[&TokenId]\[/rbutton]
         [/td][/tr]
         [tr][td colspan=2 style="border-bottom: 1px solid black;width:100%;text-align:left;background-color:#FFFFFF"][rbutton][+]::ADD_QUICK_NOTE;[&CharId][/rbutton][i][*[&CharId]:QuickNote][/i][/td]
 
@@ -1454,4 +1458,138 @@
     --+ERROR|Invalid Setting Name
     --+|[HR]
     --^SETTINGS_BOTTOM|
+  --x|
+
+--/|==================  Global NPC Settings =======================
+--:GLOBAL_NPC_SETTINGS|
+  --#hidecard|0
+
+  -->SECTION_HEADER|Whisper Rolls
+  --+|[c][rbutton]Never::APPLY_NPC_GLOBAL_SETTING;WR_Never[/rbutton]
+         [rbutton]Toggle::APPLY_NPC_GLOBAL_SETTING;WR_Toggle[/rbutton]
+         [rbutton]Query::APPLY_NPC_GLOBAL_SETTING;WR_Query[/rbutton]
+         [rbutton]Always::APPLY_NPC_GLOBAL_SETTING;WR_Always[/rbutton]
+     [/c]
+
+  -->SECTION_HEADER|Roll Queries (Advantage)
+  --+|[c][rbutton]Never::APPLY_NPC_GLOBAL_SETTING;RA_Never[/rbutton]
+         [rbutton]Toggle::APPLY_NPC_GLOBAL_SETTING;RA_Toggle[/rbutton]
+         [rbutton]Query::APPLY_NPC_GLOBAL_SETTING;RA_Query[/rbutton]
+         [rbutton]Always::APPLY_NPC_GLOBAL_SETTING;RA_Always[/rbutton]
+     [/c]
+
+  -->SECTION_HEADER|Automatic Damage Rolls
+  --+|[c][rbutton]On::APPLY_NPC_GLOBAL_SETTING;DT_On[/rbutton]
+         [rbutton]Off::APPLY_NPC_GLOBAL_SETTING;DT_Off[/rbutton]
+     [/c]
+
+  -->SECTION_HEADER|NPC Name in Rolls
+  --+|[c][rbutton]Show::APPLY_NPC_GLOBAL_SETTING;NPCName_Show[/rbutton]
+         [rbutton]Hide::APPLY_NPC_GLOBAL_SETTING;NPCName_Hide[/rbutton]
+         
+     [/c]
+
+  -->SECTION_HEADER|Dex Tiebreaker
+  --+|[c][rbutton]On::APPLY_NPC_GLOBAL_SETTING;DTB_On[/rbutton]
+         [rbutton]Off::APPLY_NPC_GLOBAL_SETTING;DTB_Off[/rbutton]
+     [/c]
+
+  --/>SECTION_HEADER|Configure ChatSetAttr API Script
+  --/+|[c][rbutton]On::APPLY_NPC_GLOBAL_SETTING;Config[/rbutton]
+
+  -->FOOTER_BUTTONS_MAIN|
+  --X|
+
+--<|
+
+--:APPLY_NPC_GLOBAL_SETTING|MODE
+  --&Mode|[&reentryval]
+  --#Title|Apply Global Setting
+  --+|[c][b]Hang on, this may take a minute...[/b][/c]
+
+  --C[&Mode]|WR_Never:WR_NEVER|WR_Always:WR_ALWAYS|WR_Toggle:WR_TOGGLE|WR_Query:WR_QUERY|RA_Never:RA_NEVER|RA_Toggle:RA_TOGGLE|RA_Query:RA_QUERY|RA_Always:RA_ALWAYS|NPCName_Show:NPCNAME_SHOW|NPCName_Hide:NPCNAME_HIDE|DTB_On:DTB_ON|DTB_Off:DTB_OFF|DT_On:DT_ON|DT_Off:DT_OFF|Config:SETATTR_CONFIG
+
+    --/| *|Invalid Option ([&Mode]) in APPLY_NPC_GLOBAL_SETTING
+    --X|
+
+  --:WR_NEVER|
+    --#leftsub|Never Whisper Rolls
+    --@setattr|_allgm _replace _wtype|
+    --X|
+  --:WR_ALWAYS|
+    --#leftsub|Always Whisper Rolls
+    --@setattr|_allgm _replace _wtype|'/w gm '
+    --X|
+  --:WR_TOGGLE|
+    --#leftsub|Toggle Whisper Rolls  
+    --@setattr|_allgm _replace _wtype|\at{whispertoggle}
+    --X|
+  --:WR_QUERY|
+    --#leftsub|Query Whisper Rolls  
+    --@setattr|_allgm _replace _wtype|\ques{Whisper\ques\|Public Roll,\|Whisper Roll,/w gm }
+    --X|
+
+  --:RA_NEVER|
+    --#leftsub|Never Roll Advantage
+    --&P1|{{normal=1}
+    --&P1|+} {{r2=[[0d20
+    --@setattr|_allgm _replace _rtype|[&P1]
+    --X|
+
+  --:RA_TOGGLE|
+    --#leftsub|Toggle Roll Advantage  
+    --@setattr|_allgm _replace _rtype|\at{advantagetoggle}
+    --X|
+
+  --:RA_QUERY|
+    --#leftsub|Query Roll Advantage  
+    --@setattr|_allgm _replace _rtype|\at{queryadvantage}
+    --X|
+
+  --:RA_ALWAYS|
+    --#leftsub|Always Roll Advantage
+    --&P1|{{always=1}
+    --&P1|+} {{r2=[[\at{d20}
+    --@setattr|_allgm _replace _rtype|[&P1]
+
+    --X|
+  --:NPCNAME_SHOW|
+    --#leftsub|Show NPC Name on Roll
+    --&P1|{{charname=\at{npc_name}
+    --&P1|+} --&P1|+}
+
+    --&P2|{{name=\at{npc_name}
+    --&P2|+} --&P2|+}
+
+    --@setattr|_allgm _replace _charname_output|[&P1] _npc_name_flag|[&P2]
+
+    --X|
+  --:NPCNAME_HIDE|
+    --#leftsub|Hide NPC Name on Roll
+    --@setattr|_allgm _replace _npc_name_flag|0 _charname_output|0
+    --X|
+  --:DTB_ON|
+    --#leftsub|Dex Tiebreaker On
+    --@setattr|_allgm _replace _init_tiebreaker|\at{dexterity}/100
+    --X|
+  --:DTB_OFF|
+    --#leftsub|Dex Tiebreaker Off
+    --@setattr|_allgm _replace _init_tiebreaker|0
+    --X|
+
+  --:DT_ON|
+    --#leftsub|Roll Damage Automaticaly
+    --@setattr|_allgm _replace _dtype|full
+    --X|  
+
+  --:DT_OFF|
+    --#leftsub|Do Not Roll Damage Automaticaly
+    --@setattr|_allgm _replace _dtype|pick
+    --X|  
+
+  --:SETATTR_CONFIG|
+    --#leftsub|Configure ChatSetAttr
+    --@setattr-config|
+  --X|
+--<|  
 }}

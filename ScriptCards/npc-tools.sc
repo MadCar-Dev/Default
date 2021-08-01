@@ -1,36 +1,37 @@
 !scriptcard {{ 
 
   --/|Script Name : NPCTools
-  --/|Version     : 4.0
-  --/|Requires SC : 1.3.7+, TokenMod, NoteLog, Chatsetattr, ping-token, gmnote, tokenactions
+  --/|Version     : 4.1
+  --/|Requires SC : 1.4.0+, TokenMod, NoteLog, Chatsetattr, ping-token, gmnote, tokenactions
   --/|Author      : Will M.
 
   --/|Description : A collection of utility functions against NPCs
+
+  --/|Updates     : 4.1 - Added pagetokens prefilter (NPC) to speed up code; 
+  --/|                    Cleaned up formatting
 
   --&reentryval|100
   --:TOP|
   --#reentrant|NPC Tools
   --#title|NPC Tools
-  --#titleCardBackground|#66FF66
-  --#titlecardbackgroundimage| linear-gradient( to bottom, #66FF66, #282828 )  
+  --#titleCardBackground|#095c1f
+  --/|#titlecardbackgroundimage| linear-gradient( to bottom, #66FF66, #282828 )  
 
   --/#oddRowBackground|#9fbfa7  (Old background-color)
 
-  --&FColor1|#66FF66 
+  --&FColor1|#0905f2
+  --&FColor2|#000000
+  --&BColor1|#BADFBB
+  --&BColor2|#BADFBB
 
-  --&FColor1|#f0fff8
-  --&FColor2|#00FF66
-  --&BColor1|#282828
-  --&BColor2|#282828
-
-  --#titlecardbackgroundimage| linear-gradient(to bottom, #f0fff8, #282828 )   
-  --#titlefontsize|2.0em
-  --#titlefontlineheight|1.2em
-  --#titlefontface|Courier
+  --/|#titlecardbackgroundimage| linear-gradient(to bottom, #f0fff8, #282828 )   
+  --#titlefontsize|1.0em
+  --#titlefontlineheight|1.5em
+  --/|#titlefontface|Courier
   --#norollhighlight| 0
   --#hideTitleCard| 0
   --#bodyfontsize| 12px
-  --#bodyfontface|Courier
+  --/|#bodyfontface|Courier
   --#oddrowbackground|[&BColor1]
   --#oddrowfontcolor|[&FColor2]
   --#evenrowbackground|[&BColor1]
@@ -38,12 +39,12 @@
   --#buttonbackground|[&BColor1]
   --#buttontextcolor|[&FColor1]
   --#buttonbordercolor|[&BColor1]
-  --#buttonfontsize|11px
-  --#buttonfontface|Courier
+  --#buttonfontsize|10px
+  --/|#buttonfontface|Courier
 
   --#hidecard|0    
   --#whisper|gm
-  --#debug|1
+  --#debug|0
   --#timezone|America/Chicago
   --#sourceToken|@{selected|token_id}
   --#activepage|[*S:t-_pageid]
@@ -68,7 +69,7 @@
   --+|[c][button]&#x1F4CD;::~Mule|Page-Assets[/button]
          [button]&#x1F4CB;::~Mule|Menu-Char-Token-Info[/button]
          [button]&#x1F527;::~Mule|Menu-Utility-Macros[/button]
-         [button]&#x1F6A6;::~Mule|Menu-TurnOrder-Macros[/button]
+         [button]&#x1FE0F;::~Mule|Menu-Combat-Macros[/button]
          [button]&#x1F3AD;::~Mule|Player-Macros[/button]
          [rbutton]&#x2699;::GLOBAL_NPC_SETTINGS[/rbutton]
          [button]&#x1F310;::~Mule|DM-Links[/button]         
@@ -76,11 +77,12 @@
      [/c]
 
   --&tStyle|style="width:100%;text-align:left;padding:1px;border-spacing:0px;border-collapse:collapse;text-shadow: 0px 0px 0px black;border: 0px dashed black;"  
-  --&trStyle1|style="border:1px dashed [&FColor2];"
+  --&trStyle1|style="border:1px dashed black;"
   --&trStyle2|style="border:0px dashed black;"
-  --&tdStyle1|style="width:50%;text-align:left;background-color:[&BColor1];font-size:50%;color: [&FColor1];text-shadow: 0 0 1px #80ffc0, 0 0 2px #00ff66, 0 0 4px #00ff66, 0 0 8px #00ff66;"
-  --&tdStyle2|style="width:50%;text-align:left;background-color:[&BColor1];font-size:50%;color: [&FColor2];text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;"
-  --&tdStyle3|style="width:100%;background-color:[&BColor2];font-size:100%;color: [&FColor1];font-weight:bold;text-align:center;text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;" colspan=2  
+  --&tdStyle1|style="width:50%;text-align:left;background-color:[&BColor1];font-size:50%;"
+  --&tdStyle2|style="width:50%;text-align:left;background-color:[&BColor1];font-size:50%;"
+  --&tdStyle3|style="width:100%;background-color:edf7f0;font-size:100%;font-weight:bold;text-align:center;" colspan=2  
+  
   --&ObjRows|F --&GMRows|F --&MapRows|F --&WallsRows|F --&OtherRows|F 
   --&OtherTbl| --&ObjTbl| --&GMTbl| --&MapTbl| --&WallsTbl|
 
@@ -94,7 +96,7 @@
     --?[&gTO_ITEM_TYPE] -ne NPC|CONTINUE|START
   --]|[
     --/|Loop through all of the tokens in "AllTokens" 
-    --~tokencnt|array;pagetokens;AllTokens;@{selected|token_id}
+    --~tokencnt|array;pagetokens;AllTokens;@{selected|token_id};npc
     --~TokenId|array;getfirst;AllTokens
     --?[&TokenId] -eq ArrayError|ENDLOOP
   --]|
@@ -110,10 +112,10 @@
 
 
     --/|Skip targets that are not NPCs
-    --/?[*[&TokenId]:t-layer] -ne objects|CONTINUE
-    --?"[*[&TokenId]:npc]" -ne 1|CONTINUE
-    --?"[*[&TokenId]:t-represents]" -inc "-"|START
-    --^CONTINUE|
+    --/|?[*[&TokenId]:t-layer] -ne objects|CONTINUE
+    --/|?"[*[&TokenId]:npc]" -ne 1|CONTINUE
+    --/|?"[*[&TokenId]:t-represents]" -inc "-"|START
+    --/|^CONTINUE|
 
    --:START|
     --&CharId|[*[&TokenId]:t-represents]
@@ -247,9 +249,9 @@
   --&tStyle|style="border:1px solid black;width:100%"
   --&trStyle1|style="background-color:[&BColor1]"
   --&trStyle2|style="background-color:[&BColor1]"
-  --&tdStyle1|style="width:25%;text-align:right;font-weight:bold; color: [&FColor1];text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;"
+  --&tdStyle1|style="width:25%;text-align:right;font-weight:bold; color: [&FColor1];"
   --&tdStyle2|style="width:25%;text-align:left;font-size:smaller; color: [&FColor2]"
-  --&tdStyle3|style="width:25%;text-align:right;font-weight:bold; color: [&FColor1];text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;" 
+  --&tdStyle3|style="width:25%;text-align:right;font-weight:bold; color: [&FColor1];" 
   --&tdStyle4|style="width:25%;text-align:center;font-weight:bold; color: [&FColor2]"
 
   --+|[t [&tStyle]]
@@ -277,9 +279,9 @@
   --&trStyle1|style="background-color:[&BColor1]"
   --&trStyle2|style="background-color:[&BColor1]"
 
-  --&tdStyle1|style="width:35%;text-align:right;vertical-align:top;color: [&FColor1];text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;"
+  --&tdStyle1|style="width:35%;text-align:right;vertical-align:top;color: [&FColor1];"
   --&tdStyle2|style="width:10%;text-align:left;vertical-align:top;color: [&FColor2]"
-  --&tdStyle3|colspan=3 style="width:70%;text-align:left;vertical-align:top;color: [&FColor1];text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;"
+  --&tdStyle3|colspan=3 style="width:70%;text-align:left;vertical-align:top;color: [&FColor1];"
 
   --&tdStyle4|style="width:20%;text-align:right;vertical-align:top;color: [&FColor2]"
   --&tdStyle5|style="width:35%;text-align:left;vertical-align:top;color: [&FColor2]"
@@ -306,9 +308,9 @@
   --&tStyle|style="border:1px solid black;width:100%"
   --&trStyle1|style="background-color:[&BColor1]"
   --&trStyle2|style="background-color:[&BColor1]"
-  --&tdStyle1|style="width:35%;text-align:left;font-weight:bold;color: [&FColor1];text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;"
+  --&tdStyle1|style="width:35%;text-align:left;font-weight:bold;color: [&FColor1];"
   --&tdStyle2|style="width:15%;text-align:center;font-weight:bold;color: [&FColor2]"
-  --&tdStyle3|colspan=4 style="width:100%;text-align:center;color: [&FColor1];text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;"
+  --&tdStyle3|colspan=4 style="width:100%;text-align:center;color: [&FColor1];"
 
   --?"[*[&CharId]:npc_acrobatics_flag]" -ne "0"|&Tmp;[*[&CharId]:npc_acrobatics_base]|&Tmp;[*[&CharId]:acrobatics_bonus] -->ADD_POS_SIGN|[&Tmp] --&AcrobaticsBonus|[&zRET]
   --?"[*[&CharId]:npc_animal_handling_flag]" -ne "0"|&Tmp;[*[&CharId]:npc_animal_handling_base]|&Tmp;[*[&CharId]:animal_handling_bonus] -->ADD_POS_SIGN|[&Tmp] --&AnimalHandlingBonus|[&zRET]
@@ -531,7 +533,7 @@
 
   --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|SB_DONE
   
-  --&STblStyle1|"width:100%;text-align:center;padding:5px;border-spacing:0px;border-collapse:collapse;text-shadow: 1px 1px 3px purple;border: 1px dashed purple;"
+  --&STblStyle1|"width:100%;text-align:center;padding:5px;border-spacing:0px;border-collapse:collapse;border: 1px dashed purple;"  
   
   --&LvlDesc|Cantrip
   --&zLvlSlots|
@@ -624,7 +626,7 @@
    --+|[c][sheetbutton]&#x1F4AB; Cast Spell &#x1F9D9;::[*[&CharId]:character_name]::[&rArgs2]_[*R:xxxActionIDxxxx]_spell[/sheetbutton][/c]
 
   -->DNDBEYOND_SPELL_LINK|[*R:spellname]; D&DBeyond
-  --+|[l][b]Spell Save DC[/b] [*[&CharId]:spell_save_dc][/l][r][&DNDBEYOND_SPELL_BTN[/r]
+  --+|[l][b]Spell Save DC[/b] [*[&CharId]:spell_save_dc][/l][r][&DNDBEYOND_SPELL_BTN][/r]
 
   -->FOOTER_BUTTONS_SECONDARY| Add Top Button to bottom right corner of card
   
@@ -767,9 +769,9 @@
 --<|
 
 --:SECTION_HEADER|Title
-  --&hdrstyle_T|style="width:100%;padding:1px;border-spacing:0px;border-collapse:collapse;text-shadow: 0px 0px 0px [&FColor2];border:1px solid [&FColor2];"
-  --&hdrstyle_TR|style="border:0px solid [&FColor2];"
-  --&hdrstyle_TD|style="width:100%;background-color:[&BColor2];font-size:110%;font-weight:bold;text-align:center;color: [&FColor1];text-shadow: 0 0 2px #80ffc0, 0 0 4px #00ff66, 0 0 8px #00ff66, 0 0 14px #00ff66;"
+  --&hdrstyle_T|style="width:100%;padding:1px;border-spacing:0px;border-collapse:collapse;text-shadow: 0px 0px 0px black;border:1px solid black;"
+  --&hdrstyle_TR|style="border:0px solid black;"
+  --&hdrstyle_TD|style="width:100%;background-color:#edf7f0;font-size:110%;font-weight:bold;text-align:center"
   --+|[t [&hdrstyle_T]][tr [&hdrstyle_TR]][td [&hdrstyle_TD]][c][%1%][/c][/td][/tr][/t]
 --<|
 

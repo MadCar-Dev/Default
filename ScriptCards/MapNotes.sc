@@ -54,7 +54,7 @@
   --#usehollowdice|0
   --#emotestate|off
   --#whisper|gm
-  --#debug|1
+  --#debug|0
   --#timezone|America/Chicago
   --#executionlimit|500000
 
@@ -84,7 +84,7 @@
   --&t|
 
   --~tokencnt|array;pagetokens;AllTokens;@{selected|token_id}
-  --~TokenId|array;getfirst;AllTokens
+  --~TokenId|array;getfirst;AllTokens;char
   --?[&TokenId] -eq ArrayError|ENDLOOP
 
   --:LOOPCHECK|
