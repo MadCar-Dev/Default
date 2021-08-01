@@ -1,0 +1,10 @@
+!script {{
+  --~d|array;pagetokens;darray;@{selected|token_id}
+  --~a|array;pagetokens;aarray;@{selected|token_id};all
+  --~c|array;pagetokens;carray;@{selected|token_id};char
+  --~n|array;pagetokens;narray;@{selected|token_id};npc
+  --~p|array;pagetokens;parray;@{selected|token_id};pc
+  --~g|array;pagetokens;garray;@{selected|token_id};graphic
+  --+|D: [&d], a: [&a], c: [&c], n: [&n], p: [&p], g: [&g]
+  --~|system;dumpvariables;array
+}}
