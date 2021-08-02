@@ -18,8 +18,6 @@
   --/| 									I will need to adjust this code to utilize the one-click version that was recently
   --/| 									updated with the same functionality.
   
-	--&ASName|Fey Spirit(Eliza)
-
   --:TOP|
   --#reentrant|SpawnSpirtFey
   --#title|Spawn Spirit Fey
@@ -39,6 +37,8 @@
   --#rightsub|
 
 --/|======== Query User for Needed info ==================
+
+	--&TN|@{selected|character_name}
 
 --/| spawn a generic spirit fey next to the selected user
 	-->SPAWN_FEY_SPIRIT|
@@ -193,9 +193,17 @@
 --+HP|[$HP] (30 + (Spell-level - 3) x 10)
 --+Shortsword Damage|1d6 + 3 + [$Spell_Level] [piercing] and 1d6 [force]
 
+--&Note|@{Selected|character_name} spawned a level [$Spell_Level] [&Mood] Fey Spirit
+-->LOG_NOTE|[&Note]
+
 --X|
 --:TOKEN_NOT_FOUND|
 	--+|Spirit Fey Token not found, unable to configure 
 --X|
+
+--:LOG_NOTE|Text to log
+  --~DT|system;date;getdatetime
+  --@note-log|[&DT]: [%1%]
+--<|
 
 }}
