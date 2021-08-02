@@ -140,10 +140,10 @@
             [rbutton]&#x2623;::GMNOTE;[&TokenId]\Bio[/rbutton]
             [&DNDBEYOND_MONSTER_BTN]
             [rbutton]&#x1F4F7;::GMNOTE;[&TokenId]\Images[/rbutton]
-            [rbutton]&#x1F4BB;::ADD_TOKEN_ACTIONS;[&TokenId][/rbutton]
+            [rbutton]&#x1F469;&#x1F3FD;&#x200D;&#x1F4BB;::ADD_TOKEN_ACTIONS;[&TokenId][/rbutton]
             [rbutton]&#x1F6A6;::ADD_TURNORDER;[&TokenId][/rbutton]
-            [rbutton]&#x1F518;::ADD_AURA;[&TokenId]\1[/rbutton]
-            [rbutton]&#x1F7E1;::ADD_AURA;[&TokenId]\0[/rbutton]
+            [rbutton]&#x1F7E2;::ADD_AURA;[&TokenId]\1[/rbutton]
+            [rbutton]&#x1F7E8;::ADD_AURA;[&TokenId]\0[/rbutton]
           [/td][/tr]
         
     --C[*[&TokenId]:t-layer]|objects:OBJECTS|gmlayer:GM|map:MAP|walls:WALLS
@@ -411,14 +411,13 @@
   --?[&ShowPlayers] -eq 1|[
     --&Aura|1
     --&Radius|5
-
   --]|[
     --&Aura|2
-    --&Radius|8
-  --]
+    --&Radius|5
+  --]|
 
 
-  --*AA1|[&ShowPlayers]/[&Aura]/[&Radius] [*[&TokenId]:t-aura[&Aura]_radius] [*[&TokenId]:t-aura[&Aura]_color]
+  --/|*AA1|[&ShowPlayers]/[&Aura]/[&Radius] [*[&TokenId]:t-aura[&Aura]_radius] [*[&TokenId]:t-aura[&Aura]_color]
 
   --?[*[&TokenId]:t-aura[&Aura]_radius] -gt 1|ADD_AURA_ROTATE_COLORS
     --&Color|[&Color1]
@@ -429,7 +428,7 @@
     --?[*[&TokenId]:t-aura[&Aura]_color] -eq [&Color3]|&Radius;0
   --:ADD_AURA_APPLY|
 
-  --*AA2|[&Radius] [&Color]
+  --/|*AA2|[&Radius] [&Color]
 
   --?[&Radius] -ne 0|ADD_AURA_RADIUS_ON|ADD_AURA_RADIUS_OFF
   --:ADD_AURA_RADIUS_ON|
