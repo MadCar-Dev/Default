@@ -228,8 +228,8 @@
 --+AC:|[$AC] (11 + Spell-level)
 --+HP:|[$HP] (40 + (Spell-level - 4) x 10)
 
---&LogMsg|[*S:t-name] summons a level [&Spell_Level] [&Type] aberration.
--->LOG|[&LogMsg]
+--&Note|[*S:t-name] summons a level [&Spell_Level] [&Type] aberration.
+-->LOG_NOTE|[&Note]
 
 --X|
 
@@ -237,7 +237,7 @@
 	--+|Aberration Token not found, unable to configure 
 --X|
 
---:LOG|Text to log
+--:LOG_NOTE|Text to log
   --~DT|system;date;getdatetime
   --@note-log|[&DT]: [%1%]
 --<|
