@@ -1,11 +1,11 @@
 !script {{  
   --/|Script Name : Dawnbringer
-  --/|Version     : 1.0
+  --/|Version     : 1.1
   --/|Requires SC : 1.3.7+, TokenMod, NoteLog
   --/|Author      : Will M.
 
   --/|Description : Implements the effects of Dawnbringer sword
-
+  --/|Updates     : 1.1 - Improved look of Light Aura by using combination of Aura1 and bright/low light radius
 
   --#title|Dawnbringer
   --#reentrant|Dawnbringer
@@ -69,7 +69,7 @@
   --/| 2) Need to adjust token light settings
   --:ACTIVATE|Bonus Action
     --#hidecard|1
-    --/|@token-mod|_on showplayers_aura1 showplayers_aura2 emits_bright_light emits_low_light _set aura1_radius|15 aura1_color|#FAFCDC aura2_radius|30 aura2_color|#FBFCEF bright_light_distance#15 low_light_distance#15
+    --@token-mod|_on showplayers_aura1 _set aura1_radius|15 aura1_color|#f1c232 
     --@token-mod|_on emits_bright_light emits_low_light _set bright_light_distance#15 low_light_distance#15
     --&LogMsg|[*S:t-name] activates Dawnbringer
     -->LOG|[&LogMsg]
@@ -92,7 +92,7 @@
     --&TokenId|[&reentryval]
     --&Radius|[*[&TokenId]:t-bright_light_distance]
     --?[&Radius] -ge 30|INC_DONE
-      --/|@token-mod|_set aura1_radius|+5 aura2_radius|+10 bright_light_distance|+5 low_light_distance|+5
+      --@token-mod|_set aura1_radius|+5 
       --@token-mod|_set bright_light_distance|+5 low_light_distance|+5
     --:INC_DONE|
   --X|
@@ -102,7 +102,7 @@
     --&TokenId|[&reentryval]
     --&Radius|[*[&TokenId]:t-bright_light_distance]
     --?[&Radius] -le 10|DEC_DONE
-        --/|@token-mod|_set aura1_radius|-5 aura2_radius|-10 bright_light_distance|-5 low_light_distance|-5
+        --@token-mod|_set aura1_radius|-5 
         --@token-mod|_set bright_light_distance|-5 low_light_distance|-5
     --:DEC_DONE|
   --X|
@@ -120,7 +120,6 @@
   --:SHOW|Action
     --#hidecard|1
     --@token-mod|_on showplayers_aura1 showplayers_aura2 _set aura1_color|#FAFCDC aura2_color|#FBFCEF
-
   --X|
 
   --:LESSER_RESTORATION|Action
