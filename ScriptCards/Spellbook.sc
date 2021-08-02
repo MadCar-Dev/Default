@@ -5,7 +5,7 @@
   --/|Author      : Will M.
 
   --/|Description : Spellbook utility, allows user to see prepared spells, remaining slots, 
-  --/|						  spell details, and even cast some spells
+  --/|              spell details, and even cast some spells
 
   --#reentrant|Spellbook
   --#titlefontsize|1.2em
@@ -54,48 +54,48 @@
   --Rfirst|@{selected|character_id};repeating_spell-[&zLvl]
 
   --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|Done
-	
-	--&STblStyle1|"width:100%;text-align:center;padding:5px;border-spacing:0px;border-collapse:collapse;text-shadow: 1px 1px 3px purple;border: 1px dashed purple;"
-	
-	--&LvlDesc|Cantrip
-	--&zLvlSlots|
+  
+  --&STblStyle1|"width:100%;text-align:center;padding:5px;border-spacing:0px;border-collapse:collapse;text-shadow: 1px 1px 3px purple;border: 1px dashed purple;"
+  
+  --&LvlDesc|Cantrip
+  --&zLvlSlots|
 
-	--?[&zLvl] -eq cantrip|SKIPCANTRIP
-		--&LvlDesc|Level [&zLvl]
-		--=SlotsTotal|[*S:lvl[&zLvl]_slots_total]
-		--=SlotsExpended|[*S:lvl[&zLvl]_slots_expended]
-		--&zLvlSlots|Slots [b][$SlotsExpended.Total][/b] of [b][$SlotsTotal.Total][/b] remaining
-	--:SKIPCANTRIP|
+  --?[&zLvl] -eq cantrip|SKIPCANTRIP
+    --&LvlDesc|Level [&zLvl]
+    --=SlotsTotal|[*S:lvl[&zLvl]_slots_total]
+    --=SlotsExpended|[*S:lvl[&zLvl]_slots_expended]
+    --&zLvlSlots|Slots [b][$SlotsExpended.Total][/b] of [b][$SlotsTotal.Total][/b] remaining
+  --:SKIPCANTRIP|
 
-	--&STbl|[t style=[&STblStyle1]][tr][td][&LvlDesc][/td][td][&zLvlSlots][/td][/tr][/t]
-	--+|[&STbl]
+  --&STbl|[t style=[&STblStyle1]][tr][td][&LvlDesc][/td][td][&zLvlSlots][/td][/tr][/t]
+  --+|[&STbl]
 
   --:DisplayLoop|
     --?"[*R:spellname]" -eq NoRepeatingAttributeLoaded|Done
 
-			--&zRIT|[r]
-			--?"[*R:spellritual]" -inc "Yes"|ENDRIT
-				--&zRIT|
-			--:ENDRIT|
+      --&zRIT|[r]
+      --?"[*R:spellritual]" -inc "Yes"|ENDRIT
+        --&zRIT|
+      --:ENDRIT|
 
-			--&zCON|[c]
-			--?"[*R:spellconcentration]" -inc "concentration=1"|ENDCON
-				--&zCON|
-			--:ENDCON| 
+      --&zCON|[c]
+      --?"[*R:spellconcentration]" -inc "concentration=1"|ENDCON
+        --&zCON|
+      --:ENDCON| 
 
-    	--?[&zLvl] -eq cantrip -or [*R:spellprepared] -eq 1|PREPARED
+      --?[&zLvl] -eq cantrip -or [*R:spellprepared] -eq 1|PREPARED
 
-				--+|⬜️[rbutton]🔎[*R:spellname]::SPELLDETAILS;[*R:spellname]\repeating_spell-[&zLvl]\spellname[/rbutton] [i][*R:innate] [&zCON][&zRIT][/i]
+        --+|⬜️[rbutton]🔎[*R:spellname]::SPELLDETAILS;[*R:spellname]\repeating_spell-[&zLvl]\spellname[/rbutton] [i][*R:innate] [&zCON][&zRIT][/i]
 
-			--^ENDIF-1|
+      --^ENDIF-1|
 
-   		--:PREPARED|
-				
-				--+|✅[rbutton]🔎[*R:spellname]::SPELLDETAILS;[*R:spellname]\repeating_spell-[&zLvl]\spellname[/rbutton] [i][*R:innate] [&zCON][&zRIT][/i]
+      --:PREPARED|
+        
+        --+|✅[rbutton]🔎[*R:spellname]::SPELLDETAILS;[*R:spellname]\repeating_spell-[&zLvl]\spellname[/rbutton] [i][*R:innate] [&zCON][&zRIT][/i]
 
-			--:ENDIF-1|
+      --:ENDIF-1|
 
-  	--Rnext|
+    --Rnext|
 
   -->DisplayLoop|  
 
@@ -104,12 +104,12 @@
 
 --:SPELLDETAILS|
 
-	--/+ReEntryVal|[&reentryval]
-	--~rArgs|string;split;\;[&reentryval]
-	--/+Split|[&rArgs]: [&rArgs1], [&rArgs2], [&rArgs3]
+  --/+ReEntryVal|[&reentryval]
+  --~rArgs|string;split;\;[&reentryval]
+  --/+Split|[&rArgs]: [&rArgs1], [&rArgs2], [&rArgs3]
 
-	--Rfind|@{selected|character_id};[&rArgs1];[&rArgs2];[&rArgs3]
-	--Rdump|
+  --Rfind|@{selected|character_id};[&rArgs1];[&rArgs2];[&rArgs3]
+  --Rdump|
 
   --#title|[*R:spellname]  [*R:innate]
   --#leftsub|@{selected|character_name} (@{selected|caster_level})
@@ -117,47 +117,47 @@
   --#oddRowBackground|#eeeeee
   --#evenRowBackground|#ffffff
 
-	--+Casting Time:|[*R:spellcastingtime]
-	--+Range:|[*R:spellrange]
-	--+Target:|[*R:spelltarget]
+  --+Casting Time:|[*R:spellcastingtime]
+  --+Range:|[*R:spellrange]
+  --+Target:|[*R:spelltarget]
 
-	--&zSCV|V
-	--?"[*R:spellcomp_v]" -inc "v=1"|ENDSCV
-		--&zSCV|
-	--:ENDSCV|
+  --&zSCV|V
+  --?"[*R:spellcomp_v]" -inc "v=1"|ENDSCV
+    --&zSCV|
+  --:ENDSCV|
 
-	--&zSCS|S
-	--?"[*R:spellcomp_s]" -inc "s=1"|ENDSCS
-		--&zSCS|
-	--:ENDSCS|
+  --&zSCS|S
+  --?"[*R:spellcomp_s]" -inc "s=1"|ENDSCS
+    --&zSCS|
+  --:ENDSCS|
 
-	--&zSCM|M
-	--?"[*R:spellcomp_m]" -inc "m=1"|ENDSCM
-		--&zSCM|
-	--:ENDSCM|
+  --&zSCM|M
+  --?"[*R:spellcomp_m]" -inc "m=1"|ENDSCM
+    --&zSCM|
+  --:ENDSCM|
 
-	--+Components:|[&zSCV][&zSCS][&zSCM] [i]([*R:spellcomp_materials])[/i]
-	
-	--+Duration:|[*R:spellduration]
-	
-	--+|[*R:spelldescription]
-	
-	--~Len|string;length;[*R:spellathigherlevels]
-	--?[$Len] -le 5|END_HV_CHECK
-		--+|[b][i]At Higher Levels.[/i][/b][*R:spellathigherlevels]
-	--:END_HV_CHECK|
-	
-	--+|[c][sheetbutton]💫 Cast Spell 🧙::@{selected|character_name}::[&rArgs2]_[*R:xxxActionIDxxxx]_spell[/sheetbutton][/c]
-	
-	--+|[c][b]Spell Save DC[/b] @{selected|spell_save_dc}[/c]
+  --+Components:|[&zSCV][&zSCS][&zSCM] [i]([*R:spellcomp_materials])[/i]
+  
+  --+Duration:|[*R:spellduration]
+  
+  --+|[*R:spelldescription]
+  
+  --~Len|string;length;[*R:spellathigherlevels]
+  --?[$Len] -le 5|END_HV_CHECK
+    --+|[b][i]At Higher Levels.[/i][/b][*R:spellathigherlevels]
+  --:END_HV_CHECK|
+  
+  --+|[c][sheetbutton]💫 Cast Spell 🧙::@{selected|character_name}::[&rArgs2]_[*R:xxxActionIDxxxx]_spell[/sheetbutton][/c]
+  
+  --+|[c][b]Spell Save DC[/b] @{selected|spell_save_dc}[/c]
 
-	--X|
+  --X|
 --<|
 
 --:PREPARESPELL|
   --#title|Prepare Spell Toggle
-	--+NOT YET SUPPORTED|
-	--X|
+  --+NOT YET SUPPORTED|
+  --X|
 --<|
 
 }}
