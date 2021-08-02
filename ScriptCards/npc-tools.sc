@@ -397,7 +397,7 @@
   --@token-mod|_set bar3_value|"[&QN]" _ids [&TokenId] _ignore-selected
 --X|
 
---:ADD_AURA|TokenId, ShowPlayers
+--:ADD_AURA|TokenId, ShowPlayers(1 is on, 2 is off)
   --#hidecard|1
   --~Arg|string;split;\;[&reentryval]
   --&TokenId|[&Arg1]
@@ -407,30 +407,36 @@
   --&Color2|#66ff66
   --&Color3|#cc0000
   --&Color|[&Color1]
-
-  --&SP|_off showplayers_aura1
-  --?[&ShowPlayers] -eq 1|&SP;_on showplayers_aura1
-
-  --/|*AA1|[*[&TokenId]:t-aura1_radius] [*[&TokenId]:t-aura1_color]
-
-  --?[*[&TokenId]:t-aura1_radius] -eq 5|ADD_AURA_ROTATE_COLORS
+ 
+  --?[&ShowPlayers] -eq 1|[
+    --&Aura|1
     --&Radius|5
+
+  --]|[
+    --&Aura|2
+    --&Radius|8
+  --]
+
+
+  --*AA1|[&ShowPlayers]/[&Aura]/[&Radius] [*[&TokenId]:t-aura[&Aura]_radius] [*[&TokenId]:t-aura[&Aura]_color]
+
+  --?[*[&TokenId]:t-aura[&Aura]_radius] -gt 1|ADD_AURA_ROTATE_COLORS
     --&Color|[&Color1]
     --^ADD_AURA_APPLY|
   --:ADD_AURA_ROTATE_COLORS|
-    --?[*[&TokenId]:t-aura1_color] -eq [&Color1]|&Color;[&Color2]
-    --?[*[&TokenId]:t-aura1_color] -eq [&Color2]|&Color;[&Color3]
-    --?[*[&TokenId]:t-aura1_color] -eq [&Color3]|&Radius;0
+    --?[*[&TokenId]:t-aura[&Aura]_color] -eq [&Color1]|&Color;[&Color2]
+    --?[*[&TokenId]:t-aura[&Aura]_color] -eq [&Color2]|&Color;[&Color3]
+    --?[*[&TokenId]:t-aura[&Aura]_color] -eq [&Color3]|&Radius;0
   --:ADD_AURA_APPLY|
 
-  --/|*AA2|[&Radius] [&Color]
+  --*AA2|[&Radius] [&Color]
 
-  --?[&Radius] -eq 5|ADD_AURA_RADIUS_ON|ADD_AURA_RADIUS_OFF
+  --?[&Radius] -ne 0|ADD_AURA_RADIUS_ON|ADD_AURA_RADIUS_OFF
   --:ADD_AURA_RADIUS_ON|
-    --@token-mod|_set aura1_radius|[&Radius] aura1_color|[&Color] [&SP]  _ids [&TokenId] _ignore-selected
+    --@token-mod|_set aura[&Aura]_radius|[&Radius] aura[&Aura]_color|[&Color] _on showplayers_aura1 aura2_square _off showplayers_aura2 aura1_square _ids [&TokenId] _ignore-selected
     --X|
   --:ADD_AURA_RADIUS_OFF|
-    --@token-mod|_set aura1_radius| aura1_color|[&Color] [&SP] _ids [&TokenId] _ignore-selected
+    --@token-mod|_set aura[&Aura]_radius|  _on showplayers_aura1 aura2_square _off showplayers_aura2 aura1_square _ids [&TokenId] _ignore-selected
 --X|
 
 --/|==================  NPC Features/Actions Report =======================
