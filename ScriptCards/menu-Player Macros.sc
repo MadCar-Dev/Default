@@ -7,7 +7,7 @@
 
   --/|Description : A quick menu system agregating a number of useful player facing macros
   --/|              gmsheet, set status/condition, Enlarge/Reduce, Wild magic, rest, healing, party funds, spell templates
-  --/|Updates     : 4.1 - Added Potions/Scrolls report
+  --/|Updates     : 4.1 - Added Potions/Scrolls report, AFK
 
 
   --#title|Player Macros
@@ -26,6 +26,7 @@
   --Ssettings|Player Macro Tools
 
   --+|[rbutton]🕵::LIST_PLAYERS[/Rbutton] Find My Friends
+  --+|[b][button]AFK::~Mule|AFK[/button][/b] Away from Keyboard (Toggle)  
 
   --+|[button]📜::~Mule|GMSheet[/button] See Character [b]Cheat-Sheet[/b]
   --+|[button]😇::~Mule|Markers-Set-Status[/button] Set Status/Condition
