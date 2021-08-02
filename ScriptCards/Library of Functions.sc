@@ -22,7 +22,7 @@
   --X|
 --<|
 
---:LOG|debug level;hdr;msg
+--:DEBUG_LOG|debug level;hdr;msg
   --\|debug level is used to show more or less debug messages.  1 is high level, 2 is detailed ...
   --*[%1%]|[%2%]; [%3%]
   
@@ -89,3 +89,8 @@
 --:CDM_ISVULNERABLE| --&[%1%]| * 2 [Vulnerable] --/|*[Vulnerable] to [%2%] --<|
 --:CDM_ISRESISTANT| --&[%1%]| \ 2 [Resistant] --/|*[Resistant] to [%2%] --<|
 --:CDM_ISIMMUNE| --&[%1%]| * 0 [Immune] --/|*[Immune] to [%2%] --<|
+
+--:LOG_NOTE|Text to log
+  --~DT|system;date;getdatetime
+  --@note-log|[&DT]: [%1%]
+--<|
