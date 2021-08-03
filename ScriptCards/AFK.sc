@@ -18,6 +18,7 @@
   --#titleCardBackground|[&SendingPlayerColor]
   --#debug|1
 
+  --/| Name of Status Marker for indicating AFK
   --&AFK|AFK
 
   --/|Loop through all of the status markers on the targetted token 
@@ -36,13 +37,13 @@
     --^LOOPTOP|
     --:ENDLOOP| Not AFK
       --#title|AFK
-    	--@token-mod|_set statusmarkers|[&AFK] _ids @{selected|token_id} _ignore-selected
-    	--/|+|[c]@{selected|character_name} is now [b]"Away From Keyboard"[/b][/c]
-    	--X|
+      --@token-mod|_set statusmarkers|[&AFK] _ids @{selected|token_id} _ignore-selected
+      --/|+|[c]@{selected|character_name} is now [b]"Away From Keyboard"[/b][/c]
+      --X|
     --:AFK_ON|
       --#title|Back
-    	--@token-mod|_set statusmarkers|-[&AFK] _ids @{selected|token_id} _ignore-selected
-    	--/|+|[c]@{selected|character_name} is [b]back[/b][/c]    	
-			--X|
+      --@token-mod|_set statusmarkers|-[&AFK] _ids @{selected|token_id} _ignore-selected
+      --/|+|[c]@{selected|character_name} is [b]back[/b][/c]      
+  --X|
 
 }}
