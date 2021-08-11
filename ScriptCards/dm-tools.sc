@@ -429,7 +429,6 @@
 --/|==================  Party Health Report =======================
 --:PARTY_HEALTH_REPORT| (PH_)
   --#hidecard|0
-    
   --#title|Party Health
   --#leftsub|
   --#rightsub|
@@ -454,6 +453,7 @@
     --?"[*[&TokenId]:t-represents]" -ninc "-"|PH_CONTINUE
     --?"[*[&TokenId]:npc]" -eq 1|PH_CONTINUE
 
+    --/| Get a short 8 character version of their name to keep the cell from wrapping and report clean
     --&CID|[*[&TokenId]:t-represents]
     -->SHORT_NAME|[*[&CID]:character_name]
 

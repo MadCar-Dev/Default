@@ -355,8 +355,6 @@
 --<|
 
 --:ROLL20_ITEM_LINK|ITEM NAME
-  --/|Format is https://app.roll20.net/compendium/dnd5e/item name
-  --/| ~MN|string;replaceall; ;-;[%1%]
   --&zROLL20_MagicItem_Link|https://app.roll20.net/compendium/dnd5e/[%1%]
 --<|
 

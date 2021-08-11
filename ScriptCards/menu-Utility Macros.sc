@@ -8,6 +8,7 @@
   --/|Description : A quick menu system agregating a number of useful utility functions
   --/|              Aura, Format Utility, Health, Madness, Lighting, Underdark, 
 
+  --#reentrant|UtilityMacros
   --#title|Utility/Information Macros
   --#titleCardBackground|#932729
   --#titlefontface|Patrick Hand
@@ -16,7 +17,7 @@
   --#oddRowBackground|#FFFFFF
   --#evenRowBackground|#FFFFFF
   --#buttonbackground|#FFFFFF
-  --#buttontextcolor|#FFFFFF
+  --#buttontextcolor|Dark Blue
   --#buttonbordercolor|#FFFFFF
   --#bodyFontSize|11px
   --#debug|0
@@ -24,7 +25,7 @@
   --Ssettings|General Macro Tools
 
   --+[c][#C43112] Macro Setup [/#][/c]|
-  --+|[button]🌈::~Mule|Aura[/button] Health Aura
+  --+|[b][rbutton]On::BB;1[/rbutton]/[rbutton]OFF::BB;0[/rbutton][/b] Big Brother
   --+|[button]💓::~Mule|API-HB-On[/button][button]☠️::~Mule|API-HB-Off[/button][button]🚀::~Mule|API-HB-Dev[/button] API Heartbeat On/Off/Dev
   --+|[button]🎰::~Mule|SC-Format-Utility[/button] Scriptcard Format Utility
   --+[c][#C43112]❤️ Health Status ❤️[/#][/c]|
@@ -43,5 +44,11 @@
   --+[c][#C43112] Underdark Tables [/#][/c]|
   --+|[button]🍄::~Mule|OOTA-Fungi-of-the-Underdark[/button][button]🗺️::~Mule|OOTA-Underdark-Travel[/button][button]🏃‍♂::~Mule|OOTA-Drow-Pursuit[/button] Fungi/Travel/Pursuit
   --+|[button]📜::~Mule|Z-SM-Supplemental-Tables[/button] Miscellaneous
+
+--x|
+--:BB|Mode
+  --#hidecard|1
+  --@bb|[&reentryval]
+  --x|
 
 }}
