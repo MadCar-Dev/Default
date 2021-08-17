@@ -432,7 +432,7 @@
   --#title|Party Health
   --#leftsub|
   --#rightsub|
-  --#oddRowBackground|#d8d8e6
+  --#oddRowBackground|#ffffff
   --#evenRowBackground|#ffffff
 
   --~tokencnt|array;pagetokens;alltokens;@{selected|token_id}
@@ -457,7 +457,22 @@
     --&CID|[*[&TokenId]:t-represents]
     -->SHORT_NAME|[*[&CID]:character_name]
 
-    --&tbl|+ [tr][td style="width:20%;text-align:left"][b][&gSN][/b][/td][td style="width:15%;text-align:center"][*[&CID]:ac][/td][td style="width:15%;text-align:center"][*[&CID]:passive_wisdom][/td][td style="width:30%;text-align:center"][*[&CID]:hp] / [*[&CID]:hp^][/td][td style="width:20%;text-align:center"][*[&CID]:madness_level][/td] [/tr]
+    --=pct|[*[&CID]:hp] / [*[&CID]:hp^] * 100 
+    --~pct|math;round;[$pct]
+
+    --?[$pct] -gt 80|&HC;#145A32
+    --?[$pct] -lt 80|&HC;#F9E79F
+    --?[$pct] -lt 60|&HC;#F5B041
+    --?[$pct] -lt 40|&HC;#D35400
+    --?[$pct] -lt 20|&HC;#C0392B 
+    --?[$pct] -le 0|&HC;#641E16
+
+
+    --&tbl|+ [tr][td style="width:20%;text-align:left;color:[&HC]"][b][&gSN][/b][/td]
+                 [td style="width:15%;text-align:center;color:[&HC]"][b][*[&CID]:ac][/b][/td]
+                 [td style="width:15%;text-align:center;color:[&HC]"][b][*[&CID]:passive_wisdom][/b][/td]
+                 [td style="width:30%;text-align:center;color:[&HC]"][b][*[&CID]:hp] / [*[&CID]:hp^] ([$pct.Raw]%)[/b][/td]
+                 [td style="width:20%;text-align:center;color:[&HC]"][b][*[&CID]:madness_level][/b][/td] [/tr]
 
     --:PH_CONTINUE|
     --~TokenId|array;getnext;alltokens
