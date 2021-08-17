@@ -10,6 +10,8 @@
   --/|Known Issues: When updating the list of notes due to a change in the name or type, it may not represent the new name/type in the list.
   --/|              This is due to a timing issue between calls to TokenMod and Reading the token data.  Just refresh again to see the change. 
 
+  --/|Future Update: Convert Token to MapNote.  Many times there already exist a numbered token on maps.  Just need to call tokenmod to configure it appropriately.
+
   --/|Setup: 
   --/| 1 - A new Character Sheet named MapNote
   --/| 2 - Create a rollable token table with 9 different tokens images
@@ -33,7 +35,7 @@
   --&FColor1|#FFCC00 
   --&FColor2|#FFB000
   --&BColor1|#282828
-  --&BColor2|#282828
+  --&BColor2|#3A3B3C
   --#titlecardbackgroundimage| linear-gradient( to bottom, #FFB000, #282828 )  
   --#titlefontsize|2.0em
   --#titlefontlineheight|1.2em
@@ -78,8 +80,8 @@
   --&tStyle|style="width:100%;text-align:left;padding:1px;border-spacing:0px;border-collapse:collapse;text-shadow: 0px 0px 0px [&BColor1];border: 0px dashed [&BColor1];"
   --&trStyle1|style="border:1px dashed [&FColor2];"
   --&trStyle2|style="border:0px dashed [&BColor1];"
-  --&tdStyle1|style="width:50%;text-align:left;background-color:#282828;font-size:100%"
-  --&tdStyle2|style="width:50%;text-align:left;background-color:#282828;font-size:100%"
+  --&tdStyle1|style="width:60%;text-align:left;background-color:#282828;font-size:100%"
+  --&tdStyle2|style="width:40%;text-align:left;background-color:#282828;font-size:100%"
   --&tdStyle3|style="width:100%;background-color:[&BColor1];font-size:100%;font-weight:bold;text-align:center" colspan=2  
   --&t|
 
@@ -95,8 +97,8 @@
 
     --&TNInfo|[br][rbutton][+]::ADD_QUICK_NOTE;[&TokenId][/rbutton][*[&TokenId]:t-bar3_value]
     
-    --&t|+ [tr [&trStyle1]][td [&tdStyle1]] 
-           [b][rbutton][*[&TokenId]:t-name]([*[&TokenId]:t-bar2_value])::FIND_TOKEN;[&TokenId][/rbutton][/b][&TNInfo][/td]
+    --&t|+ [tr [&trStyle1]][td [&tdStyle1]][rbutton][img width=30 height=30][*[&TokenId]:t-imgsrc][/img] 
+           [b][*[&TokenId]:t-name]([*[&TokenId]:t-bar2_value])::FIND_TOKEN;[&TokenId][/rbutton][/b][/td]
            [td [&tdStyle2]]
             [rbutton]Read::GMNOTE;[&TokenId]\Token[/rbutton]
             [rbutton]Name::CHANGE_NOTE_NAME;[&TokenId][/rbutton]
@@ -290,12 +292,90 @@
 --<|
 
 --:FOOTER_BUTTONS_MAIN|
-    --+|[l][rbutton]+MapNote::~Mule|SPAWN_MAPNOTE[/rbutton][/l]
+    --+|[l][rbutton]+MN::SPAWN_MAPNOTE[/rbutton]
+           [rbutton]Cvt::CONVERT_TOKEN_2_MAPNOTE[/rbutton] [/l]
             [r][button]MapNotes::~Mule|MapNote-Tools[/button]
             [button]NPC::~Mule|NPC-Tools[/button]
             [button]DM::~Mule|DM-Tools[/button]
             [/r]
 --<|
+
+--:CONVERT_TOKEN_2_MAPNOTE|
+  --\|Purpose: Converts an existing Token to the MapNote format:
+  --\|  * bar1_value:MapNote
+  --\|  * bar2_value:Type (Site, Info, ...)
+  --\|  * Name - MapNote Name?
+  --\|First - Ask "Currently selected token?" or "Select a diff Token?"
+  --&TN|[*S:t-name]
+  --&TokenId|[*S:t-id]
+  --#Title|Convert Token
+  --#buttonbackground|[&BColor2]
+  --#buttonbordercolor|[&FColor1]
+  
+  --+|[c][img width=100][*[&TokenId]:t-imgsrc][/img][/c] 
+  --&CharId|[*[&TokenId]:t-represents]
+  --+|[c][b][*[&TokenId]:t-name] / [*[&CharId]:character_name][/b][/c]
+  --+|[br][hr][br]
+
+  --+|[c][rbutton]Selected Token ([&TN])?::CT2MN_CONVERT;[&TokenId][/rbutton][/c]
+  --+|[br]
+  --+|[c]- OR -[/c]
+  --+|[br]
+  --+|[c][rbutton]Other Token::CT2MN_SELECT[/rbutton][/c]
+  --+|[br]
+  --+|[c]- OR -[/c]
+  --+|[br]
+  --+|[c][rbutton]Cancel::CT2MN_CANCEL[/rbutton][/c]
+
+  --X|
+
+
+  --\| *** Select a different token ***
+  --:CT2MN_SELECT|
+  --I Select the token you wish to convert to a MapNote;Token|t;TokenId;Select token to convert to a MapNote
+
+  --\| Select a different token
+  --?"[*[&TokenId]:t-represents]" -inc "-"|[
+    --#Title|Select Token
+    --&CharId|[*[&TokenId]:t-represents]
+    --+|[b]Selected Token ([*[&TokenId]:t-name] / [*[&CharId]:character_name]) is tied to a character sheet, are you sure you want to make this a MapNote?[/b]
+    --+|[c][img width=100][*[&TokenId]:t-imgsrc][/img][/c] 
+    --+|[c][rbutton]Continue::CT2MN_CONVERT;[&TokenId][/rbutton][/c]
+    --+|[br]
+    --+|[c]- OR -[/c]
+    --+|[br]
+    --+|[c][rbutton]Select Diff Token::CT2MN_SELECT[/rbutton][/c]
+    --+|[br]
+    --+|[c]- OR -[/c]
+    --+|[br]
+    --+|[c][rbutton]Cancel::CT2MN_CANCEL[/rbutton][/c]
+    --X|
+  --]|
+
+  --&reentryval|[&TokenId]
+  -->CT2MN_CONVERT|
+
+--\| *** Once you have a token to Convert ***
+--:CT2MN_CANCEL|
+    --^TOP|
+    --X|
+
+--\| *** Once you have a token to Convert ***
+--:CT2MN_CONVERT|token_id
+  --&TokenId|[&reentryval]
+
+  --@token-mod|_set name|"New Note" bar1_value|MapNote bar2_value|New aura1_radius|3 aura1_color|#4a86e8 _on showname  _ids [&TokenId] _ignore-selected
+
+  --+|[c][img width=100][*[&TokenId]:t-imgsrc][/img][/c] 
+  --+|[br]
+  --+|[b][c]Has been converted to a MapNote[/c][/b]
+  --\| Ask what kind? (Site, Info, Secret, ...)
+  --\| If it doesn't have a name - ask to give it one. 
+
+  --\| Use tokenmod to adjust
+
+--X|
+
 
 --:ROLL20_CHARACTERSHEET_LINK|CharId, button caption
   --&zROLL20_CS|https://journal.roll20.net/character/[%1%]
