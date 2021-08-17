@@ -39,12 +39,12 @@
   --=TargetMax|[*[&TTokenId]:t-bar1_max]
   --=TargetPct|[$TargetHP] / [$TargetMax] * 10000 \ 100
 
-  --?[$TargetHP.Raw] -gt 0|ALIVE
-    -->LOG|2;They are Dead; or at least appear to be dead
-    --+|[c][img width=200][*T:avatar][/img][/c] 
-    --+|[c][b]They are dead, or at least appear to be dead[/b][/c]
-    -->LOG|2;Ping; '[rbutton]Target::FIND_TOKEN;[&TTokenId][/rbutton] [rbutton]Character::FIND_TOKEN;[&STokenId][/rbutton]'
-    --X|
+  --/?[$TargetHP.Raw] -gt 0|ALIVE
+    --/>LOG|2;They are Dead; or at least appear to be dead
+    --/+|[c][img width=200][*T:avatar][/img][/c] 
+    --/+|[c][b]They are dead, or at least appear to be dead[/b][/c]
+    --/>LOG|2;Ping; '[rbutton]Target::FIND_TOKEN;[&TTokenId][/rbutton] [rbutton]Character::FIND_TOKEN;[&STokenId][/rbutton]'
+    --/X|
 
 
   --:ALIVE|
@@ -72,13 +72,13 @@
 
 
   --/| get medicine and perception skill bonuses
-  --&PerceptionBonus|[*[&STokenId]:perception_bonus]
+  --&InsightBonus|[*[&STokenId]:insight_bonus]
   --&MedicineBonus|[*[&STokenId]:medicine_bonus]
 
   --/| use 1/2 perception and 1/2 medicine skill as bonus to roll
-  --=Bonus|[&PerceptionBonus] + [&MedicineBonus]
-  --/|=Bonus|[$Bonus]/2
-  -->LOG|2;Bonus;[$Bonus] or (Avg of Pcep:[&PerceptionBonus] and Med:[&MedicineBonus])
+  --=Bonus|[&InsightBonus] + [&MedicineBonus]
+  --/|=Bonus|[$Bonus]/2 
+  -->LOG|2;Bonus;[$Bonus] or (Sum of Pcep:[&InsightBonus] and Med:[&MedicineBonus])
 
   --#rightsub|Bonus:[$Bonus]
   --#leftsub|Dist:[$DIST]ft. 
@@ -87,16 +87,16 @@
 
   --/| Results
   --/| F 1-4: Total Failure (or natural 1)
-  --/| E 4.1-9: Have no idea
-  --/| D 9.1-14: a litle bit of a clue
-  --/| C 14.1-18: Have a good idea
-  --/| B 18.1-25: Pretty solid idea
+  --/| E 4.1-7: Have no idea
+  --/| D 8.1-11: a litle bit of a clue
+  --/| C 11.1-17: Have a good idea
+  --/| B 17.1-25: Pretty solid idea
   --/| A 25.1+:  Keenly aware (or natural 20)
   --?[$CheckRoll] -gt 25|&Grade;A
   --?[$CheckRoll] -le 25|&Grade;B
-  --?[$CheckRoll] -le 18|&Grade;C
-  --?[$CheckRoll] -le 14|&Grade;D
-  --?[$CheckRoll] -le 9|&Grade;E
+  --?[$CheckRoll] -le 17|&Grade;C
+  --?[$CheckRoll] -le 11|&Grade;D
+  --?[$CheckRoll] -le 7|&Grade;E
   --?[$CheckRoll] -le 4|&Grade;F
 
   --?[$CheckRoll.Base] -eq 1|&Grade;F
@@ -116,43 +116,44 @@
   --?[$TargetPct] -lt 50|&Health;D
   --?[$TargetPct] -lt 25|&Health;E
   --?[$TargetPct] -lt 10|&Health;F
+  --?[$TargetPct] -lt 1|&Health;G 
 
   -->LOG|2;Roll:[$CheckRoll] ([$CheckRoll.Base]+[$Bonus]) -> Est:[&Grade] vs. Act:[&Health] 
   -->LOG|2;Actual;[$TargetHP]/[$TargetMax] ([$TargetPct]%)
 
-  --&HText_AF|Death is close.                           --&HColor_AF|#cc0000 
+  --&HText_AF|Death is close - maybe.                   --&HColor_AF|#cc0000 
   --&HText_AE|Hard to tell.                             --&HColor_AE|#ffffe6 
   --&HText_AD|I have no idea.                           --&HColor_AD|#ffffff
   --&HText_AC|Hard to tell.                             --&HColor_AC|#e6ffe6
-  --&HText_AB|Looks fit to me.                          --&HColor_AB|#b3ffb3
-  --&HText_AA|Perfect Health (100%)!                    --&HColor_AA|#006600
+  --&HText_AB|Looks fit to me. (90%+)                   --&HColor_AB|#b3ffb3
+  --&HText_AA|Perfect Health! (100%)                    --&HColor_AA|#006600
 
   --&HText_BF|They are going down soon!                 --&HColor_BF|#ff3333
   --&HText_BE|Looks bad, really bad!                    --&HColor_BE|#ff8080
   --&HText_BD|I have no idea.                           --&HColor_BD|#ffffff
   --&HText_BC|Looks Healthy.                            --&HColor_BC|#aaff80
-  --&HText_BB|Some scratches.                           --&HColor_BB|#99ff66
-  --&HText_BA|Some scratches, but good (Less than 100%) --&HColor_BA|#88ff4d
+  --&HText_BB|Some scratches. (65%+)                    --&HColor_BB|#99ff66
+  --&HText_BA|Some scratches, but good (75%+)           --&HColor_BA|#88ff4d
 
   --&HText_CF|About to croak!                           --&HColor_CF|#cc0000  
   --&HText_CE|I have no idea, maybe if he is hit again we can tell. --&HColor_CE|#ffffff
   --&HText_CD|I have no idea.                           --&HColor_CD|#ffffff
   --&HText_CC|They are hurting!                          --&HColor_CC|#ffffe6
-  --&HText_CB|They are hurting!                          --&HColor_CB|#ffffb3
-  --&HText_CA|They have taken some damage (Less than 75%). --&HColor_CA|#ffff99 
+  --&HText_CB|They are hurting! (40%+)                   --&HColor_CB|#ffffb3
+  --&HText_CA|They have taken some damage. (50%+) --&HColor_CA|#ffff99 
 
   --&HText_DF|Still standing for sure!                  --&HColor_DF|#ccffb3
   --&HText_DE|I have no idea.                           --&HColor_DE|#ffffff
   --&HText_DD|I have no idea.                           --&HColor_DD|#ffffff
   --&HText_DC|They are hurting.                          --&HColor_DC|#ffffb3
-  --&HText_DB|It is just a flesh wound.                  --&HColor_DB|#ffd1b3
+  --&HText_DB|It is just a flesh wound, but they are Bloodied.  --&HColor_DB|#ffd1b3
   --&HText_DA|Bloodied (Less than 50%).                 --&HColor_DA|#cc5200
 
   --&HText_EF|Doing OK I think!                         --&HColor_EF|#b3ffb3   
   --&HText_EE|Looks good to me.                         --&HColor_EE|#ccff99
   --&HText_ED|I have no idea.                           --&HColor_ED|#FFFFFF  
   --&HText_EC|A little more than a flesh wound.         --&HColor_EC|#ffe6e6
-  --&HText_EB|Not long for this world.                  --&HColor_EB|#ff6666
+  --&HText_EB|Not long for this world. (Maybe 15%)      --&HColor_EB|#ff6666
   --&HText_EA|Loosing blood fast, one more solid hit should do them in (Less than 25%) --&HColor_EA|#ff1a1a
 
   --&HText_FF|This one is strong!                       --&HColor_FF|#009933
@@ -162,9 +163,15 @@
   --&HText_FB|Death is close, is that an arrow through their skull? --&HColor_FB|#660000
   --&HText_FA|On deaths door (Less than 10%)           --&HColor_FA|#cc0000
 
+  --&HText_GF|They could be sleeping...                   --&HColor_GF|#cc0000
+  --&HText_GE|I dont think he is breathing.               --&HColor_GE|#cc0000
+  --&HText_GD|Somebody kick him and make sure he is dead. --&HColor_GD|#cc0000  
+  --&HText_GC|Dead - Who is next?                         --&HColor_GC|#cc0000
+  --&HText_GB|I am pretty sure they are dead!             --&HColor_GB|#cc0000
+  --&HText_GA|Dead, definitely dead!                      --&HColor_GA|#cc0000
+
   --#oddRowBackground|[&HColor_[&Health][&Grade]]
   --#evenRowBackground|[&HColor_[&Health][&Grade]]
-
 
   -->LOG|2;Msg; HText_[&Health][&Grade] [&HText_[&Health][&Grade]]  
 
