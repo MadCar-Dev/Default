@@ -1,35 +1,43 @@
 var API_Meta = API_Meta || {};
-API_Meta.TOReporter = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
+API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 {
-  try { throw new Error(''); } catch (e) { API_Meta.TOReporter.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
+  try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-/***********************************
-*** Start of Handout DM Reporter ***  
-***********************************/
+/*************************************
+*** Start of DM Turnorder Reporter ***  
+*************************************/
+// To get started, type !tor into the chat window to create your initial handouts
+
+// Bug
+// 1. Initiative tie breaker still has long 9999999999
+
 // Future Enhancements
 //  1. Add saving throw to the character sheet
 //  2. replace some of my other gmnotes/notes update fields with the new asyn method
+//  3. Add logic to change the HP column by user
+//  4. Add logic to calculate challenge rating of encounter
+//  5. Public Ping
+//  6. Toggle through auras (GM/Player)
+//  7. Show Pic in chat
+//  8. Show Bio in chat
+//  9. Dynamic Lighting Setup
+
 
 /******************************
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.0';
-  log('DM Turnorder Reporter' + version + ' is ready! --offset '+ API_Meta.TOReporter.offset);
-  log(' To start using TOR, in the chat window enter `!tor`');
+  const version = '0.6.1';
+  log('DM Dashboard' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
+  log(' To start using the DM Dashboard, in the chat window enter `!tor`');
 
-  API_Meta.TOReporter.version = version;
-
-  log(`State: ${state.TOReporter} PrevTO: ${typeof state.TOReporter.PrevTO}` )
-  if (typeof state.TOReporter.PrevTO === 'undefined') {
-    log('PrevTO not defined');
-  }
+  API_Meta.DMDashboard.version = version;
 
   // Check if the namespaced property exists, creating it if it doesn't
-  if(!state.TOReporter) {
-      state.TOReporter = {
-          version: 5.0,
+  if(!state.DMDashboard) {
+      state.DMDashboard = {
+          version: version,
           DetailExpand: 1,
           LastDT1: 0,
           LastUTCDate: '',
@@ -39,14 +47,24 @@ on('ready', () => {
           PrevTO:[]
       };
   };
+
 });
 
 on('change:campaign:turnorder', async () => {
-  log('HO Event: change:campaign:turnorder');
+  log('DM Dashboard Event: change:campaign:turnorder');
 
   debounced_torHandleMsg('!tor --TOReport')   
   // torHandleMsg('!tor --TOReport')
 });
+
+on('change:campaign:initiativepage', async () => {
+  log('DM Dashboard Event: change:campaign:initiativepage ' + Campaign().get('initiativepage'));
+  if (Campaign().get('initiativepage'))  {
+    debounced_torHandleMsg('!tor --SHOW-HO-DIALOG')
+  }
+
+});
+
 
 on('chat:message', async (msg_orig) => {
   let msg = _.clone(msg_orig);
@@ -67,9 +85,25 @@ const debounced_torHandleMsg = _.debounce(torHandleMsg,500)
 function torHandleMsg(msg_content){
 
   function updateTurnOrderStartTime(){
-    state.TOReporter.LastDT1 = getSystemTimeInSecs();
-    state.TOReporter.LastUTCDate = GetSystemUTCDate();
+    state.DMDashboard.LastDT1 = getSystemTimeInSecs();
+    state.DMDashboard.LastUTCDate = GetSystemUTCDate();
   }
+
+  function calcEncounterDifficulty(aryPartyMemberLevel, aryMonsterExp){
+    // Based on: https://www.dndbeyond.com/sources/dmg/creating-adventures#EvaluatingEncounterDifficulty
+    // Need a way to distinguish between friends🍻 and enemies🧌 for the calculation
+
+    // First - Calcuate Party XP Thresholds
+      // Easy, Medium, Hard, Deadly
+
+    // Total the Monsters XP
+
+    // Modify the XP based on monster count multiplier table
+
+    // For parties of less than 3 shift the table up 1
+    // For parties of more than 5 shift the table down 1
+  }
+
 
   function myGetAttrByName(character_id,
                            attribute_name,
@@ -104,11 +138,11 @@ function torHandleMsg(msg_content){
   function DidTOAdvance(){
     let cmd_advance = 0; //Boolean value where next_cmd = 1 means TO changed as a result of advancing the TO
 
-    let prev_to = state.TOReporter.PrevTO;
+    let prev_to = state.DMDashboard.PrevTO;
     let curr_to = Campaign().get('turnorder');
 
     // log(`DidTOAdvance: Prev:${prev_to} Curr:${curr_to}`)
-    state.TOReporter.PrevTO = curr_to;
+    state.DMDashboard.PrevTO = curr_to;
 
     if (prev_to.length = 0) {
       return 0;
@@ -215,8 +249,8 @@ function torHandleMsg(msg_content){
     //Get the Current System Time
     let currDate = GetSystemUTCDate();
 
-    //Get Last System Time state.TOReporter.LastDT1
-    let prevDate = state.TOReporter.LastUTCDate;
+    //Get Last System Time state.DMDashboard.LastDT1
+    let prevDate = state.DMDashboard.LastUTCDate;
 
     log('TO:1');
     // What is this turnorder tied to?  A pc, npc, custom item or other?
@@ -494,6 +528,7 @@ function torHandleMsg(msg_content){
       return null;
     }
   }
+
   function getAllPlayerIDsArray() {
     const players = findObjs({ _type: 'player' });
     const playerIds = players.map((player) => player.get('_id'));
@@ -678,6 +713,7 @@ function torHandleMsg(msg_content){
   }
 
   const getRepeatingSectionAttrs = function (charid, prefix) {
+    // #### Not Used - Could be moved to my Library of functions ###
     // Input
     //  charid: character id
     //  prefix: repeating section name, e.g. 'repeating_weapons'
@@ -735,18 +771,19 @@ function torHandleMsg(msg_content){
     }
   }
 
-  function imgBorder(url){
+  function imgBorder(url){ // #### Not Used - Could be moved to my Library of functions ###
     return ((url.includes('marketplace')) ? 'border: 1px solid #000;; ' : 'border: 1px solid #aaa;');
   }
 
-  function makeHelpButton(title, helpText) {
+  function makeHelpButton(title, helpText) { // #### Not Used - Could be moved to my Library of functions ###
     return `<div style = 'float:right '><a style = 'color: red; display:inline-block; padding:0px; margin:0px; background-color:white; border-radius:8px;' href = '!survey --sendtext|${title}|${helpText}'>&nbsp;?&nbsp;</a></div>`
   }
 
-  function makeBox(color, id, name) {
+  function makeBox(color, id, name) { // #### Not Used - Could be moved to my Library of functions ###
     return `<a href = '!survey --pcs ${id}' style= 'float: left; display:inline-block; height: 20px; width: 20px;  margin-top: 2px; margin-right: 2px; background-color:${color}; border: 1px solid black; clear: both; !important'</a>`;
   }
-  function formatAsPercent(num) {
+
+  function formatAsPercent(num) { // #### Not Used - Could be moved to my Library of functions ###
     return new Intl.NumberFormat('default', {
       style: 'percent',
       minimumFractionDigits: 0,
@@ -768,12 +805,10 @@ function torHandleMsg(msg_content){
       return { name: '', current: '', max: '' };
     }
     let att2 = { name: attobj.get('name'), current: attobj.get('current'), max: attobj.get('max') };
-
-    // log('debug ra 2' + att2);
     return att2;
   }
 
-  function getCharMainAtt2(cid2) {
+  function getCharMainAtt2(cid2) { // #### Not Used - Could be moved to my Library of functions ###
     let tbl = '<table border=0><tr>';
     let z = '';
     let wantedAttributes = ['strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma'];
@@ -823,7 +858,7 @@ function torHandleMsg(msg_content){
     }
   }
 
-  function getCharacterByName(characterName) {
+  function getCharacterByName(characterName) { // #### Not Used - Could be moved to my Library of functions ###
   // Find the character with the specified name
   let character = findObjs({
     _type: 'character',
@@ -845,6 +880,7 @@ function torHandleMsg(msg_content){
     // Moved to the top of HandleMsg to improve performance - no need to load campaign markers every time
     //const tokenMarkers = JSON.parse(Campaign().get("token_markers"));
 
+    // #### This may be sped up, although, it only becomes a burden if there are a ton of status markers on tokens ###
     // Loop through the list of tags
     for (x = 0; x < smList.length; x++) {
       // Loop through the tokenMarkers array
@@ -859,19 +895,6 @@ function torHandleMsg(msg_content){
       sm_Images += `<img style='max-height: 20px; max-width: 20px; padding: 0px; margin: 0px !important' src='${sm_url}'></img>`;
     }
     return sm_Images; // Return the final string containing the img elements
-  }
-
-  function spc(c) {
-    let s = '&nbsp;'; // Declare a non-breaking space string
-    let x = 0; // Initialize a counter variable
-    let spcs = ''; // Initialize an empty string to store the non-breaking spaces
-
-    // Loop from 1 to c-1
-    for (x = 1; x < c; x++) {
-      spcs += s; // Append the non-breaking space string to the spcs variable
-    }
-
-    return spcs; // Return the final string containing the non-breaking spaces
   }
 
   function AddSign(v){
@@ -897,7 +920,7 @@ function torHandleMsg(msg_content){
     return handout;
   }
 
-  const getAttrCountByChar = () => findObjs({
+  const getAttrCountByChar = () => findObjs({ // #### Not Used - Could be moved to my Library of functions ###
     type: 'attribute'
     })
     .map(o => o.get('characterid'))
@@ -906,7 +929,7 @@ function torHandleMsg(msg_content){
         [o]: (m[o] || 0) + 1
     }), {});
 
-  const getAbilityCountByChar = () => findObjs({
+  const getAbilityCountByChar = () => findObjs({ // #### Not Used - Could be moved to my Library of functions ###
     type: 'ability'
     })
     .map(o => o.get('characterid'))
@@ -942,9 +965,9 @@ function torHandleMsg(msg_content){
     resetAttributeValue('to_avg');
 
     //Reset DM/State Stats
-    state.TOReporter.DM_Secs = 0;
-    state.TOReporter.DM_Count = 0;
-    state.TOReporter.DM_Avg = 0;
+    state.DMDashboard.DM_Secs = 0;
+    state.DMDashboard.DM_Count = 0;
+    state.DMDashboard.DM_Avg = 0;
   }
 
   function randomInteger(min, max) {
@@ -959,7 +982,7 @@ function torHandleMsg(msg_content){
 
  function addInitiative(tokenIds) {
 
-    //tokenIds will be a commadelimited list of tokenids
+    //tokenIds will be a comma-delimited list of tokenids
     const aryTokenIds = tokenIds.split(',');
 
     let turnOrder = JSON.parse(Campaign().get("turnorder"));
@@ -1033,7 +1056,6 @@ function torHandleMsg(msg_content){
     const closeChat= `<\div><\div>`;
     const openBox = "<div style='color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
     const closeBox = '</div>';
-    
 
     let lines = '';
     let sheetURL = 'http://journal.roll20.net/character/';
@@ -1123,7 +1145,6 @@ function torHandleMsg(msg_content){
     let ho_TOReport = getHandout('DM Turnoder List');
     let ho_TOCharSheet = getHandout('DM Character Sheet')
 
-
     let tokens = findObjs({
         _type: 'graphic',
         _subtype: 'token',
@@ -1149,11 +1170,6 @@ function torHandleMsg(msg_content){
     let btnSort = makeButton('Sort',`!tor --TO-Sort`);
     let btnSortWrapped = makeButton('Sort-Wrap',`!tor --TO-SortWrapped`);
     let btnClear = makeButton('Clear',`!tor --TO-Clear`);
-
-    // Look at codifying this logic in this report
-    //let btn6 = makeButton('[TO-Countdown]', `!&#13;&#37;{Mule|TurnOrder-AddCountdownItem} ${cmdRefresh}`, 105);
-    //let btn7 = makeButton('[TO-Custom]', `!&#13;&#37;{Mule|TurnOrder-AddCustItem} ${cmdRefresh}`, 84);
-    //let btn8 = makeButton('[TO-Round]', `!&#13;&#37;{Mule|TurnOrder-RoundCounter} ${cmdRefresh}`, 77);
 
     let btnRound = makeButton('Round', `!tor --TO-AddRound`);
     let btnCounter = makeButton('Counter', `!tor --TO-AddCountdown ?{Counter direction|Count Down,-1|Count Up,+1} ?{Counter starting position|10} "?{Counter Name|}"`);
@@ -1211,30 +1227,29 @@ function torHandleMsg(msg_content){
     // event that advances the turnorder?
     if (toObj.length >0) { 
 
-      // Turnorder Time Report
-      let dt1 = state.TOReporter.LastDT1;
+      /******************************************************************
+      *  This section of code calculates the time it a player or DM takes
+      * on a turn.
+      ******************************************************************/
 
-      log(`Debug TOAdv 1: cmd_advance:${cmd_advance} dt1:${dt1}`)
+      // Turnorder Time Report
+      let dt1 = state.DMDashboard.LastDT1;
+
+      // log(`Debug TOAdv 1: cmd_advance:${cmd_advance} dt1:${dt1}`)
       if(isNaN(dt1))
       {
-        state.TOReporter.LastDT1 = getSystemTimeInSecs();
-        state.TOReporter.LastUTCDate = GetSystemUTCDate();
+        state.DMDashboard.LastDT1 = getSystemTimeInSecs();
+        state.DMDashboard.LastUTCDate = GetSystemUTCDate();
       } else {
         dt2 = getSystemTimeInSecs();
-        state.TOReporter.LastDT1 = dt2;
-        state.TOReporter.LastUTCDate = GetSystemUTCDate();
+        state.DMDashboard.LastDT1 = dt2;
+        state.DMDashboard.LastUTCDate = GetSystemUTCDate();
         dt_diff = Math.floor(Math.abs(Number(dt2) - Number(dt1)));
 
-        log(`Debug TOAdv 2: dt_diff:${dt_diff} dt2:${dt2}`)
+        // log(`Debug TOAdv 2: dt_diff:${dt_diff} dt2:${dt2}`)
         if (dt_diff > 10000  || cmd_advance == 0){
           dt_diff=0;
         } else {
-
-          // Avoid stacking up the que procesing tons of report refreshes
-          //if (dt_diff <=1){
-          //  log('Turnorder Report: Quitting Early to not throttle the API');
-          //  return;
-          //}
 
           // If we got here, then we know that a Next Item event was fired from the TO dialog or
           // through the API
@@ -1244,9 +1259,7 @@ function torHandleMsg(msg_content){
 
             // Yes, Lets see if it's a PC or NPC
             Ttype = getTokenType(toObj[toObj.length-1].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
-            log(`Debug TOAdv 3: Ttype:${Ttype}`)
-
-            // log('TO-PrevTokenType: ' + Ttype);
+            // log(`Debug TOAdv 3: Ttype:${Ttype}`)
 
             switch (Ttype) {
 
@@ -1284,9 +1297,9 @@ function torHandleMsg(msg_content){
               case 'NPC':  
 
                 // Store NPC turnorder stats in State Memory
-                TO_Count = state.TOReporter.DM_Count;
-                TO_Secs = state.TOReporter.DM_Secs;
-                TO_Avg = state.TOReporter.DM_Avg;
+                TO_Count = state.DMDashboard.DM_Count;
+                TO_Secs = state.DMDashboard.DM_Secs;
+                TO_Avg = state.DMDashboard.DM_Avg;
 
                 if (TO_Count >= 50){
                   TO_Count = 50;
@@ -1297,15 +1310,14 @@ function torHandleMsg(msg_content){
                 }
 
                 TO_Avg = Math.floor(TO_Secs / TO_Count);
-                state.TOReporter.DM_Secs = TO_Secs;
-                state.TOReporter.DM_Count = TO_Count;
-                state.TOReporter.DM_Avg = TO_Avg;
+                state.DMDashboard.DM_Secs = TO_Secs;
+                state.DMDashboard.DM_Count = TO_Count;
+                state.DMDashboard.DM_Avg = TO_Avg;
                 break;
             }
           }
         }
       }
-
 
       /******************************************************************
       *  Build the Detailed NPC or Character section if expanded        *
@@ -1598,7 +1610,7 @@ function torHandleMsg(msg_content){
           charbtn = makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20);
           tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
 
-          charheader = `${openHeader} ${charbtn} ${makeButton('🎯', `!tor --PingToken-GM ${toToken.get('_id')}`, 20)} ${tknImg} ${toToken.get('name')}      [Avg Turn: ${state.TOReporter.DM_Avg} / Secs: ${state.TOReporter.DM_Secs} / Cnt: ${state.TOReporter.DM_Count}]  ${closeHeader} <b><i>${getAttrByName(toChar.get('_id'),'npc_type','current')}</b></i> `;
+          charheader = `${openHeader} ${charbtn} ${makeButton('🎯', `!tor --PingToken-GM ${toToken.get('_id')}`, 20)} ${tknImg} ${toToken.get('name')}      [Avg Turn: ${state.DMDashboard.DM_Avg} / Secs: ${state.DMDashboard.DM_Secs} / Cnt: ${state.DMDashboard.DM_Count}]  ${closeHeader} <b><i>${getAttrByName(toChar.get('_id'),'npc_type','current')}</b></i> `;
           chartbl += '<table><thead><tr><th' + th.slice(0,-1) + ';width:10%">Attributes</th><th' + th.slice(0,-1) + ';width:20%">Stats</th><th' + th.slice(0,-1) + ';width:20%">Info</th><th' + th.slice(0,-1) + ';width:20%">Traits/Actions</th><th' + th.slice(0,-1) + ';width:30%">Spells</th></tr></thead><tbody>';
 
           //Row2 - Column 1: Basic Info
@@ -1776,12 +1788,14 @@ function torHandleMsg(msg_content){
     } // End Testing for empty Turnorder
 
     // Logic to expand or collapse the Character information
-    if (state.TOReporter.DetailExpand == 1) {
+    if (state.DMDashboard.DetailExpand == 1) {
       toList = btns + '<br>' + btnCps + charheader + chartbl;
     } else {
       toList = btns + '<br>'+  btnExp;                    
     }
     charReport = openReport + charheader + chartbl + btns + closeReport;
+
+    // Header row for the turnorder list
     toList += `<table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse;"><tr><td style="border: 0px; padding: 0;">${openHeader}Turn Order${closeHeader}</td><td style="border: 0px; padding: 0;">${openHeaderInfo}(Last Turn: ${dt_diff})${closeHeader}</td></tr></table>`;
     toList +=  '<table ' + ts +'>';
     toList +=  '<thead><tr><th' + th + '>Turn</th>';
@@ -1876,8 +1890,6 @@ function torHandleMsg(msg_content){
               toList += makeButton('🙉', '!tor --TokenToggleTooltip ' + toTkn.get('_id')) 
               toList += '<i>' + tt + '</i></td>'; 
             }
-            
-
           }
           break;
 
@@ -2019,9 +2031,6 @@ function torHandleMsg(msg_content){
     toList += '</tbody></table>';
     // lines = lines + toList;
 
-    let toStr = Campaign().get("turnorder");
-    // log('test end 1');
-
     //*******************************************************************
     // Build a list of NPC and PC tokens that aren't on the TurnOrder list
     // with functionality to add them in groups (PC/NPC) or individually
@@ -2030,12 +2039,13 @@ function torHandleMsg(msg_content){
     let btnPCs = '';
     let btnAddAllNPCs = '';
     let btnAddAllPCs = '';
+    let toStr = Campaign().get("turnorder");
 
+    // For every token on the page
     tokens.forEach(t => {
       tType = getTokenType(t.get('_id'));
-      // log('BuildTokenList: ' + t.get('name') + ' - ' + tType);
       if (tType == 'NPC' || tType == 'CHAR'){
-        let ndx = toStr.indexOf(t.get('_id'));
+        let ndx = toStr.indexOf(t.get('_id'));  //If this TokenId isn't found in the current turnorder, add it to the list of available tokens?
         if(ndx<0){
           let tImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${t.get('imgsrc')}'</img>`;
           let btn_ping = makeButton(tImg, `!tor --PingToken-GM ${t.id}`);
@@ -2059,15 +2069,13 @@ function torHandleMsg(msg_content){
     btnAddAllPCs = makeButton(' [+] ', btnAddAllPCs ,20) + '  ';
 
     toList += btns + '<b><u>NPCs</u></b>' + btnAddAllNPCs + '<br>' + btnNPCs + '<br><b><u>Player Characters</u></b>' + btnAddAllPCs + '<br>' + btnPCs + '<br>';
-
-
     toList = openReport + toList + closeReport;
 
+    // Footer links for the other handouts
     toList += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('Turnorder Character Sheet', 'https://journal.roll20.net/handout/' + ho_TOCharSheet.get('_id')) + '  |  ';
     toList += makeButton('Turnorder Log', 'https://journal.roll20.net/handout/' + getNoteLog().get('_id')) + '</div>';
 
-
-    // Time to write out the results back to a handout.
+    // Write out the results back to a handout.
     if (toList) {
       ho_TOReport.get("notes", function(notes) {
         setTimeout(()=>ho_TOReport.set("notes", toList),0);
@@ -2089,6 +2097,9 @@ function torHandleMsg(msg_content){
 
   // Load them at the start to improve performance in the 
   const tokenMarkers = JSON.parse(Campaign().get("token_markers"));
+  const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
+  const closeChat= `<\div><\div>`;
+  let chatMsg = '';
 
   // Parse Args and Commands
   let args = msg_content.split(/\s--/);
@@ -2107,138 +2118,135 @@ function torHandleMsg(msg_content){
     log(`  command: ${c}`)
   });
 
-  // Process Commands
-  // commands.forEach(c => {
+  commands[0] = commands[0].toUpperCase();
+  log('Command: ' + commands[0]);
+  switch (commands[0]) {
 
-    commands[0] = commands[0].toUpperCase();
-    log('Command: ' + commands[0]);
-    switch (commands[0]) {
+    case 'TO-CLEAR':
+      to_Clear();
+      updateTurnOrderStartTime();
+      refreshReports();
+      break;
+    case 'TO-NEXT':
+      to_MoveNext();
+      refreshReports();
+      break;
+    case 'TO-PREV':
+      to_MovePrev();
+      updateTurnOrderStartTime();
+      refreshReports();
+      break;
+    case 'TO-SORT':
+      to_Sort();
+      updateTurnOrderStartTime();
+      refreshReports();
+      break;
+    case 'TO-SORTWRAPPED':
+      to_SortWrapped();
+      updateTurnOrderStartTime();
+      refreshReports();
+      break;
+    case 'TO-ADDCUSTOM': // Position, Name
+      to_AddCustom(commands[2], commands[1])
+      refreshReports();
+      break;
+    case 'TO-ADDROUND': //No Parameters
+      log(`TO-AddRound`)
+      to_AddCustom('>>>Round<<<', 1, '+1')
+      refreshReports();
+      break;
+    case 'TO-ADDCOUNTDOWN': // Direction, Starting Pos, Name
+      log(`TO-AddCustom: Cmd1:${commands[1]} Cmd2:${commands[2]} Cmd3:${commands[3]} Cmd4:${commands[4]}`)
+      to_AddCustom(commands[3], commands[2], commands[1])
+      refreshReports();
+      break;
+    case 'TO-REMOVE':
+      to_Remove(commands[1]); // Assumes that the next the command is "!tor --to-Remove tid"
+      updateTurnOrderStartTime();
+      refreshReports();
+      break;
+    case 'TO-REMOVECUSTOM':
+      to_RemoveCustom(commands[1]); // Assumes that the next the command is "!tor --to-RemoveCustom ndx"
+      updateTurnOrderStartTime();
+      refreshReports();
+      break;
+    case 'ADDCHARGMNOTE': // charId, Name
+      addTextToCharGMNote(commands[1], commands[2])
+      refreshReports();
+      break;
+    case 'ADDTOKENGMNOTE': // tokenId, Name
+      addTextToTokenGMNote(commands[1], commands[2])
+      refreshReports();
+      break;
+    case 'ADDGMNOTE': // Add note to GMNote are of the Turnorder List
+      addTextToGMNote(commands[1])
+      break;
+    case 'RESETSTATS':
+      ResetStats();
+      break;
+    case 'INITIATIVE':
+      addInitiative(commands[1]);
+      refreshReports();
+      break;
+    case 'TOKENTOGGLEVISABITY':
+      tokenToggleVisibility(commands[1])
+      refreshReports();
+      break;
+    case 'TOKENTOGGLELOCK':
+      tokenToggleLock(commands[1])
+      refreshReports();
+      break;
+    case 'TOKENCLEARTOOLTIP':
+      tokenClearTooltip(commands[1])
+      refreshReports();
+      break;
+    case 'TOKENTOGGLETOOLTIP':
+      tokenToggleTooltip(commands[1])
+      refreshReports();
+      break;
+    case 'TOKENCLEARTOOLTIP':
+      tokenClearTooltip(commands[1])
+      refreshReports();
+      break;
+    case 'TOKENSETTOOLTIP':
+      tokenSetTooltip(commands[1], commands[2])
+      refreshReports();
+      break;
+    case 'TOKENADJUSTHP':
+      tokenAdjHP(commands[1], commands[2]);
+      refreshReports();
+      break;
+    case 'PINGTOKEN-GM':
+      pingToken(commands[1],0);
+      break;
+    case 'PINGTOKEN-ALL':
+      pingToken(commands[1],1);
+      break;
+    case 'TOREPORT':
+      // *** Process subcommands like 'expand' and 'collapse' ***
+      let Exp_ndx = msg_content.indexOf('expand');
+      if(Exp_ndx>0){
+        state.DMDashboard.DetailExpand = 1;
+      }
+      Exp_ndx = msg_content.indexOf('collapse');
+      if(Exp_ndx>0){
+        state.DMDashboard.DetailExpand = 0;
+      }
+      refreshReports();
+      break;
+    case 'OPEN':
+      refreshReports();
+      chatMsg = `/w gm ${openChat}[Click to open DM Turnorder List handout](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
+      chatMsg += `<br>[Click to open Character Sheet handout](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`
+      chatMsg += `<br>[Click to open Turnorder Log handout](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})${closeChat}`
+      sendChat("DM Dashboard", chatMsg);
+      break;
+    case 'SHOW-HO-DIALOG':
+      chatMsg = `/w gm ${openChat}[Click to open DM Turnorder List handout](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
+      chatMsg += `<br>[Click to open Character Sheet handout](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})${closeChat}`;
+      sendChat("DM Dashboard", chatMsg);
 
-      case 'TO-CLEAR':
-        to_Clear();
-        updateTurnOrderStartTime();
-        refreshReports();
-        break;
-      case 'TO-NEXT':
-        to_MoveNext();
-        refreshReports();
-        break;
-      case 'TO-PREV':
-        to_MovePrev();
-        updateTurnOrderStartTime();
-        refreshReports();
-        break;
-      case 'TO-SORT':
-        to_Sort();
-        updateTurnOrderStartTime();
-        refreshReports();
-        break;
-      case 'TO-SORTWRAPPED':
-        to_SortWrapped();
-        updateTurnOrderStartTime();
-        refreshReports();
-        break;
-      case 'TO-ADDCUSTOM': // Position, Name
-        to_AddCustom(commands[2], commands[1])
-        refreshReports();
-        break;
-      case 'TO-ADDROUND': //No Parameters
-        log(`TO-AddRound`)
-        to_AddCustom('>>>Round<<<', 1, '+1')
-        refreshReports();
-        break;
-      case 'TO-ADDCOUNTDOWN': // Direction, Starting Pos, Name
-        log(`TO-AddCustom: Cmd1:${commands[1]} Cmd2:${commands[2]} Cmd3:${commands[3]} Cmd4:${commands[4]}`)
-        to_AddCustom(commands[3], commands[2], commands[1])
-        refreshReports();
-        break;
-      case 'TO-REMOVE':
-        to_Remove(commands[1]); // Assumes that the next the command is "!tor --to-Remove tid"
-        updateTurnOrderStartTime();
-        refreshReports();
-        break;
-      case 'TO-REMOVECUSTOM':
-        to_RemoveCustom(commands[1]); // Assumes that the next the command is "!tor --to-RemoveCustom ndx"
-        updateTurnOrderStartTime();
-        refreshReports();
-        break;
-      case 'ADDCHARGMNOTE': // charId, Name
-        addTextToCharGMNote(commands[1], commands[2])
-        refreshReports();
-        break;
-      case 'ADDTOKENGMNOTE': // tokenId, Name
-        addTextToTokenGMNote(commands[1], commands[2])
-        refreshReports();
-        break;
-      case 'ADDGMNOTE': // Add note to GMNote are of the Turnorder List
-        addTextToGMNote(commands[1])
-        break;
-      case 'RESETSTATS':
-        ResetStats();
-        break;
-      case 'INITIATIVE':
-        addInitiative(commands[1]);
-        refreshReports();
-        break;
-      case 'TOKENTOGGLEVISABITY':
-        tokenToggleVisibility(commands[1])
-        refreshReports();
-        break;
-      case 'TOKENTOGGLELOCK':
-        tokenToggleLock(commands[1])
-        refreshReports();
-        break;
-      case 'TOKENCLEARTOOLTIP':
-        tokenClearTooltip(commands[1])
-        refreshReports();
-        break;
-      case 'TOKENTOGGLETOOLTIP':
-        tokenToggleTooltip(commands[1])
-        refreshReports();
-        break;
-      case 'TOKENCLEARTOOLTIP':
-        tokenClearTooltip(commands[1])
-        refreshReports();
-        break;
-      case 'TOKENSETTOOLTIP':
-        tokenSetTooltip(commands[1], commands[2])
-        refreshReports();
-        break;
-      case 'TOKENADJUSTHP':
-        tokenAdjHP(commands[1], commands[2]);
-        refreshReports();
-        break;
-      case 'PINGTOKEN-GM':
-        pingToken(commands[1],0);
-        break;
-      case 'PINGTOKEN-ALL':
-        pingToken(commands[1],1);
-        break;
-      case 'TOREPORT':
-        // *** Process subcommands like 'expand' and 'collapse' ***
-        let Exp_ndx = msg_content.indexOf('expand');
-        if(Exp_ndx>0){
-          state.TOReporter.DetailExpand = 1;
-        }
-        Exp_ndx = msg_content.indexOf('collapse');
-        if(Exp_ndx>0){
-          state.TOReporter.DetailExpand = 0;
-        }
-        refreshReports();
-        break;
-      case 'OPEN':
-        refreshReports();
-        const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
-        const closeChat= `<\div><\div>`;
-        let chatMsg = `/w gm ${openChat}[Click to open DM Turnorder List handout](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
-        chatMsg += `<br>[Click to open Character Sheet handout](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`
-        chatMsg += `<br>[Click to open Turnorder Log handout](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})${closeChat}`
-
-        sendChat("API", chatMsg);
-        break;
-      default:
-    }
-  //});
+    default:
+  }
 }
-
-{try{throw new Error('');}catch(e){API_Meta.TOReporter.lineCount=(parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/,'$1'),10)-API_Meta.TOReporter.offset);}}
+{try{throw new Error('');}catch(e){API_Meta.DMDashboard.lineCount=(parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/,'$1'),10)-API_Meta.DMDashboard.offset);}}
