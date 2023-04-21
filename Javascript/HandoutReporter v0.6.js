@@ -2226,7 +2226,7 @@ function torHandleMsg(msg_content){
         }
         refreshReports();
         break;
-      case 'Open':
+      case 'OPEN':
         refreshReports();
         const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
         const closeChat= `<\div><\div>`;
