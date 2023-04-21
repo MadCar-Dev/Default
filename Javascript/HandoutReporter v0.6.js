@@ -7,7 +7,6 @@ API_Meta.TOReporter = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 /***********************************
 *** Start of Handout DM Reporter ***  
 ***********************************/
-
 // Future Enhancements
 //  1. Add saving throw to the character sheet
 //  2. replace some of my other gmnotes/notes update fields with the new asyn method
