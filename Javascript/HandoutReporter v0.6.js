@@ -2242,6 +2242,7 @@ function torHandleMsg(msg_content){
       sendChat("DM Dashboard", chatMsg);
       break;
     case 'SHOW-HO-DIALOG':
+      refreshReports();
       chatMsg = `/w gm ${openChat}[Click to open DM Turnorder List handout](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
       chatMsg += `<br>[Click to open Character Sheet handout](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})${closeChat}`;
       sendChat("DM Dashboard", chatMsg);
