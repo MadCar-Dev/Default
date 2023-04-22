@@ -28,7 +28,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.1';
+  const version = '0.6.2';
   log('DM Dashboard' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!tor`');
 
@@ -38,7 +38,7 @@ on('ready', () => {
   if(!state.DMDashboard) {
       state.DMDashboard = {
           version: version,
-          DetailExpand: 1,
+          DetailExpand: 0,
           LastDT1: 0,
           LastUTCDate: '',
           DM_Count: 0,
