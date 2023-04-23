@@ -4,6 +4,17 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
+let charMap = new Map();
+let logMap = new Map();
+let toMap = new Map();
+
+let gDataLog = '';
+let charMapItem = [];
+let toMapItem = [];
+
+let gStartTime = 0;
+let gEndTime = 0;
+
 /*************************************
 *** Start of DM Turnorder Reporter ***  
 *************************************/
@@ -28,8 +39,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.2';
-  log('DM Dashboard' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
+  const version = '0.6.3';
+  log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!tor`');
 
   API_Meta.DMDashboard.version = version;
@@ -44,34 +55,57 @@ on('ready', () => {
           DM_Count: 0,
           DM_Avg: 0,
           DM_Secs: 0,
-          PrevTO:[]
+          PrevTO: [],
+          HPBar: 1
       };
   };
+
+  state.DMDashboard.version = version;
+
+  if (!state.DMDashboard.HPBar){
+    state.DMDashboard.HPBar = 1;
+  }
 
 });
 
 on('change:campaign:turnorder', async () => {
-  log('DM Dashboard Event: change:campaign:turnorder');
+  // log('DM Dashboard Event: change:campaign:turnorder');
 
   debounced_torHandleMsg('!tor --TOReport')   
   // torHandleMsg('!tor --TOReport')
 });
 
 on('change:campaign:initiativepage', async () => {
-  log('DM Dashboard Event: change:campaign:initiativepage ' + Campaign().get('initiativepage'));
+  // log('DM Dashboard Event: change:campaign:initiativepage ' + Campaign().get('initiativepage'));
   if (Campaign().get('initiativepage'))  {
     debounced_torHandleMsg('!tor --SHOW-HO-DIALOG')
+  } else {
+    flushDataLog();
   }
 
 });
 
+on('change:graphic:bar1_value', async () => {
+  // log('DM Dashboard Event: change:graphic:bar1_value');
+  debounced_torHandleMsg('!tor --TOReport')   
+});
+
+on('change:graphic:bar2_value', async () => {
+  // log('DM Dashboard Event: change:graphic:bar2_value');
+  debounced_torHandleMsg('!tor --TOReport')   
+});
+
+on('change:graphic:bar3_value', async () => {
+  // log('DM Dashboard Event: change:graphic:bar3_value');
+  debounced_torHandleMsg('!tor --TOReport')   
+});
 
 on('chat:message', async (msg_orig) => {
   let msg = _.clone(msg_orig);
   if (!/^!tor/.test(msg.content)) {
     return;
   }
-  log('HO Event: chat:message');
+  // log('HO Event: chat:message');
   debounced_torHandleMsg(msg.content);
   // torHandleMsg(msg.content);
 });
@@ -81,6 +115,45 @@ const debounced_torHandleMsg = _.debounce(torHandleMsg,500)
 /******************************
 *** Global Functions        ***  
 *******************************/
+function flushDataLog(){
+  let nl = [];
+
+  log('DM Dashboard: Data Length: ' + gDataLog);  
+  if (gDataLog.length == 0) {
+    return;
+  }
+  // Write record to Handout "DM Turnorder Log"
+  nl = getNoteLog();
+  nl.get("notes", function(notes) {
+    setTimeout(()=>nl.set("notes",gDataLog),0);
+  });
+  // let txt = n + gDataLog;
+  log('DM Dashboard: Txt Data Length: ' + gDataLog.length);  
+
+  gDataLog = '';
+
+  log('DM Dashboard: Flushing data');
+}
+
+
+function createNoteLog() {
+  const noteLog = createObj('handout',{
+    name: 'DM Turnorder Log'
+  });
+  noteLog.set('notes', '<h3>Turnorder Log</h3>');
+  return noteLog;
+};
+
+function getNoteLog() {
+  const noteLog = filterObjs(function(o){
+    return ( 'handout' === o.get('type') && 'DM Turnorder Log' === o.get('name') && false === o.get('archived'));
+  })[0];
+
+  if(noteLog) {
+    return noteLog;
+  } 
+  return createNoteLog();
+};
 
 function torHandleMsg(msg_content){
 
@@ -154,14 +227,14 @@ function torHandleMsg(msg_content){
     }
 
     if (!prev_to || !curr_to || prev_to == '' || curr_to == '') {
-        log('TO Change: Exit-Empty TurnOrder');
+        // log('TO Change: Exit-Empty TurnOrder');
         return 0;
     }
 
     // take the JSON string and convert it to an object
     prev_to_json = JSON.parse(prev_to);
     curr_to_json = JSON.parse(curr_to);
-    log('TO Change: Test Lengths(curr vs. prev): ' + curr_to_json.length + ' / ' + prev_to_json.length);
+    // log('TO Change: Test Lengths(curr vs. prev): ' + curr_to_json.length + ' / ' + prev_to_json.length);
 
     if (prev_to_json.length == 0 || curr_to_json.length == 0){
       return 0;  
@@ -169,7 +242,7 @@ function torHandleMsg(msg_content){
     
     if (prev_to_json.length == curr_to_json.length) {
 
-      log('TO Change: Same Length');
+      // log('TO Change: Same Length');
       //Shift the prev_to and see if is now equivalent to the curr_to    
       prev_to_json.push(prev_to_json.shift());
       // Update any formulas
@@ -179,16 +252,16 @@ function torHandleMsg(msg_content){
 
       if (JSON.stringify(prev_to_json) == curr_to) {
         // If they are equivalent, then the only change was because the turn changed
-        log('TO Change: TOs are equal: ');
+        // log('TO Change: TOs are equal: ');
         cmd_advance = 1;
         AddToTurnorderLog();
       } else {
-        log('TO Change: TOs are not equal:');
-        log('Prev_To:' + JSON.stringify(prev_to_json));
-        log('Curr_To:' + curr_to);
+        // log('TO Change: TOs are not equal:');
+        // log('Prev_To:' + JSON.stringify(prev_to_json));
+        // log('Curr_To:' + curr_to);
       }
     }
-    log('DidTOAdvance: ' + cmd_advance);
+    // log('DidTOAdvance: ' + cmd_advance);
     return cmd_advance;  
   };
 
@@ -219,15 +292,19 @@ function torHandleMsg(msg_content){
 
 
   function AddToTurnorderLog(){
+
+    return;
   // Purpose:  Write a csv record to a handout called 
     let toChar = [];
     let toObj = [];
-    let toTkn = [];
+    let toToken = [];
     let NewData = '';
     let repeatingSection = '';  //Prefix
     let repeatingName = '';      //Suffix 
     let repeatingValues = [];
     let cName = '';
+    let cHP = 0;
+    let cHPMax = 0
     let cLevel = '';
     let cClass = '';
     let cRace = '';
@@ -235,7 +312,6 @@ function torHandleMsg(msg_content){
     let cAtkCnt = 0;
     let cTraitCnt = 0;
     let Ttype = '';
-    let nl = [];
 
     log('********** AddTurnOrderLog ***************');
     let curr_to = Campaign().get("turnorder");
@@ -252,7 +328,7 @@ function torHandleMsg(msg_content){
     //Get Last System Time state.DMDashboard.LastDT1
     let prevDate = state.DMDashboard.LastUTCDate;
 
-    log('TO:1');
+    // log('TO:1');
     // What is this turnorder tied to?  A pc, npc, custom item or other?
     Ttype = getTokenType(toObj[toObj.length-1].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
     //log('TO?:' + Ttype);
@@ -266,14 +342,17 @@ function torHandleMsg(msg_content){
       case 'CHAR':
       
         // TokenType, Start, End, 'Char', TurnOrderId, pr, CharacterName, 0, Level, Class, Race, Attacks_Count, Traits_Count, Spells_Count
-        toTkn = getObj("graphic", toObj[toObj.length-1].id);
-        toChar = getObj("character", toTkn.get('represents'));
+        toToken = getObj("graphic", toObj[toObj.length-1].id);
+        toChar = getObj("character", toToken.get('represents'));
         cName = toChar.get('name')
         cLevel = getAttrByName(toChar.get('_id'),'level','current');
         cClass = getAttrByName(toChar.get('_id'),'class_display','current');
         cRace = getAttrByName(toChar.get('_id'),'race_display','current');
         cCasterLevel = getAttrByName(toChar.get('_id'),'caster_level','current');
-          
+        cHP = toToken.get(`bar${state.DMDashboard.HPBar}_value`);
+        cHPMax = toToken.get(`bar${state.DMDashboard.HPBar}_max`);
+
+
         repeatingSection = 'repeating_attack';  //Prefix
         repeatingName = 'atkname';              //Suffix 
         repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
@@ -285,56 +364,50 @@ function torHandleMsg(msg_content){
         repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
           .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
         cTraitCnt = repeatingValues.length
-        NewData = `CHAR,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},"${cName}",0,"${cLevel}","${cClass}","${cRace}",${cAtkCnt},${cTraitCnt},${cCasterLevel}`
+        NewData = `CHAR,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},"${cName}",0,"${cLevel}","${cClass}","${cRace}",${cAtkCnt},${cTraitCnt},${cCasterLevel},${cHP},${cHPMax}`
         break;
 
       case 'NPC':
 
-          // TokenType, Start, End, 'NPC', TurnOrderId, pr, Name, 0, CR, Type, SubType, Attack_Count(A, RA, BA, LA), Traits_Count, Spells_Count
-          toTkn = getObj("graphic", toObj[toObj.length-1].id);
-          toChar = getObj("character", toTkn.get('represents'));
-          cName = toChar.get('name')
-          cLevel = getAttrByName(toChar.get('_id'),'npc_challenge','current');
-          cClass = getAttrByName(toChar.get('_id'),'npc_type','current');
-          cRace = ''
-          cCasterLevel = getAttrByName(toChar.get('_id'),'caster_level','current');
+        // TokenType, Start, End, 'NPC', TurnOrderId, pr, Name, 0, CR, Type, SubType, Attack_Count(A, RA, BA, LA), Traits_Count, Spells_Count
+        toToken = getObj("graphic", toObj[toObj.length-1].id);
+        toChar = getObj("character", toToken.get('represents'));
+        cName = toChar.get('name')
+        cLevel = getAttrByName(toChar.get('_id'),'npc_challenge','current');
+        cClass = getAttrByName(toChar.get('_id'),'npc_type','current');
+        cRace = ''
+        cCasterLevel = getAttrByName(toChar.get('_id'),'caster_level','current');
+        cHP = toToken.get(`bar${state.DMDashboard.HPBar}_value`);
+        cHPMax = toToken.get(`bar${state.DMDashboard.HPBar}_max`);
 
-          repeatingSection = 'repeating_npcaction';  //Prefix
-          repeatingName = 'name'                    //Suffix 
-          repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
-            .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
-          cAtkCnt = repeatingValues.length
 
-          repeatingSection = 'repeating_npctrait';  //Prefix
-          repeatingName = 'name'                    //Suffix 
-          repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
-            .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
-          cTraitCnt = repeatingValues.length
+        repeatingSection = 'repeating_npcaction';  //Prefix
+        repeatingName = 'name'                    //Suffix 
+        repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
+          .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+        cAtkCnt = repeatingValues.length
 
-          //         NPC, Start,       End,       TurnOrderId,               pr,                         Name,    0,  Level,    Class,   N/A,      Attacks,   Traits,      CasterLvl
-          NewData = `NPC,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},"${cName}",0,"${cLevel}","${cClass}","${cRace}",${cAtkCnt},${cTraitCnt},${cCasterLevel}`
-          break;
+        repeatingSection = 'repeating_npctrait';  //Prefix
+        repeatingName = 'name'                    //Suffix 
+        repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
+          .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+        cTraitCnt = repeatingValues.length
 
-        case 'OTHER':
-          //         OTHER, Start,       End,       TurnOrderId,               pr,                         Name,    0,  Level,    Class,   N/A,      Attacks,   Traits,      CasterLvl
-          // Start, End, 'Other', TurnOrderId, pr, TokenName, 0,0,0,0,0,0,0,0,0,
-          log('TO:OTHER');
-          toTkn = getObj("graphic", toObj[toObj.length-1].id);
-          cName = toTkn.get('name');
-          NewData = `OTHER,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},${cName},0,0,0,0,0,0,0`
-          break;
+        //         NPC, Start,       End,       TurnOrderId,               pr,                         Name,    0,  Level,    Class,   N/A,      Attacks,   Traits,      CasterLvl
+        NewData = `NPC,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},"${cName}",0,"${cLevel}","${cClass}","${cRace}",${cAtkCnt},${cTraitCnt},${cCasterLevel}`
+        break;
+
+      case 'OTHER':
+        //         OTHER, Start,       End,       TurnOrderId,               pr,                         Name,    0,  Level,    Class,   N/A,      Attacks,   Traits,      CasterLvl
+        // Start, End, 'Other', TurnOrderId, pr, TokenName, 0,0,0,0,0,0,0,0,0,
+        // log('TO:OTHER');
+        toToken = getObj("graphic", toObj[toObj.length-1].id);
+        cName = toToken.get('name');
+        NewData = `OTHER,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},${cName},0,0,0,0,0,0,0`
+        break;
     }
 
-    // Write record to Handout "DM Turnorder Log"
-    nl = getNoteLog();
-    nl.get('notes', function(n){
-      if(!_.isNull(n)){
-        setTimeout(function(){
-          let text=n+'<br>' + NewData;
-          nl.set('notes',text);                        
-        },0);
-      }
-    });
+    gDataLog += '<br>' + NewData;
   };
 
   function tokenToggleVisibility(tId){
@@ -353,7 +426,7 @@ function torHandleMsg(msg_content){
   function tokenAdjHP(tId, adjHP){
     //If there is a '+'' or '-' in front of HP, will adjust hp
     //  Otherwise, it will set it.
-    log(`tokenAdjHP1: tId: ${tId} AdjHP:${adjHP}`)    
+    // log(`tokenAdjHP1: tId: ${tId} AdjHP:${adjHP}`)    
     
     const token = getObj('graphic', tId);
     if (!token){
@@ -361,13 +434,13 @@ function torHandleMsg(msg_content){
     }
     let hp = adjHP.trimStart().trimEnd();
 
-    log(`tokenAdjHP2: tId: ${tId} AdjHP:${adjHP} hp:${hp}`)
+    // log(`tokenAdjHP2: tId: ${tId} AdjHP:${adjHP} hp:${hp}`)
 
     if (hp[0] == '+' || hp[0] == '-'){
-      hp = Number(token.get('bar1_value')) + Number(hp)
-      token.set('bar1_value', hp);
+      hp = Number(token.get(`bar${state.DMDashboard.HPBar}_value`)) + Number(hp)
+      token.set(`bar${state.DMDashboard.HPBar}_value`, hp);
     } else {
-      token.set('bar1_value', hp);
+      token.set(`bar${state.DMDashboard.HPBar}_value`, hp);
     }
   }
 
@@ -376,7 +449,7 @@ function torHandleMsg(msg_content){
     if (!token){
       return;
     }
-    log(`tokenSetTooltip: tId:${tId} Text:${textToAdd}`);
+    // log(`tokenSetTooltip: tId:${tId} Text:${textToAdd}`);
     token.set('tooltip', textToAdd);
   }
   
@@ -455,7 +528,7 @@ function torHandleMsg(msg_content){
         }
       });
     });
-    log(`AddTextToTokenGMNote: tokenId:${tokenId} text:${textToAdd} currText:${currentNotes} newText:${updatedNotes}`)
+    // log(`AddTextToTokenGMNote: tokenId:${tokenId} text:${textToAdd} currText:${currentNotes} newText:${updatedNotes}`)
   };
 
   const addTextToGMNote = async (textToAdd) => {
@@ -558,7 +631,7 @@ function torHandleMsg(msg_content){
         sendPing(left, top, pageId, gmId, true, playerIds);
       }
     } else {
-      log('Token not found');
+      //log('Token not found');
     }
   }
 
@@ -684,32 +757,32 @@ function torHandleMsg(msg_content){
   function to_Remove(itemId){
     const turnOrder = JSON.parse(Campaign().get('turnorder'));
     if (!turnOrder || turnOrder.length === 0) {
-      log(`to_Remove: Turn order is empty, unable to remove item.`);
+      // log(`to_Remove: Turn order is empty, unable to remove item.`);
       return;
     }
     const itemToRemove = turnOrder.findIndex(item => item.id === itemId);
     if (itemToRemove === -1) {
-      log(`to_Remove: Item with ID "${itemId}" not found in the turn order.`);
+      // log(`to_Remove: Item with ID "${itemId}" not found in the turn order.`);
       return;
     }
     turnOrder.splice(itemToRemove, 1);
     Campaign().set('turnorder', JSON.stringify(turnOrder));
-    log(`to_Remove: Item with ID "${itemId}" has been removed from the turn order.`);
+    // log(`to_Remove: Item with ID "${itemId}" has been removed from the turn order.`);
   }
 
   function to_RemoveCustom(ndx){
     const turnOrder = JSON.parse(Campaign().get('turnorder'));
     if (!turnOrder || turnOrder.length === 0) {
-      log(`to_RemoveCustom: Turn order is empty, unable to remove item.`);
+      // log(`to_RemoveCustom: Turn order is empty, unable to remove item.`);
       return;
     }
     if (ndx < 0 || ndx > (turnOrder.length-1)) {
-      log(`to_RemoveCustom: Item with Index Position of "${ndx}" is outside the range of turn order.`);
+      // log(`to_RemoveCustom: Item with Index Position of "${ndx}" is outside the range of turn order.`);
       return;
     }
     turnOrder.splice(ndx, 1);
     Campaign().set('turnorder', JSON.stringify(turnOrder));
-    log(`to_RemoveCustom: Item with Index Position of "${ndx}" has been removed from the turn order.`);
+    // log(`to_RemoveCustom: Item with Index Position of "${ndx}" has been removed from the turn order.`);
   }
 
   const getRepeatingSectionAttrs = function (charid, prefix) {
@@ -840,7 +913,7 @@ function torHandleMsg(msg_content){
       attribute.set('current', newValue);
     } else {
       // Create the attribute with the specified name and value
-      log(`Create Attribute ${attributeName} for ${characterId} value ${newValue} Max ${maxValue}`)      
+      // log(`Create Attribute ${attributeName} for ${characterId} value ${newValue} Max ${maxValue}`)      
       if (!maxValue){
         createObj('attribute', {
           characterid: characterId,
@@ -892,7 +965,7 @@ function torHandleMsg(msg_content){
         }
       }
       // Concatenate the img element with the corresponding URL
-      sm_Images += `<img style='max-height: 20px; max-width: 20px; padding: 0px; margin: 0px !important' src='${sm_url}'></img>`;
+      sm_Images += `<div title="${smList[x]}"> <img style='max-height: 20px; max-width: 20px; padding: 0px; margin: 0px !important' src='${sm_url}'></img></div>`;
     }
     return sm_Images; // Return the final string containing the img elements
   }
@@ -915,7 +988,7 @@ function torHandleMsg(msg_content){
             name: handoutName,
             archived: false
         });
-        log(`Created new handout: ${handoutName}`);
+        // log(`Created new handout: ${handoutName}`);
     }
     return handout;
   }
@@ -980,7 +1053,41 @@ function torHandleMsg(msg_content){
     return Math.floor(scaledRandom);
   }
 
- function addInitiative(tokenIds) {
+  function setHPBar(bar){
+    if (bar < 1 || bar > 3) {
+      sendChat('DM Dashboard', `/w gm Error setting HP Bar value to <b>${bar}</b>!`)
+    }
+    state.DMDashboard.HPBar = bar
+    sendChat('DM Dashboard', `/w gm ${openChat}DM Dashboard is now using Bar <b>${bar}</b> for HP.${closeChat}`);                    
+  }
+
+  function addTooltip(tt, item) {
+    let newItem = `<div style="display:inline;" title="${tt}">${item}</div>`
+    return newItem;
+  }
+
+  function startPeformanceCheck(){
+    gStartTime = new Date().getTime();
+    // log('Starting Performance Test');
+  }
+
+  function reportPerformance(msg){
+    let gEndTime = new Date().getTime();
+    let runTime = gEndTime - gStartTime;
+    // log(`${msg} execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`);
+  }
+
+  function replaceDynamicSpanElement(source, spanId, item){
+    const regexPattern = `(<span id=${spanId}>)(.*?)(</span>)`;
+    const regexFlags = 'gi';
+    const regex = new RegExp(regexPattern, regexFlags);
+    const newSource = source.replace(regex, `$1${item}$3`);
+    //log(`replaceDynamicSpanElement: regex:${regex} spanId:${spanId} item:${item}`);
+    //log(`replaceDynamicSpanElement: source:${source}`);
+    return newSource;
+  }
+
+  function addInitiative(tokenIds) {
 
     //tokenIds will be a comma-delimited list of tokenids
     const aryTokenIds = tokenIds.split(',');
@@ -991,7 +1098,6 @@ function torHandleMsg(msg_content){
     }
 
     aryTokenIds.forEach(tId => {
-
 
       let tType = getTokenType(tId);
 
@@ -1007,7 +1113,7 @@ function torHandleMsg(msg_content){
 
       let d20Roll = randomInteger(1,20);
       let initBonus = getAttrByName(cObj.get('_id'),'initiative_bonus','current');
-      initBonus = parseFloat(initBonus.toFixed(2)); // Fix Roll20 issue where init bonus has a lot of significant digits.
+      initBonus = parseFloat(Number(initBonus.toFixed(2))); // Fix Roll20 issue where init bonus has a lot of significant digits.
       let result = Number(d20Roll) + Number(initBonus)
 
       let chatMsg = '';      
@@ -1019,7 +1125,7 @@ function torHandleMsg(msg_content){
         return;
       }
       sendChat('API', chatMsg);
-      log(`AddInitiative: tId:${tId} result: ${result} TO-Length:${turnOrder.length}`)
+      // log(`AddInitiative: tId:${tId} result: ${result} TO-Length:${turnOrder.length}`)
       // Add to the TurnOrder
       let newTOItem = {
         id: tId,
@@ -1032,7 +1138,7 @@ function torHandleMsg(msg_content){
 
       to_Remove(tId); // Remove the turnorder item if it already exists.  
 
-      log(`AddInitiative: PageId:${Campaign().get("playerpageid")} TO-Length:${turnOrder.length}`)
+      // log(`AddInitiative: PageId:${Campaign().get("playerpageid")} TO-Length:${turnOrder.length}`)
 
     });
     Campaign().set("turnorder", JSON.stringify(turnOrder));
@@ -1043,7 +1149,7 @@ function torHandleMsg(msg_content){
   *******************************/
   function refreshReports() {
 
-    log('refreshReports: Start ');
+    // log('refreshReports: Start ');
 
     // **** Variable Declarations  ****
     const openReport = "<div style='color: #000; border: 1px solid #000; background-color: #EFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
@@ -1056,6 +1162,8 @@ function torHandleMsg(msg_content){
     const closeChat= `<\div><\div>`;
     const openBox = "<div style='color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
     const closeBox = '</div>';
+    const openCharBox = `<div style='height:300px; overflow-y: scroll; border: 1px solid black; padding 10px; display: block;'>`
+    const closeCharBox = '</div>';
 
     let lines = '';
     let sheetURL = 'http://journal.roll20.net/character/';
@@ -1066,9 +1174,8 @@ function torHandleMsg(msg_content){
     let urlCount = 0;
     let dmChar = [];
     let toToken = [];
-    let toTkn = [];
     let toChar = [];
-    let charbtn = '';
+    let charBtn = '';
     let tknImg = '';
     let skills = '';
     let repeatingSection = '';
@@ -1080,6 +1187,7 @@ function torHandleMsg(msg_content){
     let hpmax = 0;
     let hppct = 0;
     let btnAdjHP = '';
+    let tmp = '';
 
     let row =[];
     let repeatingField='';
@@ -1133,13 +1241,13 @@ function torHandleMsg(msg_content){
 
     let tr = '';
     let td_hp = '';
-    let chartbl = '';
-    let charheader = '';
-    let chartbl_col1 = '';
-    let chartbl_col2 = '';
-    let chartbl_col3 = '';
-    let chartbl_col4 = '';
-    let chartbl_col5 = '';
+    let charDetail = '';
+    let charHeader = '';
+    let charDetail_col1 = '';
+    let charDetail_col2 = '';
+    let charDetail_col3 = '';
+    let charDetail_col4 = '';
+    let charDetail_col5 = '';
 
     // **** Load Objects and Arrays of Objects ****
     let ho_TOReport = getHandout('DM Turnoder List');
@@ -1212,23 +1320,22 @@ function torHandleMsg(msg_content){
     btns += btnD8+ " "
     btns += btnD10+ " "
     btns += btnD12 + "  |  "  
-    btns += btnAddNote + " "
+    // btns += btnAddNote + " "
     btns += btnResetStats 
     btns = openBox + btns + closeBox
-
-
     
-    if(Campaign().get("turnorder")=="") 
+    if(Campaign().get("turnorder")=="") {
       turnorder = [];
-    else 
+    } else {
       toObj = JSON.parse(Campaign().get("turnorder"));
+    }
     
     // Is there at least a couple entries in the turn order, and we are responding to an 
     // event that advances the turnorder?
     if (toObj.length >0) { 
 
       /******************************************************************
-      *  This section of code calculates the time it a player or DM takes
+      *  This section of code calculates the time a player or DM takes
       * on a turn.
       ******************************************************************/
 
@@ -1285,7 +1392,7 @@ function torHandleMsg(msg_content){
                   TO_Secs = Number(dt_diff) + Number(TO_Secs);
                   TO_Count = Number(TO_Count) + 1;
                 }
-                log(`TO_Metrics: Cnt(${TO_Count}) OldSecs(${y}) NewSecs(${TO_Secs}) Avg(${TO_Avg}) dt_diff(${dt_diff})`)
+                // log(`TO_Metrics: Cnt(${TO_Count}) OldSecs(${y}) NewSecs(${TO_Secs}) Avg(${TO_Avg}) dt_diff(${dt_diff})`)
 
                 TO_Avg = Math.floor(TO_Secs / TO_Count);
                 changeAttributeValue(toPrevChar.get('_id'), 'to_secs', TO_Secs, 3000)
@@ -1319,10 +1426,14 @@ function torHandleMsg(msg_content){
         }
       }
 
+      reportPerformance('Complete Stats Calcs');
+
       /******************************************************************
       *  Build the Detailed NPC or Character section if expanded        *
       ******************************************************************/
 
+      charDetail = '';
+  
       Ttype = getTokenType(toObj[0].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
 
       switch (Ttype) {
@@ -1330,68 +1441,97 @@ function torHandleMsg(msg_content){
 
           toToken = getObj("graphic", toObj[0].id);                
           tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
-          charheader = `${openHeader} ${makeButton('🎯', `!tor --PingToken-GM ${toToken.get('_id')}`, 20)} ${tknImg} ${toToken.get('name')} - Graphic Token (Not associated with Character/NPC) Turnorder: (${toObj[0].pr})  ${closeHeader}<br>`;
-          chartbl = '';
+          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
+          charHeader = `${openHeader} ${addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`, 20))} ${tknImg} ${toToken.get('name')} - Graphic Token (Not associated with Character/NPC) Turnorder: (${toObj[0].pr})  ${closeHeader}<br>`;
+          charDetail = '';
           
           break;
 
         case 'CUSTOM':
-          charheader = `${openHeader}Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}] ${closeHeader}<br>`;
-          chartbl = '';
+          charHeader = `${openHeader}Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}] ${closeHeader}<br>`;
+          charDetail = '';
           break;
 
         case 'CHAR':
-          log('TOReport: PC');                                    
+          // log('TOReport: PC');                                    
 
           toToken = getObj("graphic", toObj[0].id);
           toChar = getObj("character", toToken.get('represents'));
 
           isnpc = 0;
           tdbase = tdpc;
-          chartbl = '';
+          charDetail = '';
 
           TO_Avg = getAttrByName(toChar.get('_id'),'to_avg','current');
           TO_Secs = getAttrByName(toChar.get('_id'),'to_secs','current');
           TO_Count = getAttrByName(toChar.get('_id'),'to_count','current');
 
+          //Header Info
+          charBtn = addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20));
+          tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
+          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
+          charHeader = `${openHeader} ${charBtn} ${addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`, 20))} ${tknImg} ${toToken.get('name')}   [Avg Turn: ${TO_Avg} / Secs:  ${TO_Secs} / Cnt: ${TO_Count}] ${closeHeader} <b><i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</b></i> `;
+
+          if (true && charMap.has(toObj[0].id)) {
+            log('Using Map for: ' + toObj[0].id)
+            charMapItem = charMap.get(toObj[0].id)
+            charDetail = charMapItem.txt
+
+            // Replace dynamic elements - This is quicker than reading the who character sheet of information again.
+            charDetail = replaceDynamicSpanElement(charDetail, 'chardetail-hp', getAttrByName(toChar.get('_id'),'hp','current'))
+            let arySL = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+            arySL.forEach(sl => {
+              let sr = getAttrByName(toChar.get('_id'),`lvl${sl}_slots_expended`,'current');
+              charDetail = replaceDynamicSpanElement(charDetail, `chardetail-spellslots-${sl}`, sr)
+            });
+            break;
+          }
 
           //Row1 - Column 1-5: Basic Info
-          charbtn = makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20);
-          tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
-          charheader = `${openHeader} ${charbtn} ${makeButton('🎯', `!tor --PingToken-GM ${toToken.get('_id')}`, 20)} ${tknImg} ${toToken.get('name')}        [Avg Turn: ${TO_Avg} / Secs:  ${TO_Secs} / Cnt: ${TO_Count}] ${closeHeader} <b><i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</b></i> `;
-          chartbl += '<table><thead><tr><th' + th.slice(0,-1) + ';width:10%">Attributes</th><th' + th.slice(0,-1) + ';width:20%">Skills</th><th' + th.slice(0,-1) + ';width:20%">Stats</th><th' + th.slice(0,-1) + ';width:12%">Attacks</th><th' + th.slice(0,-1) + ';width:13%">Traits</th><th' + th.slice(0,-1) + ';width:25%">Spells/Resources</th></tr></thead><tbody>';
+          charDetail += '<table><thead><tr><th' + th.slice(0,-1) + ';width:15%">Attributes</th><th' + th.slice(0,-1) + ';width:15%">Stats</th><th' + th.slice(0,-1) + ';width:20%">Skills</th><th' + th.slice(0,-1) + ';width:12%">Attacks</th><th' + th.slice(0,-1) + ';width:13%">Traits</th><th' + th.slice(0,-1) + ';width:25%">Spells/Resources</th></tr></thead><tbody>';
 
           // Send a "Next Turn" message to the game chat, if this is being refreshed for that purpose
-          log('Advance? ' + cmd_advance);
+          // log('Advance? ' + cmd_advance);
 
           if (cmd_advance == 1){
             sendChat('Turn Order', `${openChat}<table><tr><td>${tknImg}</td><td><b>${toToken.get('name')} is up!</b><br> (ATPT: ${TO_Avg} Secs / Last turn: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')})</td></tr></table> ${closeChat}`);                
-            //sendChat('Debug', `${openChat}<table><tr><td>(Count: ${TO_Count} Secs: ${TO_Secs}</td></tr></table> ${closeChat}`);                
           }
 
           //Row2 - Column 1: Basic Info
-          chartbl += '<tr><td' + tdpc + '>' // 1 Row Table incapsalating columns of info
-          chartbl += '<table>'; // Table for Column 1
-          chartbl += '<tr><td' + tdpc + '><b>Str:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'strength','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'strength_save_bonus','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Dex:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'dexterity','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_save_bonus','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Con:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'constitution','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'constitution_save_bonus','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Wis:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'wisdom','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td><td ' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_save_bonus','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Int:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'intelligence','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_save_bonus','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Cha:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'charisma','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'charisma_save_bonus','current')) + '</td></tr>';
-          chartbl += '</table></td>' // End of Column 1
+          charDetail += '<tr><td' + tdpc + '>' // 1 Row Table incapsalating columns of info
+          charDetail += '<table>'; // Table for Column 1
+          charDetail += '<tr><td' + tdpc + '><b>Str:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'strength','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'strength_save_bonus','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Dex:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'dexterity','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_save_bonus','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Con:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'constitution','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'constitution_save_bonus','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Wis:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'wisdom','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td><td ' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_save_bonus','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Int:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'intelligence','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_save_bonus','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Cha:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'charisma','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'charisma_save_bonus','current')) + '</td></tr>';
+          charDetail += '</table>'
+          charDetail += '<table>'; // Table for Bonds/Flaws/...
+          charDetail += '<tr><td' + tdpc + '><b>Personality Traits</b></td></tr>'
+          charDetail += '<tr><td' + tdpc + '><i>' + getAttrByName(toChar.get('_id'),'personality_traits','current')  + '</i></td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Ideals</b></td></tr>'
+          charDetail += '<tr><td' + tdpc + '><i>' + getAttrByName(toChar.get('_id'),'ideals','current')  + '</i></td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Bonds</b></td></tr>'
+          charDetail += '<tr><td' + tdpc + '><i>' + getAttrByName(toChar.get('_id'),'bonds','current')  + '</i></td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Flaws</b></td></tr>'
+          charDetail += '<tr><td' + tdpc + '><i>' + getAttrByName(toChar.get('_id'),'flaws','current')  + '</i></td></tr>';
+
+
+          charDetail += '</table></td>' // End of Column 1
 
           // Basics
-          chartbl += '<td' + tdpc + '><table>';
-          chartbl += '<tr><td' + tdpc + '><b>AC:</b>' + getAttrByName(toChar.get('_id'),'ac','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>HP:</b>' + getAttrByName(toChar.get('_id'),'hp','current') + '/' + getAttrByName(toChar.get('_id'),'HP','max') + '  Temp:' + getAttrByName(toChar.get('_id'),'hp_temp','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Speed:</b>' + getAttrByName(toChar.get('_id'),'speed','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>PP:</b>' + getAttrByName(toChar.get('_id'),'passive_wisdom','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Init:</b>' + AddSign(getAttrByName(toChar.get('_id'),'initiative_bonus','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Caster:</b>' + getAttrByName(toChar.get('_id'),'caster_level','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Spell DC:</b>' + getAttrByName(toChar.get('_id'),'spell_save_dc','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Spell Attack Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'spell_attack_bonus','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Prof Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'pb','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>Tools:</b>';                               
+          charDetail += '<td' + tdpc + '><table>';
+          charDetail += '<tr><td' + tdpc + '><b>AC:</b>' + getAttrByName(toChar.get('_id'),'ac','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>HP:</b><span id=chardetail-hp>' + getAttrByName(toChar.get('_id'),'hp','current') + '</span>/' + getAttrByName(toChar.get('_id'),'HP','max') + ' Temp:<span id=chardetail-hptemp>' + getAttrByName(toChar.get('_id'),'hp_temp','current') + '</span></td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Speed:</b>' + getAttrByName(toChar.get('_id'),'speed','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>PP:</b>' + getAttrByName(toChar.get('_id'),'passive_wisdom','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Init:</b>' + AddSign(getAttrByName(toChar.get('_id'),'initiative_bonus','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Caster:</b>' + getAttrByName(toChar.get('_id'),'caster_level','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Spell DC:</b>' + getAttrByName(toChar.get('_id'),'spell_save_dc','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Spell Attack Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'spell_attack_bonus','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Prof Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'pb','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdpc + '><b>Tools:</b>';                               
 
           // Define the repeating section identifier
           repeatingSection = 'repeating_tool';  //Prefix
@@ -1407,12 +1547,12 @@ function torHandleMsg(msg_content){
           for (let rowId in repeatingValues) {
             row = repeatingValues[rowId];
             repeatingField=row.get('name').slice(0,-9);
-            chartbl +=  row.get('current') + ', ';
+            charDetail +=  row.get('current') + ', ';
           }
-          chartbl += '</td></tr>'; 
+          charDetail += '</td></tr>'; 
 
           // Need to get
-          chartbl += '<tr><td' + tdpc + '><b>Lang/Other:</b>';                               
+          charDetail += '<tr><td' + tdpc + '><b>Lang/Other:</b>';                               
 
           // Define the repeating section identifier
           repeatingSection = 'repeating_proficiencies';  //Prefix
@@ -1426,28 +1566,28 @@ function torHandleMsg(msg_content){
           for (let rowId in repeatingValues) {
             row = repeatingValues[rowId];
             repeatingField=row.get('name').slice(0,-5);
-            chartbl +=  row.get('current') + ', ';
+            charDetail +=  row.get('current') + ', ';
           }
-          chartbl += '</td></tr>'; 
-          chartbl += '</table></td>';
+          charDetail += '</td></tr>'; 
+          charDetail += '</table></td>';
 
           // Skills
-          chartbl += '<td' + tdpc + '><table><tr><td' + tdpc + '><table>';
+          charDetail += '<td' + tdpc + '><table><tr><td' + tdpc + '><table>';
           skills = ['acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleight_of_hand', 'stealth', 'survival'];
           skills.forEach(mySkill => {
               let skill = resolveAttr(toChar.get('_id'), mySkill + '_bonus');
               let skill_value = skill.current;
               let skill_name = mySkill;
-              chartbl += '<tr><td' + tdpc + '><b>' + makeButton(skill_name,`!&#13;&#64;{${toChar.get('name')}|${mySkill}_roll}`)+ ':</b>' + AddSign(skill_value) + '</td></tr>';
+              charDetail += '<tr><td' + tdpc + '><b>' + makeButton(skill_name,`!&#13;&#64;{${toChar.get('name')}|${mySkill}_roll}`)+ ':</b>' + AddSign(skill_value) + '</td></tr>';
               if (mySkill == 'investigation'){
-                  chartbl += '</table></td><td' + tdpc + '><table>';
+                  charDetail += '</table></td><td' + tdpc + '><table>';
               }
           });
 
-          chartbl += '</table></td></table></td>';
+          charDetail += '</table></td></table></td>';
 
           // *******   Attacks *******
-          chartbl += '<td' + tdpc + '><table>';
+          charDetail += '<td' + tdpc + '><table>';
 
           // Define the repeating section identifier
           repeatingSection = 'repeating_attack';  //Prefix
@@ -1465,12 +1605,12 @@ function torHandleMsg(msg_content){
             repeatingField = row.get('name').slice(0,-8);
             let repeatingAction = repeatingField + '_attack';
             repeatingAction = makeButton(row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 125);
-            chartbl += '<tr><td' + tdpc + '>' + repeatingAction + '</td></tr>';
+            charDetail += '<tr><td' + tdpc + '>' + repeatingAction + '</td></tr>';
           }
 
           // ******* Traits *******
-          chartbl += '</table></td>';
-          chartbl += '<td' + tdpc + '><table>';
+          charDetail += '</table></td>';
+          charDetail += '<td' + tdpc + '><table>';
 
           // Define the repeating section identifier
           repeatingSection = 'repeating_traits';  //Prefix
@@ -1486,10 +1626,10 @@ function torHandleMsg(msg_content){
             repeatingField=row.get('name').slice(0,-5);
             let repeatingDesc = getAttrByName(toChar.get('_id'),repeatingField + '_description','current')
             let ttdiv = `<div class="showtip" title="${repeatingDesc}">`
-            chartbl += '<tr><td' + tdpc + '><b>' + ttdiv + row.get('current') + '</div></b></td></tr>';
+            charDetail += '<tr><td' + tdpc + '><b>' + ttdiv + row.get('current') + '</div></b></td></tr>';
           }
-          chartbl += '</table></td>';
-          chartbl += '<td' + tdpc + '><table>';
+          charDetail += '</table></td>';
+          charDetail += '<td' + tdpc + '><table>';
 
           // ************* Spells *******************
           spell_lvls = ['cantrip', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -1503,7 +1643,7 @@ function torHandleMsg(msg_content){
             if (spell_lvl != 'cantrip') {
               slots = getAttrByName(toChar.get('_id'),`lvl${spell_lvl}_slots_total`,'current');
               slots_remaining = getAttrByName(toChar.get('_id'),`lvl${spell_lvl}_slots_expended`,'current');
-              slots = `( ${slots} of ${slots_remaining})`;
+              slots = `(<span id=chardetail-spellslots-${spell_lvl}>${slots_remaining}</span> of ${slots})`;
             }
 
             repeatingSection = `repeating_spell-${spell_lvl}`;  //Prefix
@@ -1513,7 +1653,7 @@ function torHandleMsg(msg_content){
             repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
               .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}`) && attribute.get("name").endsWith(`_${repeatingName}`));
             if (repeatingValues.length > 0){
-              chartbl += '<tr><td' + tdpc + '><b>Level ' + spell_lvl + slots + ':</b> ';
+              charDetail += '<tr><td' + tdpc + '><b>Level ' + spell_lvl + slots + ':</b> ';
               // Loop through the values in the repeating section
               for (let rowId in repeatingValues) {
                 row = repeatingValues[rowId];
@@ -1525,140 +1665,162 @@ function torHandleMsg(msg_content){
                 let spellInnate = getAttrByName(toChar.get('_id'),`${repeatingField}_innate`,'current');
                 if (spellInnate.length > 2) { spellInnate = '<i>(' + spellInnate + ')</i>'; } else {spellInnate = ''; }
 
-                repeatingAction = makeButton('🧙', `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 10);
-                let spelllink = 'https://www.dndbeyond.com/spells/' + row.get('current').replace(/ /g, "-")
-                spelllink = makeButton('🔗', spelllink, 15)
+                // repeatingAction = makeButton('🧙', `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 10);
+                repeatingAction = '<div style="border: 1px solid #dcdcdc; padding: 1px; display: inline-block;">' + makeButton(row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
+
+                // let spellLink = 'https://www.dndbeyond.com/spells/' + row.get('current').replace('/ /g', "-")
+                let spellLink = 'https://app.roll20.net/compendium/dnd5e/Spells:'+encodeURIComponent(row.get('current'))+'#content'
+                // log(`spellLink: ${row.get('current')} ${spellLink}`)                                
+                spellLink = makeButton('🔗', spellLink, 15)
 
                 // Build a spell description field here (Range, Action, Target, Duration, Con, Desc)
                 if (spell_lvl != 'cantrip') {
                   if (spellPrepared == '1') {
-                    chartbl += repeatingAction + spelllink + '<b>' + row.get('current') + '*</b>'+ spellInnate + ', ';  
+                    charDetail += repeatingAction + '*' + spellInnate + spellLink + '</div>,';  
                   } else {
-                    chartbl += repeatingAction + spelllink + row.get('current') + spellInnate + ', ';  
+                    charDetail += repeatingAction + ' ' + spellInnate + spellLink + '</div>,';  
                   }
 
                 } else {
-                  chartbl += repeatingAction + spelllink + '<b>' + row.get('current') + '*</b>, ';  
+                  charDetail += repeatingAction + ' ' + spellInnate + spellLink +  '</div>,';    
                 }
 
               }
-              chartbl = chartbl.slice(0,-2);
-              chartbl += '</td></tr>';
+              charDetail = charDetail.slice(0,-2);
+              charDetail += '</td></tr>';
             }
           });
 
-          chartbl += '<tr><td' + tdpc + '>  </td></tr><tr><td' + tdpc + '><br><b><u> ***** Resources ***** </u></b> </td></tr>';
-          
-          // ********** Resources ***************
-          // chartbl += '<td' + tdpc + '><table>';
-          chartbl += '<tr><td' + tdpc + '><b>' + getAttrByName(toChar.get('_id'),'class_resource_name','current') + '[cr] (' + getAttrByName(toChar.get('_id'),'class_resource','current') + ' of ' + getAttrByName(toChar.get('_id'),'class_resource','max') + ')</td></tr>';
-          chartbl += '<tr><td' + tdpc + '><b>' + getAttrByName(toChar.get('_id'),'other_resource_name','current') + '[or] (' + getAttrByName(toChar.get('_id'),'other_resource','current') + ' of ' + getAttrByName(toChar.get('_id'),'other_resource','max') + ')</td></tr>';
+          if (false) { //Skipping this section right now to speed up execution
+            // ********** Resources ***************
+            charDetail += '<tr><td' + tdpc + '>  </td></tr><tr><td' + tdpc + '><br><b><u> ***** Resources ***** </u></b> </td></tr>';
+            // charDetail += '<td' + tdpc + '><table>';
+            charDetail += '<tr><td' + tdpc + '><b>' + getAttrByName(toChar.get('_id'),'class_resource_name','current') + '[cr] (' + getAttrByName(toChar.get('_id'),'class_resource','current') + ' of ' + getAttrByName(toChar.get('_id'),'class_resource','max') + ')</td></tr>';
+            charDetail += '<tr><td' + tdpc + '><b>' + getAttrByName(toChar.get('_id'),'other_resource_name','current') + '[or] (' + getAttrByName(toChar.get('_id'),'other_resource','current') + ' of ' + getAttrByName(toChar.get('_id'),'other_resource','max') + ')</td></tr>';
 
-          // Define the repeating section identifier
-          repeatingSection = 'repeating_resource';  //Prefix
-          repeatingName = 'resource_left_name';  //Suffix 
-          repeatingValue = 0;
-          repeatingMax = 0;
+            // Define the repeating section identifier
+            repeatingSection = 'repeating_resource';  //Prefix
+            repeatingName = 'resource_left_name';  //Suffix 
+            repeatingValue = 0;
+            repeatingMax = 0;
 
-          // Get the values of the repeating section
-          repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
-            .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+            // Get the values of the repeating section
+            repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
+              .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
 
-          // Loop through the values in the repeating section
-          for (let rowId in repeatingValues) {
-            row = repeatingValues[rowId];
-            repeatingName = getAttrByName(toChar.get('_id'),row.get('name'),'current')
-            repeatingField = row.get('name').slice(0,-19);
-            repeatingValue = getAttrByName(toChar.get('_id'),repeatingField + '_resource_left','current')
-            repeatingMax = getAttrByName(toChar.get('_id'),repeatingField + '_resource_left','current')
-            chartbl += '<tr><td' + tdpc + '><b>' + row.get('current') + '</b>: (' + repeatingValue + ' of ' + repeatingMax + ')</td></tr>';
+            // Loop through the values in the repeating section
+            for (let rowId in repeatingValues) {
+              row = repeatingValues[rowId];
+              repeatingName = getAttrByName(toChar.get('_id'),row.get('name'),'current')
+              repeatingField = row.get('name').slice(0,-19);
+              repeatingValue = getAttrByName(toChar.get('_id'),repeatingField + '_resource_left','current')
+              repeatingMax = getAttrByName(toChar.get('_id'),repeatingField + '_resource_left','current')
+              charDetail += '<tr><td' + tdpc + '><b>' + row.get('current') + '</b>: (' + repeatingValue + ' of ' + repeatingMax + ')</td></tr>';
+            }
+
+            repeatingSection = 'repeating_resource';  //Prefix
+            repeatingName = 'resource_right_name';  //Suffix 
+            repeatingValue = 0;
+            repeatingMax = 0;
+
+            // Get the values of the repeating section
+            repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
+              .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+
+            // Loop through the values in the repeating section
+            for (let rowId in repeatingValues) {
+              let row = repeatingValues[rowId];
+              let repeatingName = getAttrByName(toChar.get('_id'),row.get('name'),'current')
+              let repeatingField = row.get('name').slice(0,-20);
+              let repeatingValue = getAttrByName(toChar.get('_id'),repeatingField + '_resource_right','current')
+              let repeatingMax = getAttrByName(toChar.get('_id'),repeatingField + '_resource_right','current')
+              charDetail += '<tr><td' + tdpc + '><b>' + row.get('current') + '</b>: (' + repeatingValue + ' of ' + repeatingMax + ')</td></tr>';
+            }
           }
 
-          repeatingSection = 'repeating_resource';  //Prefix
-          repeatingName = 'resource_right_name';  //Suffix 
-          repeatingValue = 0;
-          repeatingMax = 0;
+          charDetail += '</table></td></tr></table>';
+          charDetail = openCharBox + charDetail + closeCharBox;
 
-          // Get the values of the repeating section
-          repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
-            .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+          // log('Loading Char int Map Object: ' + toObj[0].id);
+          //charMap.set(toChar.get('id'), {id: toChar.get('id'), charId: toChar.get('id'), txt: charDetail})
+          charMap.set(toObj[0].id, {id: toObj[0].id, charId: toChar.get('id'), txt: charDetail});
 
-          // Loop through the values in the repeating section
-          for (let rowId in repeatingValues) {
-            let row = repeatingValues[rowId];
-            let repeatingName = getAttrByName(toChar.get('_id'),row.get('name'),'current')
-            let repeatingField = row.get('name').slice(0,-20);
-            let repeatingValue = getAttrByName(toChar.get('_id'),repeatingField + '_resource_right','current')
-            let repeatingMax = getAttrByName(toChar.get('_id'),repeatingField + '_resource_right','current')
-            chartbl += '<tr><td' + tdpc + '><b>' + row.get('current') + '</b>: (' + repeatingValue + ' of ' + repeatingMax + ')</td></tr>';
-          }
-          chartbl += '</table></td></tr></table>';
-          //chartbl += '</table>';
           break;
 
         case 'NPC':
-          log('TOReport: NPC');                                    
+          // log('TOReport: NPC');                                    
 
           toToken = getObj("graphic", toObj[0].id);
           toChar = getObj("character", toToken.get('represents'));
 
           isnpc = 1;
           tdbase = tdnpc;
-          chartbl = '<table>';
+
+          // Header 
+          charBtn = makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20);
+          tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
+          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
+          charHeader = `${openHeader} ${charBtn} ${addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`, 20))} ${tknImg} ${toToken.get('name')}   [Avg Turn: ${state.DMDashboard.DM_Avg} / Secs: ${state.DMDashboard.DM_Secs} / Cnt: ${state.DMDashboard.DM_Count}]  ${closeHeader} <b><i>${getAttrByName(toChar.get('_id'),'npc_type','current')}</b></i> `;
+
+          if (true && charMap.has(toObj[0].id)) {
+              // log('Using Map for: ' + toObj[0].id)
+              charMapItem = charMap.get(toObj[0].id)
+              charDetail = charMapItem.txt
+              charDetail = replaceDynamicSpanElement(charDetail, 'chardetail-hp', toToken.get(`bar${state.DMDashboard.HPBar}_value`))
+              break;
+          }
 
           //Row1 - Column 1-5: Basic Info
-          charbtn = makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20);
-          tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
-
-          charheader = `${openHeader} ${charbtn} ${makeButton('🎯', `!tor --PingToken-GM ${toToken.get('_id')}`, 20)} ${tknImg} ${toToken.get('name')}      [Avg Turn: ${state.DMDashboard.DM_Avg} / Secs: ${state.DMDashboard.DM_Secs} / Cnt: ${state.DMDashboard.DM_Count}]  ${closeHeader} <b><i>${getAttrByName(toChar.get('_id'),'npc_type','current')}</b></i> `;
-          chartbl += '<table><thead><tr><th' + th.slice(0,-1) + ';width:10%">Attributes</th><th' + th.slice(0,-1) + ';width:20%">Stats</th><th' + th.slice(0,-1) + ';width:20%">Info</th><th' + th.slice(0,-1) + ';width:20%">Traits/Actions</th><th' + th.slice(0,-1) + ';width:30%">Spells</th></tr></thead><tbody>';
+          //charDetail = '<table>';
+          charDetail += '<table><thead><tr><th' + th.slice(0,-1) + ';width:10%">Attributes</th><th' + th.slice(0,-1) + ';width:20%">Stats</th><th' + th.slice(0,-1) + ';width:20%">Info</th><th' + th.slice(0,-1) + ';width:20%">Traits/Actions</th><th' + th.slice(0,-1) + ';width:30%">Spells</th></tr></thead><tbody>';
 
           //Row2 - Column 1: Basic Info
-          chartbl += '<tr><td' + tdnpc + '><table>';
-          chartbl += '<tr><td' + tdnpc + '><b>Str:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'strength','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) +')</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Dex:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'dexterity','current')  + '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Con:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'constitution','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Wis:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'wisdom','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Int:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'intelligence','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Cha:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'charisma','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td></tr>';
-          chartbl += '</table></td>'
+          charDetail += '<tr><td' + tdnpc + '>'
+          charDetail += '<table>';
+          charDetail += '<tr><td' + tdnpc + '><b>Str:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'strength','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) +')</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Dex:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'dexterity','current')  + '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Con:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'constitution','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Wis:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'wisdom','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Int:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'intelligence','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Cha:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'charisma','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td></tr>';
+          charDetail += '</table></td>'
 
           // Basics
-          chartbl += '<td' + tdnpc + '><table>';
-          chartbl += '<tr><td' + tdnpc + '><b>AC:</b>' + getAttrByName(toChar.get('_id'),'npc_ac','current') + ' (' + getAttrByName(toChar.get('_id'),'npc_actype','current') + ')</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>HP:</b>' + getAttrByName(toChar.get('_id'),'hp','current') + '/' + getAttrByName(toChar.get('_id'),'HP','max') + '(' + getAttrByName(toChar.get('_id'),'npc_hpformula','current') + ')</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Speed:</b>' + getAttrByName(toChar.get('_id'),'npc_speed','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>PP:</b>' + getAttrByName(toChar.get('_id'),'passive_wisdom','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Init:</b>' + AddSign(getAttrByName(toChar.get('_id'),'initiative_bonus','current')) + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Caster:</b>' + getAttrByName(toChar.get('_id'),'caster_level','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Spell DC:</b>' + getAttrByName(toChar.get('_id'),'spell_save_dc','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Spell Attack Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'spell_attack_bonus','current')) + '</td></tr>';
+          charDetail += '<td' + tdnpc + '><table>';
+          charDetail += '<tr><td' + tdnpc + '><b>AC:</b>' + getAttrByName(toChar.get('_id'),'npc_ac','current') + ' (' + getAttrByName(toChar.get('_id'),'npc_actype','current') + ')</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>HP:</b><span id=chardetail-hp>' + toToken.get(`bar${state.DMDashboard.HPBar}_value`) + '</span>/' + toToken.get(`bar${state.DMDashboard.HPBar}_max`) + '(' + getAttrByName(toChar.get('_id'),'npc_hpformula','current') + ')</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Speed:</b>' + getAttrByName(toChar.get('_id'),'npc_speed','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>PP:</b>' + getAttrByName(toChar.get('_id'),'passive_wisdom','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Init:</b>' + AddSign(getAttrByName(toChar.get('_id'),'initiative_bonus','current')) + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Caster:</b>' + getAttrByName(toChar.get('_id'),'caster_level','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Spell DC:</b>' + getAttrByName(toChar.get('_id'),'spell_save_dc','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Spell Attack Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'spell_attack_bonus','current')) + '</td></tr>';
 
-          chartbl += '</table></td>';
+          charDetail += '</table></td>';
 
           // Skills
-          chartbl += '<td' + tdnpc + '><table>';
-          chartbl += '<tr><td' + tdnpc + '><b>Skills:</b>';
+          charDetail += '<td' + tdnpc + '><table>';
+          charDetail += '<tr><td' + tdnpc + '><b>Skills:</b>';
           skills = ['acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleight_of_hand', 'stealth', 'survival'];
           skills.forEach(mySkill => {
             let skill = resolveAttr(toChar.get('_id'), 'npc_' + mySkill + '_base');
             let skill_value = skill.current;
             if (skill_value != 0) {
               let myRoll = `!&#13;?&#64;{${toChar.get('name')}|wtype}&amp;&#123;template:npc&#125;&nbsp;&#64;{${toChar.get('name')}|npc_name_flag}&nbsp;&#64;{Noble|rtype&#125;+[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{r1=[[@{${toChar.get('name')}|d20}+[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{mod=[[[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{rname=${mySkill}&#125;&#125; {{type=Skill&#125;&#125;`
-              chartbl += makeButton(mySkill, myRoll) + ' ' + skill_value + ', ';
+              charDetail += makeButton(mySkill, myRoll) + ' ' + skill_value + ', ';
             }
           });
-          chartbl += '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Dmg Res:</b>' + getAttrByName(toChar.get('_id'),'npc_resistances','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Dmg Imm:</b>' + getAttrByName(toChar.get('_id'),'npc_immunities','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Cnd Imm:</b>' + getAttrByName(toChar.get('_id'),'npc_condition_immunities','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Dmg Vul:</b>' + getAttrByName(toChar.get('_id'),'npc_vulnerabilities','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Lanuages:</b>' + getAttrByName(toChar.get('_id'),'npc_languages','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Senses:</b>' + getAttrByName(toChar.get('_id'),'npc_senses','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>CR:</b>' + getAttrByName(toChar.get('_id'),'npc_challenge','current') + '</td></tr>';
-          chartbl += '<tr><td' + tdnpc + '><b>Prof Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'npc_pb','current')) + '</td></tr>';
-          chartbl += '</table></td>';
-          chartbl += '<td' + tdnpc + '><table>';
+          charDetail += '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Dmg Res:</b>' + getAttrByName(toChar.get('_id'),'npc_resistances','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Dmg Imm:</b>' + getAttrByName(toChar.get('_id'),'npc_immunities','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Cnd Imm:</b>' + getAttrByName(toChar.get('_id'),'npc_condition_immunities','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Dmg Vul:</b>' + getAttrByName(toChar.get('_id'),'npc_vulnerabilities','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Lanuages:</b>' + getAttrByName(toChar.get('_id'),'npc_languages','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Senses:</b>' + getAttrByName(toChar.get('_id'),'npc_senses','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>CR:</b>' + getAttrByName(toChar.get('_id'),'npc_challenge','current') + '</td></tr>';
+          charDetail += '<tr><td' + tdnpc + '><b>Prof Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'npc_pb','current')) + '</td></tr>';
+          charDetail += '</table></td>';
+          charDetail += '<td' + tdnpc + '><table>';
 
           // Define the repeating section identifier
           repeatingSection = 'repeating_npctrait';  //Prefix
@@ -1676,7 +1838,7 @@ function torHandleMsg(msg_content){
             repeatingField=row.get('name').slice(0,-5);
             let repeatingDesc = getAttrByName(toChar.get('_id'),repeatingField + '_description','current')
             let ttdiv = `<div class="showtip" title="${repeatingDesc}">`
-            chartbl += '<tr><td' + tdnpc + '>' + ttdiv + 'T: ' + row.get('current') + '</div></td></tr>';
+            charDetail += '<tr><td' + tdnpc + '>' + ttdiv + 'T: ' + row.get('current') + '</div></td></tr>';
           }
 
           // ******* Actions *******
@@ -1693,8 +1855,8 @@ function torHandleMsg(msg_content){
             row = repeatingValues[rowId];
             repeatingField=row.get('name').slice(0,-5);
             let repeatingAction = repeatingField + '_npc_action';
-            repeatingAction = makeButton('A: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 200);
-            chartbl += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
+            repeatingAction = makeButton('A: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
+            charDetail += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
           }
 
           // ***  Bonus Actions *** 
@@ -1711,8 +1873,8 @@ function torHandleMsg(msg_content){
             row = repeatingValues[rowId];
             repeatingField=row.get('name').slice(0,-5);
             let repeatingAction = repeatingField + '_npc_action';
-            repeatingAction = makeButton('BA: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 200);
-            chartbl += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
+            repeatingAction = makeButton('BA: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
+            charDetail += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
           }
 
           // Reactions
@@ -1728,8 +1890,8 @@ function torHandleMsg(msg_content){
             row = repeatingValues[rowId];
             repeatingField=row.get('name').slice(0,-5);
             let repeatingAction = repeatingField + '_npc_action';
-            repeatingAction = makeButton('RA: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 200);
-            chartbl += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
+            repeatingAction = makeButton('RA: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
+            charDetail += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
           }
 
           // Legendary Actions
@@ -1745,14 +1907,14 @@ function torHandleMsg(msg_content){
             row = repeatingValues[rowId];
             repeatingField=row.get('name').slice(0,-5);
             let repeatingAction = repeatingField + '_npc_action';
-            repeatingAction = makeButton('LA: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 200);
-            chartbl += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
+            repeatingAction = makeButton('LA: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
+            charDetail += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
           }
 
           // ************* Spells *******************
           spell_lvls = ['cantrip', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-          chartbl += '</table></td>';
-          chartbl += '<td' + tdnpc + '><table>';
+          charDetail += '</table></td>';
+          charDetail += '<td' + tdnpc + '><table>';
 
           spell_lvls.forEach(spell_lvl => {
 
@@ -1763,37 +1925,54 @@ function torHandleMsg(msg_content){
             repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
               .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}`) && attribute.get("name").endsWith(`_${repeatingName}`));
             if (repeatingValues.length > 0){
-              chartbl += '<tr><td' + tdnpc + '><b>Level ' + spell_lvl + ':</b> ';
+              charDetail += '<tr><td' + tdnpc + '><b>Level ' + spell_lvl + ':</b> ';
               // Loop through the values in the repeating section
               for (let rowId in repeatingValues) {
                 row = repeatingValues[rowId];
                 repeatingField=row.get('name').slice(0,-10);
                 let repeatingAction = repeatingField + '_spell';
-                repeatingAction = makeButton('🧙', `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 10);
+                // repeatingAction = makeButton('🧙', `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 10);
+                repeatingAction = '<div style="border: 1px solid #dcdcdc; padding: 1px; display: inline-block;">' + makeButton(row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
 
-                let spelllink = 'https://www.dndbeyond.com/spells/' + row.get('current').replace(/ /g, "-")
-                spelllink = makeButton('🔗', spelllink, 15)
+                // let spellLink = 'https://www.dndbeyond.com/spells/' + row.get('current').replace(/ /g, "-")
+                let spellLink = 'https://app.roll20.net/compendium/dnd5e/Spells:'+encodeURIComponent(row.get('current'))+'#content'
+                // log(`spellLink: ${row.get('current')} ${spellLink}`)
+
+                spellLink = makeButton('🔗', spellLink, 15)
+
+                let spellInnate = getAttrByName(toChar.get('_id'),`${repeatingField}_innate`,'current');
+                if (spellInnate.length > 2) { spellInnate = '<i>(' + spellInnate + ')</i>'; } else {spellInnate = ''; }
 
                 // Build a spell description field here (Range, Action, Target, Duration, Con, Desc)
-                chartbl += repeatingAction + spelllink + row.get('current') + ', ';
+                // charDetail += repeatingAction + spellLink + row.get('current') + ', ';
+                charDetail += repeatingAction + spellInnate + spellLink +  '</div>,';                  
               }
-              chartbl = chartbl.slice(0,-2);
-              chartbl += '</td></tr>';
+              charDetail = charDetail.slice(0,-2);
+              charDetail += '</td></tr>';
             }
           });
-          chartbl += '</table></td></tr></table>';
-          // chartbl += '</table>';
+          charDetail += '</table></td></tr></table>';
+          charDetail = openCharBox + charDetail + closeCharBox;
+          // charDetail += '</table>';
+
+          // Add charDetail to my set of maps
+          // charMapItem = {id: toChar.get('id'), txt: charDetail};
+          log('Loading Char int Map Object: ' + toObj[0].id);
+          charMap.set(toObj[0].id, {id: toObj[0].id, charId: toChar.get('id'), txt: charDetail})
+
           break;
       } // End of switch case for token type
-    } // End Testing for empty Turnorder
+    } // End test for using maps
 
     // Logic to expand or collapse the Character information
     if (state.DMDashboard.DetailExpand == 1) {
-      toList = btns + '<br>' + btnCps + charheader + chartbl;
+      toList = btns + '<br>' + btnCps + charHeader + charDetail;
     } else {
-      toList = btns + '<br>'+  btnExp;                    
+      toList = btns + '<br>'+  btnExp + charHeader;                    
     }
-    charReport = openReport + charheader + chartbl + btns + closeReport;
+    charReport = openReport + charHeader + charDetail + btns + closeReport;
+
+    reportPerformance('Complete Character Detail');
 
     // Header row for the turnorder list
     toList += `<table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse;"><tr><td style="border: 0px; padding: 0;">${openHeader}Turn Order${closeHeader}</td><td style="border: 0px; padding: 0;">${openHeaderInfo}(Last Turn: ${dt_diff})${closeHeader}</td></tr></table>`;
@@ -1810,6 +1989,7 @@ function torHandleMsg(msg_content){
     toList +=  '<th' + th + '>Tootltip</th>';
     toList +=  '</tr></thead><tbody>';
 
+
     /******************************************************************
     *  Build the table of items on the Turnorder list                 *
     ******************************************************************/
@@ -1824,41 +2004,41 @@ function torHandleMsg(msg_content){
 
       switch (Ttype) {
         case 'OTHER':
-          toTkn = getObj("graphic", toObj[i].id);
-          if (toTkn){
-            tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toTkn.get('imgsrc')}'</img>`;
+          toToken = getObj("graphic", toObj[i].id);
+          if (toToken){
+            tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
 
             // Col 1 (Turn/PR)
             toList += '<td ' + tdcustom + '><b>' + toObj[i].pr + '</b></td>';
 
             // Col 2 (Name/Img)
-            tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toTkn.get('imgsrc')}'</img>`;
-            if(toTkn.get('layer') == 'objects'){
-              toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toTkn.get('_id')}`, 40) + '<b>' + toTkn.get('name') + '</b></td>';
+            tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
+            if(toToken.get('layer') == 'objects'){
+              toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`, 40) + '<b>' + toToken.get('name') + '</b></td>';
             } else {
-              toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toTkn.get('_id')}`, 40) + '<i>' + toTkn.get('name') + '</i></td>';
+              toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`, 40) + '<i>' + toToken.get('name') + '</i></td>';
             }
 
             // Col 3 (Functions: Remove Item, Toggle Token between GM/Obj Layer)
-            toList +=  '<td ' + tdcustom + '>' + makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`,20);
-            if(toTkn.get('layer') == 'objects'){
-              toList += makeButton('🙈', '!tor --TokenToggleVisabity ' + toTkn.get('_id')); 
-
-            } else {
-              toList += makeButton('🙉', '!tor --TokenToggleVisabity ' + toTkn.get('_id')); 
+            toList +=  '<td ' + tdcustom + '>' 
+            toList += addTooltip("Remove Item from TurnOrder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`,20));
+            if(toToken.get('layer') == 'objects'){
+              toList += addTooltip("Make Token Invisible", makeButton('😑', '!tor --TokenToggleVisabity ' + toToken.get('_id')));
+             } else {
+              toList += addTooltip("Make Token Visible", makeButton('🫥', '!tor --TokenToggleVisabity ' + toToken.get('_id'))); 
             }
 
-            if(toTkn.get('lockMovement')){
-              toList += makeButton('🔓', '!tor --TokenToggleLock ' + toTkn.get('_id')); 
+            if(toToken.get('lockMovement')){
+              toList += addTooltip("Unlock Token Movement", makeButton('🔐', '!tor --TokenToggleLock ' + toToken.get('_id'))); 
             } else {
-              toList += makeButton('🔐', '!tor --TokenToggleLock ' + toTkn.get('_id')); 
+              toList += addTooltip("Lock Token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id'))); 
             }
 
             toList+='</td>'
 
             // Col 4 (Health)
-            hp = toTkn.get('bar1_value');
-            hpmax = toTkn.get('bar1_max');
+            hp = toToken.get(`bar${state.DMDashboard.HPBar}_value`);
+            hpmax = toToken.get(`bar${state.DMDashboard.HPBar}_max`);
             hp_pct = hp/hpmax * 100;
             hp_pct = hp_pct.toFixed(0);
 
@@ -1869,25 +2049,25 @@ function torHandleMsg(msg_content){
             if (hp_pct <= 0) {td_hp=td_healthDead;} // Dead
 
             // Button to enable adjusting Hit Points
-            btnAdjHP = makeButton('🩹',`!tor --TokenAdjustHP  ${toTkn.get('_id')} ?{Adjust HP?|}`);
-            toList += '<td ' + td_hp + '>'+ btnAdjHP + hp + ' / ' + hpmax + ' (' + hp_pct + '%)</td>';
+            btnAdjHP = makeButton(hp + ' / ' + hpmax,`!tor --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
+            toList += '<td ' + td_hp + '>'+ btnAdjHP + ' (' + hp_pct + '%)</td>';
             
             // COL 5 Status Markers (Span 5 (5-9))
-            sm = toTkn.get('statusmarkers');
-            sm_Images = getSMImages(toTkn.get('statusmarkers'));
+            sm = toToken.get('statusmarkers');
+            sm_Images = getSMImages(toToken.get('statusmarkers'));
             toList += '<td ' + tdbase + ' colspan=5>' + sm_Images + '</td>'; //StatusMarkers
 
             // Col 10 (Tooltips)
-            tt = toTkn.get('tooltip');
+            tt = toToken.get('tooltip');
             toList += '<td ' + tdbase + '>' 
-            toList += makeButton('🖊', `!tor --TokenSetTooltip ${toTkn.get('_id')} "?{Edit Tooltip|${tt}}"`) 
-            toList += makeButton('❌', '!tor --TokenClearTooltip ' + toTkn.get('_id')) 
+            toList += addTooltip("Edit Tooltip", makeButton('🖊', `!tor --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) 
+            toList += addTooltip("Clear Tooltip", makeButton('❌', '!tor --TokenClearTooltip ' + toToken.get('_id')))
 
-            if(toTkn.get('show_tooltip')){
-              toList += makeButton('🙈', '!tor --TokenToggleTooltip ' + toTkn.get('_id')) 
+            if(toToken.get('show_tooltip')){
+              toList += addTooltip("Hide Tooltip", makeButton('😑', '!tor --TokenToggleTooltip ' + toToken.get('_id')))
               toList += '<b>' + tt + '</b></td>';               
             } else {
-              toList += makeButton('🙉', '!tor --TokenToggleTooltip ' + toTkn.get('_id')) 
+              toList += addTooltip("Show Tooltip",makeButton('🫥', '!tor --TokenToggleTooltip ' + toToken.get('_id')))
               toList += '<i>' + tt + '</i></td>'; 
             }
           }
@@ -1896,7 +2076,7 @@ function torHandleMsg(msg_content){
         case 'CUSTOM':
           toList +=  '<td ' + tdcustom + '><b>' + toObj[i].pr + '</b></td>';
           toList +=  '<td ' + tdcustom + '>' + toObj[i].custom + ' [' + toObj[i].formula + ']' + '</td>';
-          toList +=  '<td ' + tdcustom + '>' + makeButton('❌',`!tor --TO-RemoveCustom ${i}`,20) + '</td>';
+          toList +=  '<td ' + tdcustom + '>' + addTooltip("Remove Item from Turnorder",makeButton('❌',`!tor --TO-RemoveCustom ${i}`,20)) + '</td>';
           toList +=  '<td ' + tdcustom + ' colspan=8></td>';
           break;
         case 'NPC':
@@ -1906,52 +2086,59 @@ function torHandleMsg(msg_content){
 
         case 'CHAR':
 
-          toTkn = getObj("graphic", toObj[i].id);
-          toChar = getObj('character', toTkn.get('represents'));
+          toToken = getObj("graphic", toObj[i].id);
+          toChar = getObj('character', toToken.get('represents'));
 
           // Col 1 (Turn/PR)
           toList += '<td ' + tdbase + '><b>' + toObj[i].pr + '</b></td>';
 
           // Col 2 (Name)
-          tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toTkn.get('imgsrc')}'</img>`;
+          tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
+          tknImg = addTooltip("Ping Me", makeButton(tknImg, `!tor --PingToken-GM ${toObj[i].id}`, 40)) 
 
-          if(toTkn.get('layer') == 'objects'){
-            // toList += '<td ' + tdbase + '>' + makeButton(tknImg, '!ping-token --' + toTkn.get('_id'), 40) + '<b>' + toTkn.get('name') + '</b></td>';
-            toList += '<td ' + tdbase + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toObj[i].id}`, 40) + '<b>' + toTkn.get('name') + '</b></td>';                
+          if(toToken.get('layer') == 'objects'){
+            // toList += '<td ' + tdbase + '>' + makeButton(tknImg, '!ping-token --' + toToken.get('_id'), 40) + '<b>' + toToken.get('name') + '</b></td>';
+            toList += '<td ' + tdbase + '>' + tknImg + '<b>' + toToken.get('name') + '</b></td>';                
           } else {
-            // toList += '<td ' + tdbase + '>' + makeButton(tknImg, '!ping-token --' + toTkn.get('_id'), 40) + '<i>' + toTkn.get('name') + '</i></td>';
-            toList += '<td ' + tdbase + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toObj[i].id}`, 40) + '<i>' + toTkn.get('name') + '</i></td>';                
+            // toList += '<td ' + tdbase + '>' + makeButton(tknImg, '!ping-token --' + toToken.get('_id'), 40) + '<i>' + toToken.get('name') + '</i></td>';
+            toList += '<td ' + tdbase + '>' + tknImg + '<i>' + toToken.get('name') + '</i></td>';                
           }
 
           // Col 3 (Commands)
           toList += '<td ' + tdbase + '>';
-          toList += makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`);
+          toList += addTooltip("Remove Token from Turnorder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`));
 
-          if(toTkn.get('layer') == 'objects'){
-            toList += makeButton('🙈', '!tor --TokenToggleVisabity ' + toTkn.get('_id'));  
+          if(toToken.get('layer') == 'objects'){
+            toList += addTooltip("Hide Token on Map", makeButton('😑', '!tor --TokenToggleVisabity ' + toToken.get('_id')));  
           } else {
-            toList += makeButton('🙉', '!tor --TokenToggleVisabity ' + toTkn.get('_id'));
+            toList += addTooltip("Unhide Token on Map", makeButton('🫥', '!tor --TokenToggleVisabity ' + toToken.get('_id')));
           }
 
-          toList += makeButton('📑', 'https://journal.roll20.net/character/' + toTkn.get('represents'));
+          toList += addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents')));
           if (isnpc) {
-            toList += makeButton('🖊', '!tor --AddTokenGMNote ' + toTkn.get('_id') + ' "?{Token GM Note?|}"');  
+            tmp = toToken.get('gmnotes');
+            toList += addTooltip(tmp, makeButton('🖊', '!tor --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"'));  
           } else {
-            toList += makeButton('🖊', '!tor --AddCharGMNote ' + toTkn.get('represents') + ' "?{Character GM Note?|}"');
+
+            toChar.get('gmnotes', function (gmnotes){
+              tmp = gmnotes;
+            });
+            toList += addTooltip(tmp, makeButton('🖊', '!tor --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"'));
           }
 
-          //log('LockMovement' + toTkn.get('lockMovement'))
-          if(toTkn.get('lockMovement')){
-            toList += makeButton('🔓', '!tor --TokenToggleLock ' + toTkn.get('_id')); 
+          //log('LockMovement' + toToken.get('lockMovement'))
+          if(toToken.get('lockMovement')){
+            toList += addTooltip("Unlock token Movement", makeButton('🔐', '!tor --TokenToggleLock ' + toToken.get('_id'))); 
           } else {
-            toList += makeButton('🔐', '!tor --TokenToggleLock ' + toTkn.get('_id')); 
+            toList += addTooltip("Unlock token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id'))); 
           }
           
           toList += '</td>';
 
           // Col 4 (Health)
-          hp = toTkn.get('bar1_value');
-          hpmax = toTkn.get('bar1_max');
+          hp = toToken.get(`bar${state.DMDashboard.HPBar}_value`);
+          hpmax = toToken.get(`bar${state.DMDashboard.HPBar}_max`);
+
           hp_pct = hp/hpmax * 100;
           hp_pct = hp_pct.toFixed(0);
 
@@ -1961,18 +2148,22 @@ function torHandleMsg(msg_content){
           if (hp_pct < 25) {td_hp=td_health25;} // Red 
           if (hp_pct <= 0) {td_hp=td_healthDead;} // Dead
 
-          btnAdjHP = makeButton('🩹',`!tor --TokenAdjustHP  ${toTkn.get('_id')} ?{Adjust HP?|}`);
-          toList = toList + '<td ' + td_hp + '>'+ btnAdjHP + hp + ' / ' + hpmax + ' (' + hp_pct + '%)</td>';
+          btnAdjHP = makeButton(hp + ' / ' + hpmax,`!tor --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
+          toList = toList + '<td ' + td_hp + '>'+ btnAdjHP + ' (' + hp_pct + '%)</td>';
           
           // COL 5 Status Markers
-          sm = toTkn.get('statusmarkers');
-          sm_Images = getSMImages(toTkn.get('statusmarkers'));
+          sm = toToken.get('statusmarkers');
+          sm_Images = getSMImages(toToken.get('statusmarkers'));
 
           toList += '<td ' + tdbase + '>' + sm_Images + '</td>'; //StatusMarkers
 
           // Col 6 (AC)
-          toList += '<td ' + tdbase + '>🛡' + toTkn.get('bar2_value') + '</td>'; //AC
-
+          if (isnpc) {
+            toList += '<td ' + tdbase + '>🛡' + getAttrByName(toChar.get('_id'),'npc_ac','current') + '</td>'; //AC
+          } else {
+            toList += '<td ' + tdbase + '>🛡' + getAttrByName(toChar.get('_id'),'ac','current') + '</td>'; //AC
+          }
+          
           // Col 7 (Passive Perception)
           pp = getAttrByName(toChar.get('_id'),'passive_wisdom','current');                        
           toList += '<td ' + tdbase + '>👀' + pp + '</td>'; //PP
@@ -1984,8 +2175,8 @@ function torHandleMsg(msg_content){
             senses = getAttrByName(toChar.get('_id'),'npc_senses','current');
           } else {
             speed = getAttrByName(toChar.get('_id'),'speed','current');
-            if (toTkn.get('has_night_vision')){
-              senses ='darkvision ' + toTkn.get('night_vision_distance') + ' ft.';
+            if (toToken.get('has_night_vision')){
+              senses ='darkvision ' + toToken.get('night_vision_distance') + ' ft.';
             } else {
               senses ='';
             }
@@ -2009,16 +2200,16 @@ function torHandleMsg(msg_content){
           //toList += '<td ' + tdbase + '>' + senses + '</td>'; //Senses
 
           // Col 10 (Tooltips)
-          tt = toTkn.get('tooltip');
+          tt = toToken.get('tooltip');
           toList += '<td ' + tdbase + '>';
-          toList += makeButton('🖊', `!tor --TokenSetTooltip ${toTkn.get('_id')} "?{Edit Tooltip|${tt}}"`) 
-          toList += makeButton('❌', '!tor --TokenClearTooltip ' + toTkn.get('_id')) 
+          toList += addTooltip("Edit Tooltip", makeButton('🖊', `!tor --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) 
+          toList += addTooltip("Clear Tooltip", makeButton('❌', '!tor --TokenClearTooltip ' + toToken.get('_id')) )
 
-          if(toTkn.get('show_tooltip')){
-            toList += makeButton('🙈', '!tor --TokenToggleTooltip ' + toTkn.get('_id')) 
+          if(toToken.get('show_tooltip')){
+            toList += addTooltip("Hide Tooltip", makeButton('😑', '!tor --TokenToggleTooltip ' + toToken.get('_id')))
             toList += '<b>' + tt + '</b></td>'; 
           } else {
-            toList += makeButton('🙉', '!tor --TokenToggleTooltip ' + toTkn.get('_id')) 
+            toList += addTooltip("Show Tooltip", makeButton('🫥', '!tor --TokenToggleTooltip ' + toToken.get('_id')))
             toList += '<i>' + tt + '</i></td>'; 
           }
 
@@ -2030,6 +2221,8 @@ function torHandleMsg(msg_content){
 
     toList += '</tbody></table>';
     // lines = lines + toList;
+
+    reportPerformance('Complete Turorder List');
 
     //*******************************************************************
     // Build a list of NPC and PC tokens that aren't on the TurnOrder list
@@ -2075,6 +2268,12 @@ function torHandleMsg(msg_content){
     toList += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('Turnorder Character Sheet', 'https://journal.roll20.net/handout/' + ho_TOCharSheet.get('_id')) + '  |  ';
     toList += makeButton('Turnorder Log', 'https://journal.roll20.net/handout/' + getNoteLog().get('_id')) + '</div>';
 
+    reportPerformance('Complete Report Build');
+
+    gEndTime = new Date().getTime();
+    let runTime = gEndTime - gStartTime;
+    toList += `Execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`
+
     // Write out the results back to a handout.
     if (toList) {
       ho_TOReport.get("notes", function(notes) {
@@ -2090,10 +2289,12 @@ function torHandleMsg(msg_content){
       });
     }
 
-    log('TO Report end');
+    reportPerformance('RefreshReport End');
+
     return;
   };
 
+  startPeformanceCheck();
 
   // Load them at the start to improve performance in the 
   const tokenMarkers = JSON.parse(Campaign().get("token_markers"));
@@ -2112,14 +2313,14 @@ function torHandleMsg(msg_content){
     commands.push('OPEN');
   }
 
-  log('Message_Content: ' + msg_content);
-  log('commands: ' + commands);
+  // log('Message_Content: ' + msg_content);
+  // log('commands: ' + commands);
   commands.forEach(c => {
-    log(`  command: ${c}`)
+    // log(`  command: ${c}`)
   });
 
   commands[0] = commands[0].toUpperCase();
-  log('Command: ' + commands[0]);
+  // log('Command: ' + commands[0]);
   switch (commands[0]) {
 
     case 'TO-CLEAR':
@@ -2151,12 +2352,12 @@ function torHandleMsg(msg_content){
       refreshReports();
       break;
     case 'TO-ADDROUND': //No Parameters
-      log(`TO-AddRound`)
+      // log(`TO-AddRound`)
       to_AddCustom('>>>Round<<<', 1, '+1')
       refreshReports();
       break;
     case 'TO-ADDCOUNTDOWN': // Direction, Starting Pos, Name
-      log(`TO-AddCustom: Cmd1:${commands[1]} Cmd2:${commands[2]} Cmd3:${commands[3]} Cmd4:${commands[4]}`)
+      // log(`TO-AddCustom: Cmd1:${commands[1]} Cmd2:${commands[2]} Cmd3:${commands[3]} Cmd4:${commands[4]}`)
       to_AddCustom(commands[3], commands[2], commands[1])
       refreshReports();
       break;
@@ -2234,6 +2435,10 @@ function torHandleMsg(msg_content){
       }
       refreshReports();
       break;
+    case 'HPBAR':
+      setHPBar(commands[1]);
+      refreshReports();
+      break;
     case 'OPEN':
       refreshReports();
       chatMsg = `/w gm ${openChat}[Click to open DM Turnorder List handout](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
@@ -2249,5 +2454,7 @@ function torHandleMsg(msg_content){
 
     default:
   }
+
+  reportPerformance('Function execution time');
 }
 {try{throw new Error('');}catch(e){API_Meta.DMDashboard.lineCount=(parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/,'$1'),10)-API_Meta.DMDashboard.offset);}}
