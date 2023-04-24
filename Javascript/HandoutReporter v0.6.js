@@ -26,7 +26,6 @@ let gEndTime = 0;
 // Future Enhancements
 //  1. Add saving throw to the character sheet
 //  2. replace some of my other gmnotes/notes update fields with the new asyn method
-//  3. Add logic to change the HP column by user
 //  4. Add logic to calculate challenge rating of encounter
 //  5. Public Ping
 //  6. Toggle through auras (GM/Player)
@@ -39,7 +38,7 @@ let gEndTime = 0;
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.3';
+  const version = '0.6.4';
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!tor`');
 
@@ -118,7 +117,7 @@ const debounced_torHandleMsg = _.debounce(torHandleMsg,500)
 function flushDataLog(){
   let nl = [];
 
-  log('DM Dashboard: Data Length: ' + gDataLog);  
+  // log('DM Dashboard: Data Length: ' + gDataLog);  
   if (gDataLog.length == 0) {
     return;
   }
@@ -128,11 +127,11 @@ function flushDataLog(){
     setTimeout(()=>nl.set("notes",gDataLog),0);
   });
   // let txt = n + gDataLog;
-  log('DM Dashboard: Txt Data Length: ' + gDataLog.length);  
+  // log('DM Dashboard: Txt Data Length: ' + gDataLog.length);  
 
   gDataLog = '';
 
-  log('DM Dashboard: Flushing data');
+  // log('DM Dashboard: Flushing data');
 }
 
 
@@ -484,6 +483,18 @@ function torHandleMsg(msg_content){
       token.set('lockMovement',false);
     } else {
       token.set('lockMovement',true);
+    }
+  }
+
+  function tokenToggleNameplate(tId){
+    const token = getObj('graphic', tId);
+    if (!token){
+      return;
+    }
+    if (token.get('showplayers_name')){
+      token.set('showplayers_name',false);
+    } else {
+      token.set('showplayers_name',true);
     }
   }
 
@@ -1082,7 +1093,7 @@ function torHandleMsg(msg_content){
     const regexFlags = 'gi';
     const regex = new RegExp(regexPattern, regexFlags);
     const newSource = source.replace(regex, `$1${item}$3`);
-    //log(`replaceDynamicSpanElement: regex:${regex} spanId:${spanId} item:${item}`);
+    //log(`replaceDynamicSpanElement: Pattern: ${regexPattern} regex:${regex} spanId:${spanId} item:${item}`);
     //log(`replaceDynamicSpanElement: source:${source}`);
     return newSource;
   }
@@ -1144,6 +1155,35 @@ function torHandleMsg(msg_content){
     Campaign().set("turnorder", JSON.stringify(turnOrder));
   }
  
+  function LoadEncounterRating() {
+    // As described in: https://www.dndbeyond.com/sources/dmg/creating-adventures#CreatingaCombatEncounter
+
+    let mapXPThresholdsByCharLevel = new Map();
+    mapXPThresholdsByCharLevel.set(1, {level: 1, easy:25, medium:50, hard:75, deadly:100})
+    mapXPThresholdsByCharLevel.set(2, {level: 2, easy:50, medium:100, hard:150, deadly:200})
+    mapXPThresholdsByCharLevel.set(3, {level: 3, easy:75, medium:150, hard:225, deadly:400})
+    mapXPThresholdsByCharLevel.set(4, {level: 4, easy:125, medium:250, hard:375, deadly:500})
+    mapXPThresholdsByCharLevel.set(5, {level: 5, easy:250, medium:500, hard:750, deadly:1100})
+    mapXPThresholdsByCharLevel.set(6, {level: 6, easy:300, medium:600, hard:900, deadly:1400})
+    mapXPThresholdsByCharLevel.set(7, {level: 7, easy:350, medium:750, hard:1100, deadly:1700})
+    mapXPThresholdsByCharLevel.set(8, {level: 8, easy:450, medium:900, hard:1400, deadly:2100})
+    mapXPThresholdsByCharLevel.set(9, {level: 9, easy:550, medium:1100, hard:1600, deadly:2400})
+    mapXPThresholdsByCharLevel.set(10, {level: 10, easy:600, medium:1200, hard:1900, deadly:2800})
+    mapXPThresholdsByCharLevel.set(11, {level: 11, easy:800, medium:1600, hard:2400, deadly:3600})
+    mapXPThresholdsByCharLevel.set(12, {level: 12, easy:1000, medium:2000, hard:3000, deadly:4500})
+    mapXPThresholdsByCharLevel.set(13, {level: 13, easy:1100, medium:2200, hard:3400, deadly:5100})
+    mapXPThresholdsByCharLevel.set(14, {level: 14, easy:1250, medium:2500, hard:3800, deadly:5700})
+    mapXPThresholdsByCharLevel.set(15, {level: 15, easy:1400, medium:2800, hard:4300, deadly:6400})
+    mapXPThresholdsByCharLevel.set(16, {level: 16, easy:1600, medium:3200, hard:4800, deadly:7200})
+    mapXPThresholdsByCharLevel.set(17, {level: 17, easy:2000, medium:3900, hard:5900, deadly:8800})
+    mapXPThresholdsByCharLevel.set(18, {level: 18, easy:2100, medium:4200, hard:6300, deadly:9500})
+    mapXPThresholdsByCharLevel.set(19, {level: 19, easy:2400, medium:4500, hard:7300, deadly:10900})
+    mapXPThresholdsByCharLevel.set(20, {level: 20, easy:2800, medium:5700, hard:8500, deadly:12700})
+    return mapXPThresholdsByCharLevel;
+
+  }
+
+
   /******************************
   *** Refresh Reports Function ***  
   *******************************/
@@ -1162,8 +1202,9 @@ function torHandleMsg(msg_content){
     const closeChat= `<\div><\div>`;
     const openBox = "<div style='color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
     const closeBox = '</div>';
-    const openCharBox = `<div style='height:300px; overflow-y: scroll; border: 1px solid black; padding 10px; display: block;'>`
-    const closeCharBox = '</div>';
+    const openScrollCharBox = `<div style='height:200px; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
+    const openScrollTOBox = `<div style='height:50vh; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
+    const closeScrollBox = '</div>';
 
     let lines = '';
     let sheetURL = 'http://journal.roll20.net/character/';
@@ -1225,13 +1266,14 @@ function torHandleMsg(msg_content){
     let tdbak = ' style="background-color:#DCDACF;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
     let td = ' style="background-color:#EFEBD6;border-color:#EFEBD6;border-style:solid;border-width:0px;color:#521E10;font-family:ScalySansRemake, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
     let td1bak = ' style="background-color:#F9EBEA;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
-    let td1 = ' style="background-color:#E1E4C4;border-color:#E1E4C4;border-style:solid;border-width:0px;color:#521E10;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';    
+    let td1 = ' style="background-color:#E1E4C4;border-bottom: 1px;border-color:#E1E4D4;border-style:solid;border-width:0px;color:#521E10;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';    
     let tdcustom = ' style="background-color:#BEAD70;border-color:#93a1a1;border-style:solid;border-width:0px;color:#521E10;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';        
     let td2 = ' style="background-color:#BBDEFB;border-color:#93a1a1;border-style:solid;border-width:0px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
     let td3 = ' style="background-color:#BBCAFA;border-color:#93a1a1;border-style:solid;border-width:0px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
     let td4 = ' style="background-color:#DAF7A6;border-color:#93a1a1;border-style:solid;border-width:0px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
     let tdpc = td;
     let tdnpc = td1;
+
     let tdbase = tdpc;
     let td_health100 = ' style="background-color:#24CE10;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
     let td_health75 = ' style="background-color:#FFFE00;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
@@ -1252,6 +1294,21 @@ function torHandleMsg(msg_content){
     // **** Load Objects and Arrays of Objects ****
     let ho_TOReport = getHandout('DM Turnoder List');
     let ho_TOCharSheet = getHandout('DM Character Sheet')
+
+    let mapXPThresholds = LoadEncounterRating(); //Returns a Map object containing the thresholds table
+    let edEasy = 0;
+    let edMedium = 0;
+    let edHard = 0;
+    let edDeadly = 0;
+    let edCharLevel = 0;
+    let edNPCExpTotal = 0;
+    let edNPCExp = 0;
+    let edPartyCount = 0;
+    let edFoeCount = 0;
+    let edDiffMult = 0;
+    let edEncounterExp = 0;
+    let edDifficulty = '';
+    let edColor = '';
 
     let tokens = findObjs({
         _type: 'graphic',
@@ -1442,13 +1499,13 @@ function torHandleMsg(msg_content){
           toToken = getObj("graphic", toObj[0].id);                
           tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
           tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
-          charHeader = `${openHeader} ${addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`, 20))} ${tknImg} ${toToken.get('name')} - Graphic Token (Not associated with Character/NPC) Turnorder: (${toObj[0].pr})  ${closeHeader}<br>`;
+          charHeader = `<table style='font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px;'><tr><td>${tknImg} ${toToken.get('name')} - Graphic Token (Not associated with Character/NPC)</td> <td>Turnorder: (${toObj[0].pr}) <span id=EncDiff>1</span></td></tr></table>`;
           charDetail = '';
           
           break;
 
         case 'CUSTOM':
-          charHeader = `${openHeader}Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}] ${closeHeader}<br>`;
+          charHeader = `<table style='font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px;'><tr><td>Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}] <span id=EncDiff>1</span></td></tr></table>`;
           charDetail = '';
           break;
 
@@ -1467,13 +1524,18 @@ function torHandleMsg(msg_content){
           TO_Count = getAttrByName(toChar.get('_id'),'to_count','current');
 
           //Header Info
-          charBtn = addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20));
+          // charBtn = addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20));
           tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
           tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
-          charHeader = `${openHeader} ${charBtn} ${addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`, 20))} ${tknImg} ${toToken.get('name')}   [Avg Turn: ${TO_Avg} / Secs:  ${TO_Secs} / Cnt: ${TO_Count}] ${closeHeader} <b><i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</b></i> `;
+
+          //charHeader = `<table style='border-collapse: collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:1px; padding:1px;'><tr><td style="width: 40%; vertical-align: middle; text-align: left"> ${charBtn} ${addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`, 20))} ${tknImg} ${toToken.get('name')}<br> (<i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>)</td>`
+          charHeader = `<table style='border:1px; border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:0px; padding:0px;'><tr><td style="width: 40%; vertical-align: middle; text-align: left"> ${tknImg} ${toToken.get('name')}<br> (<i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>)</td>`
+          charHeader += `<td style="width: 20%; vertical-align: middle; text-align: center;">[Avg Turn: ${TO_Avg} / Secs:  ${TO_Secs} / Cnt: ${TO_Count}] </td>`
+          charHeader += `<td style="width: 40%; vertical-align: middle;"><span id=EncDiff>1</span></td></tr></table></td></tr></table>`
+          // charHeader += `(<i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>)`;
 
           if (true && charMap.has(toObj[0].id)) {
-            log('Using Map for: ' + toObj[0].id)
+            // log('Using Map for: ' + toObj[0].id)
             charMapItem = charMap.get(toObj[0].id)
             charDetail = charMapItem.txt
 
@@ -1739,7 +1801,7 @@ function torHandleMsg(msg_content){
           }
 
           charDetail += '</table></td></tr></table>';
-          charDetail = openCharBox + charDetail + closeCharBox;
+          charDetail = openScrollCharBox + charDetail + closeScrollBox;
 
           // log('Loading Char int Map Object: ' + toObj[0].id);
           //charMap.set(toChar.get('id'), {id: toChar.get('id'), charId: toChar.get('id'), txt: charDetail})
@@ -1757,10 +1819,13 @@ function torHandleMsg(msg_content){
           tdbase = tdnpc;
 
           // Header 
-          charBtn = makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20);
+          // charBtn = makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20);
           tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
           tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
-          charHeader = `${openHeader} ${charBtn} ${addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`, 20))} ${tknImg} ${toToken.get('name')}   [Avg Turn: ${state.DMDashboard.DM_Avg} / Secs: ${state.DMDashboard.DM_Secs} / Cnt: ${state.DMDashboard.DM_Count}]  ${closeHeader} <b><i>${getAttrByName(toChar.get('_id'),'npc_type','current')}</b></i> `;
+          charHeader = `<table style='border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px;'><tr><td style="width: 40%;vertical-align: middle;"> ${tknImg} ${toToken.get('name')} <br><i>(${getAttrByName(toChar.get('_id'),'npc_type','current')})</i></td>`
+          charHeader += `<td style="width: 20%;vertical-align: middle; text-align: center;">[Avg Turn: ${state.DMDashboard.DM_Avg} / Secs: ${state.DMDashboard.DM_Secs} / Cnt: ${state.DMDashboard.DM_Count}] </td>`
+          charHeader += `<td style="width: 40%;vertical-align: middle;"><span id=EncDiff>1</span></td></tr></table>`
+          //charHeader += `<b><i>${getAttrByName(toChar.get('_id'),'npc_type','current')}</i></b> `;
 
           if (true && charMap.has(toObj[0].id)) {
               // log('Using Map for: ' + toObj[0].id)
@@ -1952,12 +2017,12 @@ function torHandleMsg(msg_content){
             }
           });
           charDetail += '</table></td></tr></table>';
-          charDetail = openCharBox + charDetail + closeCharBox;
+          charDetail = openScrollCharBox + charDetail + closeScrollBox;
           // charDetail += '</table>';
 
           // Add charDetail to my set of maps
           // charMapItem = {id: toChar.get('id'), txt: charDetail};
-          log('Loading Char int Map Object: ' + toObj[0].id);
+          // log('Loading Char int Map Object: ' + toObj[0].id);
           charMap.set(toObj[0].id, {id: toObj[0].id, charId: toChar.get('id'), txt: charDetail})
 
           break;
@@ -1966,16 +2031,17 @@ function torHandleMsg(msg_content){
 
     // Logic to expand or collapse the Character information
     if (state.DMDashboard.DetailExpand == 1) {
-      toList = btns + '<br>' + btnCps + charHeader + charDetail;
+      toList = btns + '<br>' + charHeader + btnCps + charDetail;
     } else {
-      toList = btns + '<br>'+  btnExp + charHeader;                    
+      toList = btns + '<br>' + charHeader + btnExp;                    
     }
     charReport = openReport + charHeader + charDetail + btns + closeReport;
 
     reportPerformance('Complete Character Detail');
 
     // Header row for the turnorder list
-    toList += `<table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse;"><tr><td style="border: 0px; padding: 0;">${openHeader}Turn Order${closeHeader}</td><td style="border: 0px; padding: 0;">${openHeaderInfo}(Last Turn: ${dt_diff})${closeHeader}</td></tr></table>`;
+    toList += openScrollTOBox
+    //toList += `<table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse;"><tr><td style="border: 0px; padding: 0;">Turn Order</td><td><span id=EncDiff>1</span></td></tr></table>`;
     toList +=  '<table ' + ts +'>';
     toList +=  '<thead><tr><th' + th + '>Turn</th>';
     toList +=  '<th' + th + '>Name</th>';
@@ -1996,7 +2062,7 @@ function torHandleMsg(msg_content){
     // For each item in the Turnorder
     for (i=0;i<toObj.length;i++) {
       
-      toList += '<tr>';
+      toList += '<tr style="border: 1px">';
 
       Ttype = getTokenType(toObj[i].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
       isnpc = 0;
@@ -2021,17 +2087,17 @@ function torHandleMsg(msg_content){
 
             // Col 3 (Functions: Remove Item, Toggle Token between GM/Obj Layer)
             toList +=  '<td ' + tdcustom + '>' 
-            toList += addTooltip("Remove Item from TurnOrder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`,20));
+            toList += '<span style="font-size: 16px">'+ addTooltip("Remove Item from TurnOrder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`)) + '</span>';
             if(toToken.get('layer') == 'objects'){
-              toList += addTooltip("Make Token Invisible", makeButton('😑', '!tor --TokenToggleVisabity ' + toToken.get('_id')));
+              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Invisible", makeButton('😑', '!tor --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>';
              } else {
-              toList += addTooltip("Make Token Visible", makeButton('🫥', '!tor --TokenToggleVisabity ' + toToken.get('_id'))); 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Visible", makeButton('🫥', '!tor --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>'; 
             }
 
             if(toToken.get('lockMovement')){
-              toList += addTooltip("Unlock Token Movement", makeButton('🔐', '!tor --TokenToggleLock ' + toToken.get('_id'))); 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Unlock Token Movement", makeButton('🔐', '!tor --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
             } else {
-              toList += addTooltip("Lock Token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id'))); 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Lock Token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
             }
 
             toList+='</td>'
@@ -2060,23 +2126,31 @@ function torHandleMsg(msg_content){
             // Col 10 (Tooltips)
             tt = toToken.get('tooltip');
             toList += '<td ' + tdbase + '>' 
-            toList += addTooltip("Edit Tooltip", makeButton('🖊', `!tor --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) 
-            toList += addTooltip("Clear Tooltip", makeButton('❌', '!tor --TokenClearTooltip ' + toToken.get('_id')))
+            toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`))+ '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton('🖊', `!tor --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`))+ '</span>' 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton('❌', '!tor --TokenClearTooltip ' + toToken.get('_id')))+ '</span>'
 
             if(toToken.get('show_tooltip')){
-              toList += addTooltip("Hide Tooltip", makeButton('😑', '!tor --TokenToggleTooltip ' + toToken.get('_id')))
+              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton('😑', '!tor --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
               toList += '<b>' + tt + '</b></td>';               
             } else {
-              toList += addTooltip("Show Tooltip",makeButton('🫥', '!tor --TokenToggleTooltip ' + toToken.get('_id')))
+              toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip",makeButton('🫥', '!tor --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
               toList += '<i>' + tt + '</i></td>'; 
             }
+
+            if (toToken.get('showplayers_name')){
+              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
+            } else {
+              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+            }
+
           }
           break;
 
         case 'CUSTOM':
           toList +=  '<td ' + tdcustom + '><b>' + toObj[i].pr + '</b></td>';
           toList +=  '<td ' + tdcustom + '>' + toObj[i].custom + ' [' + toObj[i].formula + ']' + '</td>';
-          toList +=  '<td ' + tdcustom + '>' + addTooltip("Remove Item from Turnorder",makeButton('❌',`!tor --TO-RemoveCustom ${i}`,20)) + '</td>';
+          toList +=  '<td ' + tdcustom + '>' + '<span style="font-size: 16px">'+  addTooltip("Remove Item from Turnorder",makeButton('❌',`!tor --TO-RemoveCustom ${i}`,20)) + '</span></td>';
           toList +=  '<td ' + tdcustom + ' colspan=8></td>';
           break;
         case 'NPC':
@@ -2089,6 +2163,22 @@ function torHandleMsg(msg_content){
           toToken = getObj("graphic", toObj[i].id);
           toChar = getObj('character', toToken.get('represents'));
 
+          // Encounter Difficulty Calculations
+          edCharLevel = getAttrByName(toChar.get('_id'),'level','current')
+          // Encounter difficulty
+          if (!isnpc && true) { // Friend?
+            let xpThresholdItem = mapXPThresholds.get(edCharLevel)
+            edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
+            edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
+            edHard = Number(edHard) + Number(xpThresholdItem.hard)
+            edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
+            edPartyCount = edPartyCount + 1;
+          } else if (isnpc && true) {
+            edFoeCount = edFoeCount + 1;
+            edNPCExp = getAttrByName(toChar.get('_id'),'npc_xp','current');
+            edNPCExpTotal = edNPCExpTotal + edNPCExp;
+          }
+
           // Col 1 (Turn/PR)
           toList += '<td ' + tdbase + '><b>' + toObj[i].pr + '</b></td>';
 
@@ -2096,43 +2186,51 @@ function torHandleMsg(msg_content){
           tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
           tknImg = addTooltip("Ping Me", makeButton(tknImg, `!tor --PingToken-GM ${toObj[i].id}`, 40)) 
 
-          if(toToken.get('layer') == 'objects'){
+          if(toToken.get('showplayers_name')){
             // toList += '<td ' + tdbase + '>' + makeButton(tknImg, '!ping-token --' + toToken.get('_id'), 40) + '<b>' + toToken.get('name') + '</b></td>';
-            toList += '<td ' + tdbase + '>' + tknImg + '<b>' + toToken.get('name') + '</b></td>';                
+            toList += '<td ' + tdbase + '>' + tknImg + '<b>' + addTooltip("Token Nameplate Visble",toToken.get('name')) + '</b></td>';                
           } else {
             // toList += '<td ' + tdbase + '>' + makeButton(tknImg, '!ping-token --' + toToken.get('_id'), 40) + '<i>' + toToken.get('name') + '</i></td>';
-            toList += '<td ' + tdbase + '>' + tknImg + '<i>' + toToken.get('name') + '</i></td>';                
+            toList += '<td ' + tdbase + '>' + tknImg + '<i>' + addTooltip("Token Nameplate Hidden",toToken.get('name')) + '</i></td>';                
           }
 
           // Col 3 (Commands)
           toList += '<td ' + tdbase + '>';
-          toList += addTooltip("Remove Token from Turnorder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`));
+          //toList += '<span style="font-size: 16px;>' + addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`));
+          toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`)) + '</span>';
+          toList += '<span style="font-size: 16px">'+ addTooltip("Remove Token from Turnorder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`)) + '</span>';
 
           if(toToken.get('layer') == 'objects'){
-            toList += addTooltip("Hide Token on Map", makeButton('😑', '!tor --TokenToggleVisabity ' + toToken.get('_id')));  
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Token on Map", makeButton('😑', '!tor --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';  
           } else {
-            toList += addTooltip("Unhide Token on Map", makeButton('🫥', '!tor --TokenToggleVisabity ' + toToken.get('_id')));
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unhide Token on Map", makeButton('🫥', '!tor --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';
           }
 
-          toList += addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents')));
+          toList +=  '<span style="font-size: 16px">'+ addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'))) + '</span>';
           if (isnpc) {
             tmp = toToken.get('gmnotes');
-            toList += addTooltip(tmp, makeButton('🖊', '!tor --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"'));  
+            toList += '<span style="font-size: 16px">'+ addTooltip(tmp, makeButton('🖊', '!tor --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"')) + '</span>';  
           } else {
 
             toChar.get('gmnotes', function (gmnotes){
               tmp = gmnotes;
             });
-            toList += addTooltip(tmp, makeButton('🖊', '!tor --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"'));
+            toList += '<span style="font-size: 16px">'+ addTooltip(tmp, makeButton('🖊', '!tor --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"')) + '</span>';
           }
 
           //log('LockMovement' + toToken.get('lockMovement'))
           if(toToken.get('lockMovement')){
-            toList += addTooltip("Unlock token Movement", makeButton('🔐', '!tor --TokenToggleLock ' + toToken.get('_id'))); 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton('🔐', '!tor --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
           } else {
-            toList += addTooltip("Unlock token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id'))); 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
           }
-          
+
+          if (toToken.get('showplayers_name')){
+            //toList += addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenNameplate ' + toToken.get('_id'))) ;
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate to Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+          } else {
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate to Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id')))  + '</span>';
+          }
           toList += '</td>';
 
           // Col 4 (Health)
@@ -2202,14 +2300,14 @@ function torHandleMsg(msg_content){
           // Col 10 (Tooltips)
           tt = toToken.get('tooltip');
           toList += '<td ' + tdbase + '>';
-          toList += addTooltip("Edit Tooltip", makeButton('🖊', `!tor --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) 
-          toList += addTooltip("Clear Tooltip", makeButton('❌', '!tor --TokenClearTooltip ' + toToken.get('_id')) )
+          toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton('🖊', `!tor --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) +'</span>'
+          toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton('❌', '!tor --TokenClearTooltip ' + toToken.get('_id')) )+'</span>'
 
           if(toToken.get('show_tooltip')){
-            toList += addTooltip("Hide Tooltip", makeButton('😑', '!tor --TokenToggleTooltip ' + toToken.get('_id')))
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton('😑', '!tor --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
             toList += '<b>' + tt + '</b></td>'; 
           } else {
-            toList += addTooltip("Show Tooltip", makeButton('🫥', '!tor --TokenToggleTooltip ' + toToken.get('_id')))
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip", makeButton('🫥', '!tor --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
             toList += '<i>' + tt + '</i></td>'; 
           }
 
@@ -2220,7 +2318,115 @@ function torHandleMsg(msg_content){
     }
 
     toList += '</tbody></table>';
+    toList += closeScrollBox;
     // lines = lines + toList;
+
+    //************************************
+    // Calculate the Encounter Difficulty
+    //************************************
+    if (edFoeCount == 0 || edPartyCount == 0){ //Nothing to do
+      edDiffMult = 0;
+    }
+    if (edFoeCount == 1) {
+      if (edPartyCount < 2) {
+        edDiffMult = 1.5;
+      } else if (edPartyCount > 5) {
+        edDiffMult = .5;
+      } else {
+        edDiffMult = 1;
+      }
+    }
+
+    if (edFoeCount == 2) {
+      if (edPartyCount < 2) {
+        edDiffMult = 2;
+      } else if (edPartyCount > 5) {
+        edDiffMult = 1;
+      } else {
+        edDiffMult = 1.5;
+      }
+    }
+
+    if (edFoeCount >= 3 && edFoeCount <= 6) {
+      if (edPartyCount < 2) {
+        edDiffMult = 2.5;
+      } else if (edPartyCount > 5) {
+        edDiffMult = 1.5;
+      } else {
+        edDiffMult = 2;
+      }
+    }
+
+    if (edFoeCount >= 3 && edFoeCount <= 6) {
+      if (edPartyCount < 2) {
+        edDiffMult = 2.5;
+      } else if (edPartyCount > 5) {
+        edDiffMult = 1.5;
+      } else {
+        edDiffMult = 2;
+      }
+    }
+
+    if (edFoeCount >= 7 && edFoeCount <= 10) {
+      if (edPartyCount < 2) {
+        edDiffMult = 3;
+      } else if (edPartyCount > 5) {
+        edDiffMult = 2;
+      } else {
+        edDiffMult = 2.5;
+      }
+    }
+
+    if (edFoeCount >= 11 && edFoeCount <= 14) {
+      if (edPartyCount < 2) {
+        edDiffMult = 4;
+      } else if (edPartyCount > 5) {
+        edDiffMult = 2.5;
+      } else {
+        edDiffMult = 3;
+      }
+    }
+
+    if (edFoeCount >= 15) {
+      if (edPartyCount < 2) {
+        edDiffMult = 5;
+      } else if (edPartyCount > 5) {
+        edDiffMult = 3;
+      } else {
+        edDiffMult = 4;
+      }
+    }
+
+    edEncounterExp = edNPCExpTotal * edDiffMult;
+    if (edEncounterExp < edEasy) {
+      edDifficulty = 'Super Easy';
+      edColor = '#24CE10';
+    }
+    if (edEncounterExp > edEasy && edEncounterExp < edMedium) {
+      edDifficulty = 'Easy';
+      edColor = '#24CE10';
+    }
+    if (edEncounterExp >= edMedium && edEncounterExp < edHard) {
+      edDifficulty = 'Medium';
+      edColor = '#FFFE00';      
+    }
+    if (edEncounterExp >= edHard && edEncounterExp < edDeadly) {      
+      edDifficulty = 'Hard';
+      edColor = '#FFAC00';
+    }
+    if (edEncounterExp >= edDeadly) {      
+      edDifficulty = 'Deadly';
+      edColor = '#FF0000';
+    }
+
+    edDifficulty = `<table style="background-color: ${edColor}; color: black; border-collapse: collapse; padding: 0; border: 1"><tr><td style="padding: 0; border: 0; vertical-align: middle; text-align: center" rowspan="4">Encounter ${edDifficulty}<br><br><i>(Total Encounter Experience: ${edEncounterExp})</i></td>`
+    edDifficulty +=   `<td style="padding: 0; border: 0; text-align: right">Easy: ${edEasy}</td><td style="padding: 0; border: 0; text-align: right">Party Count: ${edPartyCount}</td><td style="padding: 0; border: 0; text-align: right"> </td></tr>`
+    edDifficulty +=   `<tr><td style="padding: 0; border: 0; text-align: right">Medium: ${edMedium}</td><td style="padding: 0; border: 0; text-align: right">Foes: ${edFoeCount}</td><td style="padding: 0; border: 0; text-align: right"> </td></tr>`
+    edDifficulty +=   `<tr><td style="padding: 0; border: 0; text-align: right">Hard: ${edHard}</td><td style="padding: 0; border: 0; text-align: right">Multiplier: ${edDiffMult}</td><td style="padding: 0; border: 0; text-align: right"> </td></tr>`
+    edDifficulty +=   `<tr><td style="padding: 0; border: 0; text-align: right">Deadly: ${edDeadly}</td><td style="padding: 0; border: 0; text-align: right">Σ NPC Exp: ${edNPCExpTotal}</td><td style="padding: 0; border: 0; text-align: right"></td></tr></table>`
+    //replaceDynamicSpanElement(toList,"encdiff",edDifficulty);
+    toList = toList.replace('<span id=EncDiff>1</span>', edDifficulty);
+    // log('Difficult: ' + edDifficulty);
 
     reportPerformance('Complete Turorder List');
 
@@ -2411,6 +2617,10 @@ function torHandleMsg(msg_content){
       break;
     case 'TOKENSETTOOLTIP':
       tokenSetTooltip(commands[1], commands[2])
+      refreshReports();
+      break;
+    case 'TOKENTOGGLENAMEPLATE':
+      tokenToggleNameplate(commands[1]);
       refreshReports();
       break;
     case 'TOKENADJUSTHP':
