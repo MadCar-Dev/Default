@@ -4,9 +4,12 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
+let giDebug = 0; // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log
+let giDebugLvl = 4; //0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
 let charMap = new Map();
 let logMap = new Map();
 let toMap = new Map();
+let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
 
 let gDataLog = '';
 let charMapItem = [];
@@ -14,6 +17,8 @@ let toMapItem = [];
 
 let gStartTime = 0;
 let gEndTime = 0;
+
+const tblCR2XP =  [[0,0],[0.125,25],[0.25,50],[0.5,100],[1,200],[2,450],[3,700],[4,1100],[5,1800],[6,2300],[7,2900],[8,3900],[9,5000],[10,5900],[11,7200],[12,8400],[13,10000],[14,11500],[15,13000],[16,15000],[17,18000],[18,20000],[19,22000],[20,25000],[21,33000],[22,41000],[23,50000],[24,62000],[25,75000],[26,90000],[27,105000],[28,120000],[29,135000],[30,155000]];
 
 /*************************************
 *** Start of DM Turnorder Reporter ***  
@@ -26,19 +31,17 @@ let gEndTime = 0;
 // Future Enhancements
 //  1. Add saving throw to the character sheet
 //  2. replace some of my other gmnotes/notes update fields with the new asyn method
-//  4. Add logic to calculate challenge rating of encounter
-//  5. Public Ping
 //  6. Toggle through auras (GM/Player)
 //  7. Show Pic in chat
 //  8. Show Bio in chat
 //  9. Dynamic Lighting Setup
 
-
 /******************************
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.4';
+  const version = '0.6.5';
+
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!tor`');
 
@@ -114,6 +117,55 @@ const debounced_torHandleMsg = _.debounce(torHandleMsg,500)
 /******************************
 *** Global Functions        ***  
 *******************************/
+function myDebug(lvl,txt){
+// giDebug: 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log
+// giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
+
+  if ((giDebug == 1 || giDebug == 3) && lvl >= giDebugLvl) {
+    log(txt);
+  }
+  if ((giDebug == 2 || giDebug == 3) && lvl >= giDebugLvl) {
+    sendChat('Debug','/w gm '+txt);
+  }
+}
+
+function dumpMapObject(map) {
+  for (let [key, value] of map) {
+    log(`Key: ${key}`);
+    dumpObject(value);
+  }
+}
+function dumpObject(obj){
+  for (let key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      log(`  Field Name: ${key} / Value: ${obj[key]}`);
+    }
+  }
+}
+
+
+function interpolate(x, dataset) {
+  if (x <= dataset[0][0]) {
+    return dataset[0][1];
+  }
+  
+  if (x >= dataset[dataset.length - 1][0]) {
+    return dataset[dataset.length - 1][1];
+  }
+
+  for (let i = 0; i < dataset.length - 1; i++) {
+    if (x >= dataset[i][0] && x <= dataset[i + 1][0]) {
+      const x1 = dataset[i][0];
+      const y1 = dataset[i][1];
+      const x2 = dataset[i + 1][0];
+      const y2 = dataset[i + 1][1];
+
+      const interpolatedValue = y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
+      return interpolatedValue;
+    }
+  }
+}
+
 function flushDataLog(){
   let nl = [];
 
@@ -310,7 +362,7 @@ function torHandleMsg(msg_content){
     let cCasterLevel = '';
     let cAtkCnt = 0;
     let cTraitCnt = 0;
-    let Ttype = '';
+    let tType = '';
 
     log('********** AddTurnOrderLog ***************');
     let curr_to = Campaign().get("turnorder");
@@ -329,10 +381,10 @@ function torHandleMsg(msg_content){
 
     // log('TO:1');
     // What is this turnorder tied to?  A pc, npc, custom item or other?
-    Ttype = getTokenType(toObj[toObj.length-1].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
-    //log('TO?:' + Ttype);
+    tType = getTokenType(toObj[toObj.length-1].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
+    //log('TO?:' + tType);
 
-    switch (Ttype) {
+    switch (tType) {
 
       case 'CUSTOM':
         NewData = `CUSTOM,${prevDate},${currDate},${toObj[toObj.length-1].id},${toObj[toObj.length-1].pr},${toObj[toObj.length-1].custom},0,0,0,0,0,0,0`
@@ -499,6 +551,47 @@ function torHandleMsg(msg_content){
   }
 
 
+  function toggleFriendFoe(tId){
+
+    // foeMap (toObj[0].id, 
+    //          {id: toObj[0].id, 
+    //           charId: toChar.get('id'), 
+    //           Type: 'NPC', 
+    //           State:'FOE';, 
+    //           Level: edCharLevel, 
+    //           SpellCasterLvl: getAttrByName(toChar.get('_id'), 'caster_level') ,
+    //           Exp: edNPCExp});
+
+    myDebug(4,`toggleFriendFoe(${tId})`)
+    //dumpMapObject(foeMap);
+
+    if (foeMap.has(tId)) {
+
+      // Yes - use the map data (as it might change when toggled)
+      let foeItem = foeMap.get(tId);
+      myDebug(4, `ToggleFriendFoe: Found id: ${foeItem.id} State: ${foeItem.State} Type: ${foeItem.Type}`);
+
+      if (foeItem.Type == 'CHAR') { //CHAR: (Friend->Neutral->Foe->Friend)
+        if (foeItem.State == 'FRIEND') {
+          foeItem = { ...foeItem, State: 'NEUTRAL'};
+        } else if (foeItem.State == 'NEUTRAL') {
+          foeItem = { ...foeItem, State: 'FOE'};
+        } else {
+          foeItem = { ...foeItem, State: 'FRIEND'};
+        }
+      } else if (foeItem.Type == 'NPC') { //NPC:(Foe->Neutral->Friend->Foe)
+        if (foeItem.State == 'FOE') {
+          foeItem = { ...foeItem, State: 'NEUTRAL'};
+        } else if (foeItem.State == 'NEUTRAL') {
+          foeItem = { ...foeItem, State: 'FRIEND'};
+        } else {
+          foeItem = { ...foeItem, State: 'FOE'};
+        }
+      }
+      foeMap.set(tId, foeItem);
+    }
+  }
+
   function addTextToCharGMNote(characterId, text){
     const char = getObj('character', characterId);
     if (!char) {
@@ -563,6 +656,135 @@ function torHandleMsg(msg_content){
 
   };
 
+  function showAvatar(toId, bTitle, bWhisper) {
+    // bTitle, 0: No Title, 1: Title(In Template Box) 2: Just Image
+    let msgPrefix = '';
+    let msgSendToPlayers = '';
+    let msg = '';
+    if (bWhisper == 0){bWhisper = false} else {bWhisper = true}
+
+    myDebug(4, `ShowAvatar: ${toId}, ${bTitle}, ${bWhisper}`)
+
+    let tObj = getObj('graphic', toId);
+    if (tObj) {
+      let cObj = getObj('character', tObj.get('represents'));
+      if (cObj){
+        let avatar = `<img src='${cObj.get('avatar')}'>`;
+        let name = '';
+        if (bTitle==1){
+          name = cObj.get('name');  
+        }
+
+        let msgPrefix = '';
+        if (bWhisper){
+          msgPrefix='/w gm '
+          msgSendToPlayers = `\n[Send to Players: With Title](!tor --SHOWAVATAR ${toId} 1 0) \n[Send to Players: No Title](!tor --SHOWAVATAR ${toId} 0 0) \n[Send to Players: No Frame](!tor --SHOWAVATAR ${toId} 2 0)`
+        }
+        myDebug(3, `ShowAvatar: Avatar ${avatar}`)
+        myDebug(3, `ShowAvatar: name ${name}`)
+
+        if (bTitle != 2){
+          msg = `${msgPrefix}&{template:npcaction}{{rname=${name}}} {{description=${avatar} ${msgSendToPlayers}}}`;
+        } else {
+          msg = avatar
+        }
+        sendChat(name, msg);
+        myDebug(4, msg)
+
+      }
+    }
+  }
+
+  const decodeUnicode = (str) => str.replace(/%u[0-9a-fA-F]{2,4}/g, (m) => String.fromCharCode(parseInt(m.slice(2), 16)));    
+
+  function showCharImage(toId, imageIndex, bTitle, bWhisper) {
+    // imageIndex: -1 all images, 0+: image index
+    // bTitle, 0: No Title, 1: Title(In Template Box) 2: Just Image
+    let msgPrefix = '';
+    let msgSendToPlayers = '';
+    let msg = '';
+    let artwork = '';
+    let bio = '';
+    let img = '';
+    let bArtworkFound = false;
+  
+    if (bWhisper == 0){bWhisper = false} else {bWhisper = true}
+
+    myDebug(4, `showCharImage: Tid:${toId}, Img: ${imageIndex},  Title:${bTitle}, Whisper:${bWhisper}`)
+
+    let tObj = getObj('graphic', toId);
+    if (tObj) {
+      let cObj = getObj('character', tObj.get('represents'));
+      if (cObj){
+
+        let name = '';
+        if (bTitle==1){
+          name = cObj.get('name');  
+        }
+
+        cObj.get('bio', function(bio){
+          myDebug(3, `showCharImage: BIO: ${bio}`)
+          if (bio != null && bio != undefined){
+            bio = decodeUnicode(bio);
+
+            myDebug(4, `showCharImage: Img: ${imageIndex}`)
+            if (imageIndex == -1) { // All Images
+              myDebug(3, `showCharImage: ALL`)
+              artwork = bio.match(/\<img src.*?\>/g)
+            } else { // A specific Index
+              myDebug(3, `showCharImage: One(${imageIndex}`)
+              artwork = bio.match(/\<img src.*?\>/g);
+              artwork = String(artwork);
+              if (imageIndex > (artwork.split(",")).length) {
+                imageIndex = 0
+              }
+              artwork = artwork.split(",")[imageIndex]
+              myDebug(3, `showCharImage: Specific Img: ${artwork}`)
+            }
+
+            myDebug(3, `showCharImage: Artwork: ${artwork}`)
+            if ((''+artwork).length > 10) {
+              msg = artwork;
+              bArtworkFound = true;
+            } else {
+              msg = 'No artwork exists for this character.';
+              myDebug(4, `showCharImage: No Artwork: ${artwork}`)
+            }
+
+          } else {
+            msg = 'No Bio exists for this character'
+          }
+
+          let msgPrefix = '';
+          if (bWhisper){
+            msgPrefix='/w gm '
+            msgSendToPlayers = `\nSend Image to Players:`
+            artwork = String(artwork)
+            let imgCnt = (artwork.split(",").length);
+            for (let ndx = 0;  ndx < imgCnt; ndx++) {
+              msgSendToPlayers += `\nImage ${ndx+1} [w/ Title](!tor --SHOWIMAGE ${toId} ${ndx} 1 0) [w/o Title](!tor --SHOWIMAGE ${toId} ${ndx} 0 0)`
+            }
+          }
+
+          if (!bArtworkFound){
+            msgSendToPlayers = '' ;
+          }
+
+          myDebug(3, `ShowImage: ArtWork ${artwork}`)
+          myDebug(3, `ShowImage: name ${name}`)
+
+          msg = `${msgPrefix}&{template:npcaction}{{rname=${name}}} {{description=${msg} ${msgSendToPlayers}}}`;
+
+          myDebug(3, msg);
+
+          sendChat(name, msg);
+
+        });
+      }
+    }
+  }
+
+
   function getTokenType(toId) {
     // Given a TurnOrderId 
     //  Returns UTILITY, CUSTOM, PC, NPC, or OTHER
@@ -597,7 +819,7 @@ function torHandleMsg(msg_content){
         return 'NPC';
     };
 
-    // If we got all here - then this Turnorder Id is associated with a token
+    // If we got all here - then this Turnorder Id is associated with a player controlled 
     return 'CHAR';
   };
 
@@ -1034,9 +1256,9 @@ function torHandleMsg(msg_content){
     return s;
   }
 
-  function resetAttributeValue(attr) {
+  function resetAttributeValue(attr, def) {
     findObjs({ _type: 'attribute', name: attr }).forEach((attr) => {
-      attr.set('current', attr.get('max'));
+      attr.set('current', def);
     });
   }
 
@@ -1044,9 +1266,9 @@ function torHandleMsg(msg_content){
 
     //Reset Player Stats
     // Look for every Attribute named to_secs, to_count or to_avg and set their current value equal to their max value
-    resetAttributeValue('to_secs');
-    resetAttributeValue('to_count');
-    resetAttributeValue('to_avg');
+    resetAttributeValue('to_secs', 3000);
+    resetAttributeValue('to_count', 50);
+    resetAttributeValue('to_avg', 60);
 
     //Reset DM/State Stats
     state.DMDashboard.DM_Secs = 0;
@@ -1098,6 +1320,46 @@ function torHandleMsg(msg_content){
     return newSource;
   }
 
+  function CR_to_CharLvl(cr, bSpellcaster){
+    // Basedon on some math I found online
+    //  Spellcaster level x 2/3 = CR
+    //  Non-spellcaster level x 1/2 = CR
+    let lvl = 0;
+
+    if (cr == '1/8'){cr = Number(0.125)}
+    if (cr == '1/4'){cr = Number(0.25)}
+    if (cr == '1/2'){cr = Number(0.5)}
+
+    if (bSpellcaster) {
+      lvl = Math.round(Number(cr) * Number(3) / Number(2));
+    } else {
+      lvl = Math.round(Number(cr) * Number(2));
+    }
+    return lvl;
+  }
+
+  function CharLvl_to_CR(lvl, bSpellcaster){
+    // Basedon on some math I found online
+    //  Spellcaster level x 2/3 = CR
+    //  Non-spellcaster level x 1/2 = CR
+    let cr = 0;
+    if (bSpellcaster) {
+      cr = Number(lvl) * (Number(2) / Number(3));
+    } else {
+      cr = Number(lvl) * Number(0.5);
+    }
+    return cr;
+  }
+  
+  function CR_to_XP(cr){
+    if (cr == '1/8'){cr = Number(0.125)}
+    if (cr == '1/4'){cr = Number(0.25)}
+    if (cr == '1/2'){cr = Number(0.5)}
+
+    let xp = Math.round(interpolate(cr, tblCR2XP));
+    return xp;
+  }
+
   function addInitiative(tokenIds) {
 
     //tokenIds will be a comma-delimited list of tokenids
@@ -1126,6 +1388,7 @@ function torHandleMsg(msg_content){
       let initBonus = getAttrByName(cObj.get('_id'),'initiative_bonus','current');
       initBonus = parseFloat(Number(initBonus.toFixed(2))); // Fix Roll20 issue where init bonus has a lot of significant digits.
       let result = Number(d20Roll) + Number(initBonus)
+      result = Math.round(result * 100)/100
 
       let chatMsg = '';      
       if (tType == 'CHAR') {
@@ -1309,6 +1572,7 @@ function torHandleMsg(msg_content){
     let edEncounterExp = 0;
     let edDifficulty = '';
     let edColor = '';
+    let foeItem = [];
 
     let tokens = findObjs({
         _type: 'graphic',
@@ -1422,10 +1686,10 @@ function torHandleMsg(msg_content){
           if ((dt_diff >= 0) && toObj[toObj.length-1].id != -1) {
 
             // Yes, Lets see if it's a PC or NPC
-            Ttype = getTokenType(toObj[toObj.length-1].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
-            // log(`Debug TOAdv 3: Ttype:${Ttype}`)
+            tType = getTokenType(toObj[toObj.length-1].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
+            // log(`Debug TOAdv 3: tType:${tType}`)
 
-            switch (Ttype) {
+            switch (tType) {
 
               case 'CHAR':
                 let toPrevToken = getObj("graphic", toObj[toObj.length-1].id);
@@ -1491,9 +1755,9 @@ function torHandleMsg(msg_content){
 
       charDetail = '';
   
-      Ttype = getTokenType(toObj[0].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
+      tType = getTokenType(toObj[0].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
 
-      switch (Ttype) {
+      switch (tType) {
         case 'OTHER':
 
           toToken = getObj("graphic", toObj[0].id);                
@@ -2045,6 +2309,7 @@ function torHandleMsg(msg_content){
     toList +=  '<table ' + ts +'>';
     toList +=  '<thead><tr><th' + th + '>Turn</th>';
     toList +=  '<th' + th + '>Name</th>';
+    // toList +=  '<th' + th + '>Foe?</th>';
     toList +=  '<th' + th + '>Functions</th>';
     toList +=  '<th' + th + '>HP</th>';
     toList +=  '<th' + th + '>Markers</th>';                
@@ -2064,11 +2329,11 @@ function torHandleMsg(msg_content){
       
       toList += '<tr style="border: 1px">';
 
-      Ttype = getTokenType(toObj[i].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
+      tType = getTokenType(toObj[i].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
       isnpc = 0;
       tdbase = tdpc;
 
-      switch (Ttype) {
+      switch (tType) {
         case 'OTHER':
           toToken = getObj("graphic", toObj[i].id);
           if (toToken){
@@ -2085,6 +2350,12 @@ function torHandleMsg(msg_content){
               toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`, 40) + '<i>' + toToken.get('name') + '</i></td>';
             }
 
+            // Col 2b (friend/foe)
+            // toList += '<td ' + tdcustom + '>';
+            // toList += '<span style="font-size: 16px">'+ addTooltip("Friend or Foe", makeButton('😶',`!tor --ToggleFriend ${toObj[i].id}`)) + '</span>';
+            // toList += '</td>';
+
+
             // Col 3 (Functions: Remove Item, Toggle Token between GM/Obj Layer)
             toList +=  '<td ' + tdcustom + '>' 
             toList += '<span style="font-size: 16px">'+ addTooltip("Remove Item from TurnOrder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`)) + '</span>';
@@ -2099,6 +2370,14 @@ function torHandleMsg(msg_content){
             } else {
               toList += '<span style="font-size: 16px">'+ addTooltip("Lock Token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
             }
+            if (toToken.get('showplayers_name')){
+              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
+            } else {
+              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+            }
+
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('👤', '!tor --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('🖼', '!tor --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
 
             toList+='</td>'
 
@@ -2138,12 +2417,6 @@ function torHandleMsg(msg_content){
               toList += '<i>' + tt + '</i></td>'; 
             }
 
-            if (toToken.get('showplayers_name')){
-              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
-            } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
-            }
-
           }
           break;
 
@@ -2163,21 +2436,103 @@ function torHandleMsg(msg_content){
           toToken = getObj("graphic", toObj[i].id);
           toChar = getObj('character', toToken.get('represents'));
 
-          // Encounter Difficulty Calculations
-          edCharLevel = getAttrByName(toChar.get('_id'),'level','current')
-          // Encounter difficulty
-          if (!isnpc && true) { // Friend?
-            let xpThresholdItem = mapXPThresholds.get(edCharLevel)
-            edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
-            edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
-            edHard = Number(edHard) + Number(xpThresholdItem.hard)
-            edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
-            edPartyCount = edPartyCount + 1;
-          } else if (isnpc && true) {
-            edFoeCount = edFoeCount + 1;
-            edNPCExp = getAttrByName(toChar.get('_id'),'npc_xp','current');
-            edNPCExpTotal = edNPCExpTotal + edNPCExp;
+          
+          // Has this character already been loaded?
+          if (foeMap.has(toObj[i].id)) {
+
+            
+            myDebug(4, `foe1: (foeItem Already Exists) ${toToken.get('name')}`)
+
+            foeItem = foeMap.get(toObj[i].id);
+
+            // Yes - Load up the appraproiate data from the foeMap
+            if (foeItem.State == 'FRIEND'){
+              //Friend
+              myDebug(4, `foe2: (foeItem Exists and is Friend) ${toToken.get('name')}`)
+              edPartyCount = edPartyCount + 1;
+              edCharLevel = foeItem.Level;
+              let xpThresholdItem = mapXPThresholds.get(edCharLevel)
+              edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
+              edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
+              edHard = Number(edHard) + Number(xpThresholdItem.hard)
+              edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
+
+            } else if (foeItem.State == 'FOE'){
+              //Foe
+              myDebug(4, `foe3: (foeItem Exists and is Foe) ${toToken.get('name')}`)              
+              edFoeCount = edFoeCount + 1;
+              edNPCExpTotal = edNPCExpTotal + foeItem.Exp;
+            } else {
+              myDebug(4, `foe4: (foeItem Exists and is Neutral) ${toToken.get('name')}`)              
+            }
+
+            
+          } else {
+            // No - Calculate data for the foeMap and load it
+            if (tType == 'CHAR') {
+              
+              // Load CHAR into foe map, do the NPC Calcs now too
+              myDebug(4, `foe5: (New Char to be added) ${toToken.get('name')}`)
+
+              edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level');
+              edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
+              edPartyCount = edPartyCount + 1;
+              let xpThresholdItem = mapXPThresholds.get(edCharLevel)
+              edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
+              edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
+              edHard = Number(edHard) + Number(xpThresholdItem.hard)
+              edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
+              edCR = CharLvl_to_CR(edCharLevel, edSpellCasterLvl)
+              edNPCExp = CR_to_XP(edCR)
+              foeMap.set(toObj[i].id, {id: toObj[i].id, charId: toChar.get('id'), Type: 'CHAR', State:'FRIEND', Level: edCharLevel, SpellCasterLvl: edSpellCasterLvl, Exp: edNPCExp});
+              foeItem = foeMap.get(toObj[i].id);
+              
+            } else {
+              
+              //NPC
+              myDebug(4, `foe6: (New NPC to be added) ${toToken.get('name')}`)
+              edFoeCount = edFoeCount + 1;
+
+              // This could be an NPC using a Charsheet - "controledby" Is blank
+              if (getAttrByName(toChar.get('_id'), 'npc', 'current') == 0) {
+
+                // It is a NPC in a Character's clothing (character sheet)
+                myDebug(4, `foe7: (New NPC living in a Character Sheet (npc=0)) ${toToken.get('name')}`)
+                edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level')
+                edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
+                edCR = CharLvl_to_CR(edCharLevel, edSpellCasterLvl)
+                edNPCExp = CR_to_XP(edCR);
+                edNPCExpTotal = edNPCExpTotal + edNPCExp;
+                foeMap.set(toObj[i].id, {id: toObj[i].id, 
+                                         charId: toChar.get('id'), 
+                                         Type: 'NPC', 
+                                         State:'FOE', 
+                                         Level: edCharLevel, 
+                                         SpellCasterLvl: edSpellCasterLvl,
+                                         Exp: edNPCExp});
+                foeItem = foeMap.get(toObj[i].id);
+
+              } else {
+                // It is a NPC using a traditional NPC setup
+                myDebug(4, `foe8: (New Traditional NPC) ${toToken.get('name')}`)
+                edNPCExp = getAttrByName(toChar.get('_id'),'npc_xp','current');
+                edNPCExpTotal = edNPCExpTotal + edNPCExp;
+                edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level')
+                edCharLevel = CR_to_CharLvl(getAttrByName(toChar.get('_id'), 'npc_challenge'), edSpellCasterLvl)
+                foeMap.set(toObj[i].id, {id: toObj[i].id, 
+                                         charId: toChar.get('id'), 
+                                         Type: 'NPC', 
+                                         State:'FOE', 
+                                         Level: edCharLevel, 
+                                         SpellCasterLvl: edSpellCasterLvl,
+                                         Exp: edNPCExp});
+                foeItem = foeMap.get(toObj[i].id);
+
+              }
+            }
           }
+
+          
 
           // Col 1 (Turn/PR)
           toList += '<td ' + tdbase + '><b>' + toObj[i].pr + '</b></td>';
@@ -2231,6 +2586,20 @@ function torHandleMsg(msg_content){
           } else {
             toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate to Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id')))  + '</span>';
           }
+          toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('👤', '!tor --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
+          toList += '<span style="font-size: 16px">'+ addTooltip("Show Images", makeButton('🖼', '!tor --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
+
+          // myDebug(4, `foe-Buttons: ${foeItem.State}`)
+          // dumpMapObject(foeMap);
+
+          if (foeItem.State == 'FRIEND') {
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Friend) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('😇', '!tor --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+          } else if (foeItem.State == 'FOE') {
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Foe) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('😡', '!tor --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+          } else {
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Neutral) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('💩', '!tor --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+          }
+
           toList += '</td>';
 
           // Col 4 (Health)
@@ -2519,10 +2888,10 @@ function torHandleMsg(msg_content){
     commands.push('OPEN');
   }
 
-  // log('Message_Content: ' + msg_content);
-  // log('commands: ' + commands);
+  myDebug(2, `MsgHandler: msg_content: ${msg_content}`)
+  myDebug(2, `MsgHandler: commands: ${commands}`)
   commands.forEach(c => {
-    // log(`  command: ${c}`)
+    myDebug(2, `MsgHandler: command: ${c}`);
   });
 
   commands[0] = commands[0].toUpperCase();
@@ -2623,6 +2992,10 @@ function torHandleMsg(msg_content){
       tokenToggleNameplate(commands[1]);
       refreshReports();
       break;
+    case 'TOGGLEFRIEND':
+      toggleFriendFoe(commands[1]); 
+      refreshReports();
+      break;
     case 'TOKENADJUSTHP':
       tokenAdjHP(commands[1], commands[2]);
       refreshReports();
@@ -2632,6 +3005,14 @@ function torHandleMsg(msg_content){
       break;
     case 'PINGTOKEN-ALL':
       pingToken(commands[1],1);
+      break;
+    case 'SHOWAVATAR':
+      myDebug(3, `ShowAvatar - Got to msghandler: ${commands[1]}, ${commands[2]}, ${commands[3]}`)
+      showAvatar(commands[1], commands[2], commands[3]); //tknId, ShowTitle? (0/1), Whisper? (0/1)
+      break;
+    case 'SHOWIMAGE':
+      myDebug(4, `ShowImage - Got to msghandler: ${commands[1]}, ${commands[2]}, ${commands[3]}, ${commands[4]}`)
+      showCharImage(commands[1], commands[2], commands[3], commands[4]); //tknId, imgIndx(0 for all), ShowTitle? (0/1), Whisper? (0/1)
       break;
     case 'TOREPORT':
       // *** Process subcommands like 'expand' and 'collapse' ***
