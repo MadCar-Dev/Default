@@ -4,22 +4,6 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-let giDebug = 0; // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log
-let giDebugLvl = 4; //0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
-let charMap = new Map();
-let logMap = new Map();
-let toMap = new Map();
-let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
-
-let gDataLog = '';
-let charMapItem = [];
-let toMapItem = [];
-
-let gStartTime = 0;
-let gEndTime = 0;
-
-const tblCR2XP =  [[0,0],[0.125,25],[0.25,50],[0.5,100],[1,200],[2,450],[3,700],[4,1100],[5,1800],[6,2300],[7,2900],[8,3900],[9,5000],[10,5900],[11,7200],[12,8400],[13,10000],[14,11500],[15,13000],[16,15000],[17,18000],[18,20000],[19,22000],[20,25000],[21,33000],[22,41000],[23,50000],[24,62000],[25,75000],[26,90000],[27,105000],[28,120000],[29,135000],[30,155000]];
-
 /*************************************
 *** Start of DM Turnorder Reporter ***  
 *************************************/
@@ -31,16 +15,18 @@ const tblCR2XP =  [[0,0],[0.125,25],[0.25,50],[0.5,100],[1,200],[2,450],[3,700],
 // Future Enhancements
 //  1. Add saving throw to the character sheet
 //  2. replace some of my other gmnotes/notes update fields with the new asyn method
-//  6. Toggle through auras (GM/Player)
-//  7. Show Pic in chat
-//  8. Show Bio in chat
-//  9. Dynamic Lighting Setup
+//  3. Toggle through auras (GM/Player)
+//  4. Add a system to popup a GM Note
+//  5. Add online help
+//  6. Dynamic Lighting Setup
+//  7. Integrate with !Reporter app to dump predefined reports
 
 /******************************
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.5';
+  const version = '0.6.6';
+  "use strict";
 
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!tor`');
@@ -113,6 +99,21 @@ on('chat:message', async (msg_orig) => {
 });
 
 const debounced_torHandleMsg = _.debounce(torHandleMsg,500)
+
+let giDebug = 1; // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log
+let giDebugLvl = 4; //0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
+let charMap = new Map();
+let logMap = new Map();
+let toMap = new Map();
+let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
+let gDataLog = '';
+let charMapItem = [];
+let toMapItem = [];
+let gStartTime = 0;
+let gEndTime = 0;
+const tblCR2XP =  [[0,0],[0.125,25],[0.25,50],[0.5,100],[1,200],[2,450],[3,700],[4,1100],[5,1800],[6,2300],[7,2900],[8,3900],[9,5000],[10,5900],[11,7200],[12,8400],[13,10000],[14,11500],[15,13000],[16,15000],[17,18000],[18,20000],[19,22000],[20,25000],[21,33000],[22,41000],[23,50000],[24,62000],[25,75000],[26,90000],[27,105000],[28,120000],[29,135000],[30,155000]];
+
+
 
 /******************************
 *** Global Functions        ***  
@@ -656,16 +657,85 @@ function torHandleMsg(msg_content){
 
   };
 
-  function showAvatar(toId, bTitle, bWhisper) {
+  function showGMNote(tId, flag) {
+    //Flag - Determines what to return
+    // 0: For NPC type, Token GM Note
+    //    For PC T type, Character Sheet GM Note
+    // 1: Forces the Token GM Note
+    // 2: Forces the Charactr GM Note
+    // 3: Gets Both
+
+    let tType = getTokenType(tId)
+    let doToken = false;
+    let doChar = false;
+    let doBoth = false;
+    let gmnotes = '';
+    let tgmnotes = '';
+    let cgmnotes = '';
+
+
+    var tObj = getObj('graphic', tId);
+    if (!tObj) {
+      return;
+    } else if ((flag == 0 && tType == 'NPC') || flag == 1 || flag == 3) {
+      doToken = true;
+    }
+    var cObj = getObj('character', tObj.get('represents'));
+    if (cObj){
+      if ((flag == 0 && tType == 'CHAR') || flag == 2 || flag ==3) {
+        doChar = true;
+      }  
+    }
+    if (doChar && doToken) {
+      doBoth = true;
+      doToken = false;
+      doChar = false;
+    } 
+
+    myDebug(4, `showGMNote: tId:${tId} flag:${flag} doToken:${doToken} doChar:${doChar} doBoth:${doBoth}`)
+
+    if (doToken==true) {
+
+      myDebug(4, `showGMNote - DoToken ${tId}`)
+      //tObj.get('gmnotes', function(gmnotes){
+      tObj.get('gmnotes', function(gmnotes){
+        myDebug(4, `showGMNote(Token): gmnotes:${gmnotes}`);
+        let handout = getHandout('DM GMNotes');
+        setTimeout(()=>handout.set("notes", gmnotes),500);
+      });
+    }
+
+    if (doChar==true) {
+      cObj.get('gmnotes', function(gmnotes){
+        myDebug(4, `showGMNote(Char): gmnotes:${gmnotes}`);
+        let handout = getHandout('DM GMNotes');
+        setTimeout(()=>handout.set("notes", gmnotes),500);
+      });  
+    }
+
+    if (doBoth==true) {
+      tObj.get('gmnotes', function(tgmnotes){
+        cObj.get('gmnotes', function(cgmnotes){
+          let notes = `<h2>Token GM Notes</h2>\n${tgmnotes}<hr>\n<h2>Character GM Notes</h2>\n${cgmnotes}`
+          myDebug(4, `showGMNote(Both): gmnotes:${notes}`)          
+          setTimeout(()=>handout.set("notes", notes),500);
+
+        });  
+      });
+    }
+  }
+
+
+  function showAvatar(tId, bTitle, bWhisper) {
     // bTitle, 0: No Title, 1: Title(In Template Box) 2: Just Image
     let msgPrefix = '';
     let msgSendToPlayers = '';
     let msg = '';
     if (bWhisper == 0){bWhisper = false} else {bWhisper = true}
 
-    myDebug(4, `ShowAvatar: ${toId}, ${bTitle}, ${bWhisper}`)
+    myDebug(4, `ShowAvatar: ${tId}, ${bTitle}, ${bWhisper}`)
 
-    let tObj = getObj('graphic', toId);
+    let tObj = getObj('graphic', tId);
     if (tObj) {
       let cObj = getObj('character', tObj.get('represents'));
       if (cObj){
@@ -678,7 +748,7 @@ function torHandleMsg(msg_content){
         let msgPrefix = '';
         if (bWhisper){
           msgPrefix='/w gm '
-          msgSendToPlayers = `\n[Send to Players: With Title](!tor --SHOWAVATAR ${toId} 1 0) \n[Send to Players: No Title](!tor --SHOWAVATAR ${toId} 0 0) \n[Send to Players: No Frame](!tor --SHOWAVATAR ${toId} 2 0)`
+          msgSendToPlayers = `\n[Send to Players: With Title](!tor --SHOWAVATAR ${tId} 1 0) \n[Send to Players: No Title](!tor --SHOWAVATAR ${tId} 0 0) \n[Send to Players: No Frame](!tor --SHOWAVATAR ${tId} 2 0)`
         }
         myDebug(3, `ShowAvatar: Avatar ${avatar}`)
         myDebug(3, `ShowAvatar: name ${name}`)
@@ -1047,6 +1117,37 @@ function torHandleMsg(msg_content){
       .map(a => a[1]))];
     const repRowIds = [...new Set(repOrder.filter(x => unorderedIds.includes(x)).concat(unorderedIds))];
     return [repRowIds, repeatingAttrs];
+  }
+
+  function makeMenuButton(name, link, minwidth) {
+    // let buttonStyle = `background-color: red; color:yellow !important; font-weight:normal; border-radius: 1px; padding: 1px; margin: 1px 1px 1px 0px; display: inline-block`;  
+    // let buttonStyle = `display: flex; flex-direction: column; align-items: center; padding: 6px 14px; font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif; border-radius: 6px; border: none; background: #6E6D70; box-shadow: 0px 0.5px 1px rgba(0, 0, 0, 0.1), inset 0px 0.5px 0.5px rgba(255, 255, 255, 0.5), 0px 0px 0px 0.5px rgba(0, 0, 0, 0.12); color: #DFDEDF; user-select: none; -webkit-user-select: none; touch-action: manipulation;`
+    let buttonStyle = `background-color: #521E10; border: 1px; color: white; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
+
+    if (minwidth === "f") {
+      minwidth = "100%"
+    } else {
+      if (!minwidth) {
+        minwidth = 'NONE'
+      }
+      minwidth = minwidth + "px"
+    }
+
+    if (minwidth == 'NONE'){
+      minwidth = '';
+    } else {
+      minwidth =`width:${minwidth}`
+    }
+
+    if (!name) {
+      name = "untitled"
+    }
+
+    if (link) {
+      return `<a style = '${buttonStyle}; ${minwidth} !important' href='${link}'>${name}</a>`;
+    } else {
+      return `<div style = '${buttonStyle}; ${minwidth}; display:inline-block !important'>${name}</div>`;
+    }
   }
 
   function makeButton(name, link, minwidth) {
@@ -1466,7 +1567,7 @@ function torHandleMsg(msg_content){
     const openBox = "<div style='color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
     const closeBox = '</div>';
     const openScrollCharBox = `<div style='height:200px; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
-    const openScrollTOBox = `<div style='height:50vh; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
+    const openScrollTOBox = `<div style='height:40vh; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
     const closeScrollBox = '</div>';
 
     let lines = '';
@@ -1590,7 +1691,7 @@ function torHandleMsg(msg_content){
 
     // PR, TokenName/Custom, HP/HPMax, AC, PP, Attributes, Speed, Senses, Tooltip, Status
     let cmdRefresh = '&#13;!tor --TOReport';
-    let btnRefresh = makeButton('Refresh!', '!tor --TOReport');
+    let btnRefresh = makeMenuButton('REFRESH!', '!tor --TOReport');
     let btnExp = '   ' + makeButton('[+] Expand Current Character Details', '!tor --TOReport expand');
     let btnCps = '   ' + makeButton('[-] Collapse Current Character Details', '!tor --TOReport collapse');
 
@@ -2350,12 +2451,6 @@ function torHandleMsg(msg_content){
               toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`, 40) + '<i>' + toToken.get('name') + '</i></td>';
             }
 
-            // Col 2b (friend/foe)
-            // toList += '<td ' + tdcustom + '>';
-            // toList += '<span style="font-size: 16px">'+ addTooltip("Friend or Foe", makeButton('😶',`!tor --ToggleFriend ${toObj[i].id}`)) + '</span>';
-            // toList += '</td>';
-
-
             // Col 3 (Functions: Remove Item, Toggle Token between GM/Obj Layer)
             toList +=  '<td ' + tdcustom + '>' 
             toList += '<span style="font-size: 16px">'+ addTooltip("Remove Item from TurnOrder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`)) + '</span>';
@@ -2562,15 +2657,14 @@ function torHandleMsg(msg_content){
           }
 
           toList +=  '<span style="font-size: 16px">'+ addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'))) + '</span>';
-          if (isnpc) {
-            tmp = toToken.get('gmnotes');
-            toList += '<span style="font-size: 16px">'+ addTooltip(tmp, makeButton('🖊', '!tor --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"')) + '</span>';  
-          } else {
+          // toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton('📓', '!tor --showGMNote ' + toToken.get('_id'))) + '</span>';
 
-            toChar.get('gmnotes', function (gmnotes){
-              tmp = gmnotes;
-            });
-            toList += '<span style="font-size: 16px">'+ addTooltip(tmp, makeButton('🖊', '!tor --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"')) + '</span>';
+
+          if (isnpc) {
+            //tmp = toToken.get('gmnotes');
+            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Token Note', makeButton('🖊', '!tor --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"')) + '</span>';  
+          } else {
+            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Character Note', makeButton('🖊', '!tor --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"')) + '</span>';
           }
 
           //log('LockMovement' + toToken.get('lockMovement'))
@@ -2845,6 +2939,7 @@ function torHandleMsg(msg_content){
 
     reportPerformance('Complete Report Build');
 
+    //Test area
     gEndTime = new Date().getTime();
     let runTime = gEndTime - gStartTime;
     toList += `Execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`
@@ -3011,8 +3106,12 @@ function torHandleMsg(msg_content){
       showAvatar(commands[1], commands[2], commands[3]); //tknId, ShowTitle? (0/1), Whisper? (0/1)
       break;
     case 'SHOWIMAGE':
-      myDebug(4, `ShowImage - Got to msghandler: ${commands[1]}, ${commands[2]}, ${commands[3]}, ${commands[4]}`)
+      myDebug(3, `ShowImage - Got to msghandler: ${commands[1]}, ${commands[2]}, ${commands[3]}, ${commands[4]}`)
       showCharImage(commands[1], commands[2], commands[3], commands[4]); //tknId, imgIndx(0 for all), ShowTitle? (0/1), Whisper? (0/1)
+      break;
+    case 'SHOWGMNOTE':
+      myDebug(3, `ShowGMNote - Got to msghandler: ${commands[1]}`)
+      showGMNote(commands[1], 0); //tknId, Flag 0-NPC: Token.GMNote PC: Char.GMNote, 1-Token.GMNote, 2-Char.GMNote
       break;
     case 'TOREPORT':
       // *** Process subcommands like 'expand' and 'collapse' ***
