@@ -100,7 +100,7 @@ on('chat:message', async (msg_orig) => {
 
 const debounced_torHandleMsg = _.debounce(torHandleMsg,500)
 
-let giDebug = 1; // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log
+let giDebug = 0; // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log
 let giDebugLvl = 4; //0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
 let charMap = new Map();
 let logMap = new Map();
@@ -696,13 +696,21 @@ function torHandleMsg(msg_content){
 
     if (doToken==true) {
 
+      /*
       myDebug(4, `showGMNote - DoToken ${tId}`)
       //tObj.get('gmnotes', function(gmnotes){
       tObj.get('gmnotes', function(gmnotes){
         myDebug(4, `showGMNote(Token): gmnotes:${gmnotes}`);
         let handout = getHandout('DM GMNotes');
         setTimeout(()=>handout.set("notes", gmnotes),500);
-      });
+      });*/
+
+      let handout = getHandout('DM GMNotes');
+      //gmnotes =tObj.get('gmnotes');
+      gmnotes = unescape(decodeUnicode(tObj.get('gmnotes')));
+      myDebug(4, `showGMNote(Token): gmnotes: ${gmnotes}`);
+      setTimeout(()=>handout.set("notes", gmnotes),500);
+
     }
 
     if (doChar==true) {
@@ -2657,7 +2665,7 @@ function torHandleMsg(msg_content){
           }
 
           toList +=  '<span style="font-size: 16px">'+ addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'))) + '</span>';
-          // toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton('📓', '!tor --showGMNote ' + toToken.get('_id'))) + '</span>';
+          toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton('📓', '!tor --showGMNote ' + toToken.get('_id'))) + '</span>';
 
 
           if (isnpc) {
@@ -2934,8 +2942,9 @@ function torHandleMsg(msg_content){
     toList = openReport + toList + closeReport;
 
     // Footer links for the other handouts
-    toList += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('Turnorder Character Sheet', 'https://journal.roll20.net/handout/' + ho_TOCharSheet.get('_id')) + '  |  ';
-    toList += makeButton('Turnorder Log', 'https://journal.roll20.net/handout/' + getNoteLog().get('_id')) + '</div>';
+    toList += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('DM Dashboard Character Sheet', 'https://journal.roll20.net/handout/' + ho_TOCharSheet.get('_id')) + '  |  ';
+    let ho_GMNotes = getHandout('DM GMNotes');
+    toList += makeButton('DM Dashboard GMNotes Handount', 'https://journal.roll20.net/handout/' + ho_GMNotes.get('_id')) + '</div>';
 
     reportPerformance('Complete Report Build');
 
@@ -3138,8 +3147,9 @@ function torHandleMsg(msg_content){
       break;
     case 'SHOW-HO-DIALOG':
       refreshReports();
-      chatMsg = `/w gm ${openChat}[Click to open DM Turnorder List handout](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
-      chatMsg += `<br>[Click to open Character Sheet handout](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})${closeChat}`;
+      chatMsg = `/w gm ${openChat}Click to open Dashboard handouts:<br>  [DM Turnorder List](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
+      chatMsg += `<br>  [Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
+      chatMsg += `<br>  [DM Notes](https://journal.roll20.net/handout/${getHandout('DM GMNotes').get('_id')})${closeChat}`;      
       sendChat("DM Dashboard", chatMsg);
 
     default:
