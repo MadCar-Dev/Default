@@ -7,29 +7,29 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 /*************************************
 *** Start of DM Turnorder Reporter ***  
 *************************************/
-// To get started, type !tor into the chat window to create your initial handouts
+// To get started, type !DMDash into the chat window to create your initial handouts
 
 // Bug
 // 1. Initiative tie breaker still has long 9999999999
 
 // Future Enhancements
-//  1. Add saving throw to the character sheet
-//  2. replace some of my other gmnotes/notes update fields with the new asyn method
-//  3. Toggle through auras (GM/Player)
-//  4. Add a system to popup a GM Note
-//  5. Add online help
-//  6. Dynamic Lighting Setup
-//  7. Integrate with !Reporter app to dump predefined reports
+//  * Add saving throw to the character sheet
+//  * Leverage msgbox.html class in all my dialogs.
+//  * Add feature to dump current config settings (HPBar, Debug, DataLogging, ...)
+//  * Add feature to dump quick table of player stats to chat, with option to send to players
+//  * replace some of my other gmnotes/notes update fields with the new asyn method
+//  * Toggle through auras (GM/Player)
+//  * Dynamic Lighting Setup
+//  * Integrate with !Reporter app to dump predefined reports
 
 /******************************
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.6';
-  "use strict";
+  const version = '0.6.7';
 
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
-  log(' To start using the DM Dashboard, in the chat window enter `!tor`');
+  log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
 
   API_Meta.DMDashboard.version = version;
 
@@ -43,193 +43,515 @@ on('ready', () => {
           DM_Count: 0,
           DM_Avg: 0,
           DM_Secs: 0,
+          DM_LastTurn: 0,
           PrevTO: [],
-          HPBar: 1
+          HPBar: 1,
+          charBox_ScrollHeight: '200px',
+          toBox_ScrollHeight: '40vh',
+          TurnNotification: true,
+          DataLogging: false,
+          Debug: 0,
+          DebugLvl: 4,
+          DataLog: ''
       };
   };
 
   state.DMDashboard.version = version;
 
-  if (!state.DMDashboard.HPBar){
-    state.DMDashboard.HPBar = 1;
-  }
-
+  if (!state.DMDashboard.charBox_ScrollHeight){ state.DMDashboard.charBox_ScrollHeight = '200px'}
+  if (!state.DMDashboard.toBox_ScrollHeight){ state.DMDashboard.toBox_ScrollHeight = '40vh'}
+  if (!state.DMDashboard.HPBar){ state.DMDashboard.HPBar = 1;}
+  if (!state.DMDashboard.DataLog){ state.DMDashboard.DataLog = '';}
+  if (!state.DMDashboard.DataLogging) { state.DMDashboard.DataLogging = false;}
+  if (!state.DMDashboard.TurnNotification) { state.DMDashboard.TurnNotification = true;}
+  if (!state.DMDashboard.Debug) { state.DMDashboard.Debug = 0;}
+  if (!state.DMDashboard.DebugLvl) { state.DMDashboard.DebugLvl = 4;}
+  if (!state.DMDashboard.DM_LastTurn) { state.DMDashboard.DM_LastTurn = 0;}
+  state.DMDashboard.Debug = 1
+  state.DMDashboard.DebugLvl = 4
+  
 });
 
 on('change:campaign:turnorder', async () => {
   // log('DM Dashboard Event: change:campaign:turnorder');
-
-  debounced_torHandleMsg('!tor --TOReport')   
-  // torHandleMsg('!tor --TOReport')
+  debounced_DMDash_HandleMsg('!DMDash --TOReport')   
 });
 
 on('change:campaign:initiativepage', async () => {
   // log('DM Dashboard Event: change:campaign:initiativepage ' + Campaign().get('initiativepage'));
   if (Campaign().get('initiativepage'))  {
-    debounced_torHandleMsg('!tor --SHOW-HO-DIALOG')
+    debounced_DMDash_HandleMsg('!DMDash --SHOW-HO-DIALOG')
   } else {
-    flushDataLog();
+    debounced_DMDash_HandleMsg('!DMDash --FLUSHDATALOG')
   }
 
 });
 
 on('change:graphic:bar1_value', async () => {
   // log('DM Dashboard Event: change:graphic:bar1_value');
-  debounced_torHandleMsg('!tor --TOReport')   
+  debounced_DMDash_HandleMsg('!DMDash --TOReport')   
 });
 
 on('change:graphic:bar2_value', async () => {
   // log('DM Dashboard Event: change:graphic:bar2_value');
-  debounced_torHandleMsg('!tor --TOReport')   
+  debounced_DMDash_HandleMsg('!DMDash --TOReport')   
 });
 
 on('change:graphic:bar3_value', async () => {
   // log('DM Dashboard Event: change:graphic:bar3_value');
-  debounced_torHandleMsg('!tor --TOReport')   
+  debounced_DMDash_HandleMsg('!DMDash --TOReport')   
 });
 
 on('chat:message', async (msg_orig) => {
   let msg = _.clone(msg_orig);
-  if (!/^!tor/.test(msg.content)) {
+  if (!/^!DMDash/.test(msg.content)) {
     return;
   }
   // log('HO Event: chat:message');
-  debounced_torHandleMsg(msg.content);
-  // torHandleMsg(msg.content);
+  debounced_DMDash_HandleMsg(msg.content);
 });
 
-const debounced_torHandleMsg = _.debounce(torHandleMsg,500)
+// The debounce function helps to optimize performance and prevent excessive or 
+// unnecessary function calls, reducing unnecessary processing, improving reponsiveness,
+// and avoid potential performance bottlenecks associated with rapid or frequent
+// function invocations.
+const debounced_DMDash_HandleMsg = _.debounce(DMDash_HandleMsg,500)
 
-let giDebug = 0; // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log
-let giDebugLvl = 4; //0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
+// Globals - Need to look into which of these I need to move to state 
 let charMap = new Map();
-let logMap = new Map();
-let toMap = new Map();
-let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
-let gDataLog = '';
 let charMapItem = [];
-let toMapItem = [];
+let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
 let gStartTime = 0;
 let gEndTime = 0;
-const tblCR2XP =  [[0,0],[0.125,25],[0.25,50],[0.5,100],[1,200],[2,450],[3,700],[4,1100],[5,1800],[6,2300],[7,2900],[8,3900],[9,5000],[10,5900],[11,7200],[12,8400],[13,10000],[14,11500],[15,13000],[16,15000],[17,18000],[18,20000],[19,22000],[20,25000],[21,33000],[22,41000],[23,50000],[24,62000],[25,75000],[26,90000],[27,105000],[28,120000],[29,135000],[30,155000]];
 
+// ****************************
+// *** Global Functions     ***  
+// ****************************
+function DMDash_HandleMsg(msg_content){
 
+    // ============================================
+    //      PRESENTATION
+    // ============================================
+    /*
+        - color management
+        - CSS
+        - HTML
+        - messaging
+        - help construction
+    */
 
-/******************************
-*** Global Functions        ***  
-*******************************/
-function myDebug(lvl,txt){
-// giDebug: 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log
-// giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
+    // COLOR MANAGEMENT ===========================
+    const getAltColor = (primarycolor, fade = .35) => {
 
-  if ((giDebug == 1 || giDebug == 3) && lvl >= giDebugLvl) {
-    log(txt);
+      let pc = hexToRGB(`#${primarycolor.replace(/#/g, '')}`);
+      let sc = [0, 0, 0];
+
+      for (let i = 0; i < 3; i++) {
+          sc[i] = Math.floor(pc[i] + (fade * (255 - pc[i])));
+      }
+
+      return RGBToHex(sc[0], sc[1], sc[2]);
+  };
+  const RGBToHex = (r, g, b) => {
+      r = r.toString(16);
+      g = g.toString(16);
+      b = b.toString(16);
+
+      if (r.length === 1)
+          r = "0" + r;
+      if (g.length === 1)
+          g = "0" + g;
+      if (b.length === 1)
+          b = "0" + b;
+
+      return "#" + r + g + b;
+  };
+  const getTextColor = (h) => {
+      h = `#${h.replace(/#/g, '')}`;
+      let hc = hexToRGB(h);
+      return (((hc[0] * 299) + (hc[1] * 587) + (hc[2] * 114)) / 1000 >= 128) ? "#000000" : "#ffffff";
+  };
+  const hexToRGB = (h) => {
+      let r = 0, g = 0, b = 0;
+
+      // 3 digits
+      if (h.length === 4) {
+          r = "0x" + h[1] + h[1];
+          g = "0x" + h[2] + h[2];
+          b = "0x" + h[3] + h[3];
+          // 6 digits
+      } else if (h.length === 7) {
+          r = "0x" + h[1] + h[2];
+          g = "0x" + h[3] + h[4];
+          b = "0x" + h[5] + h[6];
+      }
+      return [+r, +g, +b];
+  };
+  const validateHexColor = (s, d = defaultThemeColor1) => {
+      let colorRegX = /(^#?[0-9A-Fa-f]{6}$)|(^#?[0-9A-Fa-f]{3}$)|(^#?[0-9A-Fa-f]{6}\d{2}$)/i;
+      return '#' + (colorRegX.test(s) ? s.replace('#', '') : d);
+  };
+
+  // CSS ========================================
+  const defaultThemeColor1 = '#521e10';
+  const defaultThemeColor2 = '#84c6a6';
+  const defaultThemeColor3 = '#ffc286';
+  const defaultThemeColor4 = '#fff1af';
+
+  const defaultbgcolor = "#ce0f69";
+
+  const defaultdivCSS = {
+      "border-radius": `10px`,
+      "border": `2px solid #000000`,
+      "background-color": '#00000000',
+      "overflow": `hidden`
+  };
+  const defaulttableCSS = {
+      width: '100%',
+      margin: '0 auto',
+      "border-collapse": 'collapse',
+      "font-size": '12px',
+  };
+  const defaultpCSS = {};
+  const defaultaCSS = {};
+  const defaulth1CSS = {};
+  const defaulth2CSS = {};
+  const defaulth3CSS = {};
+  const defaulth4CSS = {};
+  const defaulth5CSS = {};
+  const defaultthCSS = {
+      "border-bottom": `1px solid #000000`,
+      "font-weight": `bold`,
+      "text-align": `center`,
+      "line-height": `22px`
+  };
+  const defaulttrCSS = {};
+  const defaulttdCSS = {
+      padding: '4px',
+      'min-width': '10px'
+  };
+  const defaultcodeCSS = {};
+
+  const defaultMessageHeaderCSS = {
+      'border-bottom': `1px solid #000000`,
+      'font-weight': `bold`,
+      'line-height': `22px`,
+      'background-color': '#dedede'
+  };
+  const defaultMessageBodyCSS = {};
+  const defaultButtonCSS = {
+      'background-color': defaultThemeColor1,
+      'border-radius': '6px',
+      'min-width': '25px',
+      'padding': '6px 8px'
+  };
+  const shadoweddivCSS = {
+      'margin': '0px 16px 16px 0px',
+      'box-shadow': '5px 8px 8px #888888'
+  };
+  const boundingdivCSS = {
+      width: '100%',
+      border: 'none'
+  };
+
+  const combineCSS = (origCSS = {}, ...assignCSS) => {
+      return Object.assign({}, origCSS, assignCSS.reduce((m, v) => {
+          return Object.assign(m, v || {});
+      }), {});
+  };
+  const confirmReadability = (origCSS = {}) => {
+      let outputCSS = Object.assign({}, origCSS);
+      if (outputCSS['background-color']) outputCSS['background-color'] = validateHexColor(outputCSS['background-color'] || "#dedede");
+      if (outputCSS['color'] || outputCSS['background-color']) outputCSS['color'] = getTextColor(outputCSS['background-color'] || "#dedede");
+      return outputCSS;
+  };
+  const assembleCSS = (css) => {
+      return `"${Object.keys(css).map((key) => { return `${key}:${css[key]};` }).join('')}"`;
+  };
+
+  // HTML =======================================
+  const html = {
+      div: (content, CSS) => `<div style=${assembleCSS(combineCSS(defaultdivCSS, (CSS || {})))}>${content}</div>`,
+      h1: (content, CSS) => `<h1 style=${assembleCSS(combineCSS(defaulth1CSS, (CSS || {})))}>${content}</h1>`,
+      h2: (content, CSS) => `<h2 style=${assembleCSS(combineCSS(defaulth2CSS, (CSS || {})))}>${content}</h2>`,
+      h3: (content, CSS) => `<h3 style=${assembleCSS(combineCSS(defaulth3CSS, (CSS || {})))}>${content}</h3>`,
+      h4: (content, CSS) => `<h4 style=${assembleCSS(combineCSS(defaulth4CSS, (CSS || {})))}>${content}</h4>`,
+      h5: (content, CSS) => `<h5 style=${assembleCSS(combineCSS(defaulth5CSS, (CSS || {})))}>${content}</h5>`,
+      p: (content, CSS) => `<p style=${assembleCSS(combineCSS(defaultpCSS, (CSS || {})))}>${content}</p>`,
+      table: (content, CSS) => `<table style=${assembleCSS(combineCSS(defaulttableCSS, (CSS || {})))}>${content}</table>`,
+      th: (content, CSS) => `<th style=${assembleCSS(combineCSS(defaultthCSS, (CSS || {})))}>${content}</th>`,
+      tr: (content, CSS) => `<tr style=${assembleCSS(combineCSS(defaulttrCSS, (CSS || {})))}>${content}</tr>`,
+      td: (content, CSS) => `<td style=${assembleCSS(combineCSS(defaulttdCSS, (CSS || {})))}>${content}</td>`,
+      td2: (content, CSS) => `<td colspan="2" style=${assembleCSS(combineCSS(defaulttdCSS, (CSS || {})))}>${content}</td>`,
+      code: (content, CSS) => `<code style=${assembleCSS(combineCSS(defaultcodeCSS, (CSS || {})))}>${content}</code>`,
+      a: (content, CSS, link) => `<a href="${link}" style=${assembleCSS(combineCSS(defaultaCSS, (CSS || {})))}>${content}</a>`
+  };
+
+  // HTML Escaping function
+  const HE = (() => {
+      const esRE = (s) => s.replace(/(\\|\/|\[|\]|\(|\)|\{|\}|\?|\+|\*|\||\.|\^|\$)/g, '\\$1');
+      const e = (s) => `&${s};`;
+      const entities = {
+          '<': e('lt'),
+          '>': e('gt'),
+          "'": e('#39'),
+          '@': e('#64'),
+          '{': e('#123'),
+          '|': e('#124'),
+          '}': e('#125'),
+          '[': e('#91'),
+          ']': e('#93'),
+          '"': e('quot')
+      };
+      const re = new RegExp(`(${Object.keys(entities).map(esRE).join('|')})`, 'g');
+      return (s) => s.replace(re, (c) => (entities[c] || c));
+  })();
+
+  // MESSAGING ==================================
+  const btnAPI = ({ api: api = "", label: btnlabel = "Run API", css: css = defaultButtonCSS } = {}) => {
+      let btnCSS = confirmReadability(css);
+      //r20css = {};
+      //if(['t', 'true', 'y', 'yes', true].includes(r20style)) Object.assign(r20css, {padding: '5px', display: 'inline-block', border: '1px solid white;'});
+      return html.a(btnlabel, btnCSS, HE(api));
+  };
+
+  const msgbox = ({
+      msg: msg = "message",
+      title: title = "DMDash Output",
+      btn: btn = "buttons",
+      sendas: sendas = "API",
+      whisperto: whisperto = "",
+      headercss: headercss = {},
+      bodycss: bodycss = {}
+  }) => {
+      let hdrCSS = confirmReadability(combineCSS(defaultMessageHeaderCSS, headercss));
+      let bodyCSS = confirmReadability(combineCSS(defaultMessageBodyCSS, bodycss));
+
+      let hdr = html.tr(html.td(title, {}), hdrCSS);
+      let body = html.tr(html.td(msg, {}), bodyCSS);
+      let buttons = btn !== "buttons" ? html.tr(html.td(btn, { 'text-align': `right`, 'margin': `4px 4px 8px`, 'padding':'8px' }), {}) : "";
+
+      let output = html.div(html.div(html.table(`${hdr}${body}${buttons}`, {}), shadoweddivCSS), boundingdivCSS);
+      if (whisperto) output = `/w "${whisperto}" ${output}`;
+      sendChat(sendas, output);
+  };
+
+  function dmdash_ConfigSettings(){
+    msgbox({
+      msg: html.table(
+          html.tr(html.th(`ARG`, { 'text-align': 'left', 'min-width':'70px' }) + html.th(`Current Value`, { 'text-align': 'left' })) +
+          html.tr(html.td(`version:`) + html.td(`${state.DMDashboard.version}`)) +
+          html.tr(html.td(`DetailExpand:`) + html.td(`${state.DMDashboard.DetailExpand}`)) +
+          html.tr(html.td(`LastDT1:`) + html.td(`${state.DMDashboard.LastDT1}`)) +
+          html.tr(html.td(`LastUTCDate:`) + html.td(`${state.DMDashboard.LastUTCDate}`)) +
+          html.tr(html.td(`DM_Count:`) + html.td(`${state.DMDashboard.DM_Count}`)) +
+          html.tr(html.td(`DM_Avg:`) + html.td(`${state.DMDashboard.DM_Avg}`)) +
+          html.tr(html.td(`DM_Secs:`) + html.td(`${state.DMDashboard.DM_Secs}`)) +
+          html.tr(html.td(`HPBar:`) + html.td(`${state.DMDashboard.HPBar}`)) +
+          html.tr(html.td(`charBox_ScrollHeight:`) + html.td(`${state.DMDashboard.charBox_ScrollHeight}`)) +
+          html.tr(html.td(`toBox_ScrollHeight:`) + html.td(`${state.DMDashboard.toBox_ScrollHeight}`)) +
+          html.tr(html.td(`TurnNotification:`) + html.td(`${state.DMDashboard.TurnNotification}`)) +
+          html.tr(html.td(`DataLogging:`) + html.td(`${state.DMDashboard.DataLogging}`)) +
+          html.tr(html.td(`Debug:`) + html.td(`${state.DMDashboard.Debug}`)) +
+          html.tr(html.td(`DebugLvl:`) + html.td(`${state.DMDashboard.DebugLvl}`)) 
+        ),
+        headercss: { 'background-color': defaultThemeColor1 },
+        title: `DMDash State Variables`,
+        whisperto: `GM`
+    });
   }
-  if ((giDebug == 2 || giDebug == 3) && lvl >= giDebugLvl) {
-    sendChat('Debug','/w gm '+txt);
-  }
-}
 
-function dumpMapObject(map) {
-  for (let [key, value] of map) {
-    log(`Key: ${key}`);
-    dumpObject(value);
+  function dmdash_Help(){
+    msgbox({
+      msg: html.h2(`INTRODUCTION`) +
+          html.p(`DMDash is a DM/GM tool to that provides a heads-up display in for managing combat.`) +
+          html.h2(`Basic Commands`) +
+          html.table(
+              html.tr(html.th(`ARG`, { 'text-align': 'left', 'min-width':'70px' }) + html.th(`EXPLANATION`, { 'text-align': 'left' })) +
+              html.tr(html.td(`--debug output level`) + html.td(`Turns on debug messaging.`)) +
+              html.tr(html.td(`--notifications (0/1)`) + html.td(`Turns on/off turn notifications. `)) +
+              html.tr(html.td(`--dataloggin (0/1)`) + html.td(`Turs on/off data logging`)) +
+              html.tr(html.td(`--hpbar (1/2/3)`) + html.td(`Sets the token bar (1, 2, or 3) to be used for HP display.`)) +
+              html.tr(html.td(`--sbheight (CB Height) (TO Height)`) + html.td(`Sets the height of the Character Detail and Turnorder areas of the dashboard.`)) +
+              html.tr(html.td(`--playerstats`) + html.td(`Report player time statistics.`))
+          ) +
+          html.h2(`EXAMPLES`) +
+          html.table(
+              html.tr(html.td2(`!dmdash --hpbar 3`, { 'font-weight': 'bold' })) +
+              html.tr(html.td(`&nbsp;`) + html.td(`> Tells DM Dashboard to use bar3_value for tracking HP`, { 'font-style': 'italic' })) +
+              html.tr(html.td2(`!dmdash --dataloggin 1`, { 'font-weight': 'bold' })) +
+              html.tr(html.td(`&nbsp;`) + html.td(`> Turns on data logging to DM Turnorder Log handout`, { 'font-style': 'italic' })) 
+          ),
+      headercss: { 'background-color': defaultThemeColor1 },
+      title: `DMDash HELP`,
+      whisperto: `GM`
+  });
+
   }
-}
-function dumpObject(obj){
-  for (let key in obj) {
-    if (obj.hasOwnProperty(key)) {
-      log(`  Field Name: ${key} / Value: ${obj[key]}`);
+
+  function showPlayerStats(bShowPlayers){
+
+    let pcs = findObjs({
+      type: 'character'
+    }).sort((a, b) => (a.get("represents") > b.get("represents") ? 1 : -1));
+
+    let msg = html.tr(html.th('Name') + html.th('Avg') + html.th('Secs') + html.th('Count') + html.th('Last'));
+    pcs.forEach(c => {
+      if (c.get("controlledby") !== ''){
+        let pc_name = c.get('name');
+        let to_avg = getAttrByName(c.get('_id'), 'to_avg');
+          if (to_avg != undefined){
+            let to_secs = getAttrByName(c.get('_id'), 'to_secs');
+            let to_count = getAttrByName(c.get('_id'), 'to_count');
+            let to_lastturn = getAttrByName(c.get('_id'), 'to_lastturn');
+            msg += html.tr(html.td(pc_name) + html.td(to_avg) + html.td(to_secs) + html.td(to_count) + html.td(to_lastturn));
+          }
+      }
+    });
+    msg += html.tr(html.td('DM') + html.td(state.DMDashboard.DM_Avg) + html.td(state.DMDashboard.DM_Secs) + html.td(state.DMDashboard.DM_Count) + html.td(state.DMDashboard.DM_LastTurn));
+    msg = html.table(msg);
+
+    if (bShowPlayers == 1){
+      msgbox({
+        msg: msg,
+        headercss: { 'background-color': defaultThemeColor1 },
+        title: `Player Stats`
+      });
+    } else {
+      let api = `!DMDash --playerstats 1`;
+      let btn = btnAPI({api: api, label: `Show to players`});
+      msgbox({
+        msg: msg,
+        headercss: { 'background-color': defaultThemeColor1 },
+        title: `Player Stats`,
+        whisperto: `GM`,
+        btn: btn
+      });
     }
   }
-}
 
-
-function interpolate(x, dataset) {
-  if (x <= dataset[0][0]) {
-    return dataset[0][1];
-  }
-  
-  if (x >= dataset[dataset.length - 1][0]) {
-    return dataset[dataset.length - 1][1];
+  function flushDataLog(){
+    if (state.DMDashboard.DataLog.length == 0 || state.DMDashboard.DataLogging == false) { 
+      return; 
+    }
+    addTextToHandout(state.DMDashboard.DataLog, "DM Turnorder Log", 1);
+    state.DMDashboard.DataLog = '';
   }
 
-  for (let i = 0; i < dataset.length - 1; i++) {
-    if (x >= dataset[i][0] && x <= dataset[i + 1][0]) {
-      const x1 = dataset[i][0];
-      const y1 = dataset[i][1];
-      const x2 = dataset[i + 1][0];
-      const y2 = dataset[i + 1][1];
+  function myDebug(lvl,txt){
+  // giDebug: 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout (future)
+  // giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
 
-      const interpolatedValue = y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
-      return interpolatedValue;
+    if ((state.DMDashboard.Debug == 1 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
+      log(txt);
+    }
+    if ((state.DMDashboard.Debug == 2 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
+      sendChat('Debug','/w gm '+txt);
+    }
+    if (state.DMDashboard.Debug == 4 && lvl >= state.DMDashboard.DebugLvl) {
+      // Add to Handout
+      addTextToHandout(`${txt} lvl(${lvl}`, "DM Debug Log", 3) 
     }
   }
-}
 
-function flushDataLog(){
-  let nl = [];
-
-  // log('DM Dashboard: Data Length: ' + gDataLog);  
-  if (gDataLog.length == 0) {
-    return;
+  // Debug routines to dump out map and object contents
+  function dumpMapObject(map) {
+    for (let [key, value] of map) {
+      myDebug(3,`Key: ${key}`);
+      dumpObject(value);
+    }
   }
-  // Write record to Handout "DM Turnorder Log"
-  nl = getNoteLog();
-  nl.get("notes", function(notes) {
-    setTimeout(()=>nl.set("notes",gDataLog),0);
-  });
-  // let txt = n + gDataLog;
-  // log('DM Dashboard: Txt Data Length: ' + gDataLog.length);  
+  function dumpObject(obj){
+    for (let key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        myDebug(3,`  Field Name: ${key} => ${obj[key]}`);
+      }
+    }
+  }
 
-  gDataLog = '';
+  function interpolate(x, dataset) {
+    if (x <= dataset[0][0]) {
+      return dataset[0][1];
+    }
+    if (x >= dataset[dataset.length - 1][0]) {
+      return dataset[dataset.length - 1][1];
+    }
+    for (let i = 0; i < dataset.length - 1; i++) {
+      if (x >= dataset[i][0] && x <= dataset[i + 1][0]) {
+        const x1 = dataset[i][0];
+        const y1 = dataset[i][1];
+        const x2 = dataset[i + 1][0];
+        const y2 = dataset[i + 1][1];
+        const interpolatedValue = y1 + ((x - x1) * (y2 - y1)) / (x2 - x1);
+        return interpolatedValue;
+      }
+    }
+  }
 
-  // log('DM Dashboard: Flushing data');
-}
+  function addTextToHandout(noteTxt, handoutName, mode){
+    // mode - Determines how txt will be added to the handout
+    //  0: Complete replacement
+    //  1: Append to bottom
+    //  2: Push to the top
+    //  3: Append to the bottom and include a timestamp
+    //myDebug(4, `addTextToHandout(${handoutName}, mode:${mode}, len:(${noteTxt.length})`)
 
+    const ho = getHandout(handoutName);
+    let newText = '';
 
-function createNoteLog() {
-  const noteLog = createObj('handout',{
-    name: 'DM Turnorder Log'
-  });
-  noteLog.set('notes', '<h3>Turnorder Log</h3>');
-  return noteLog;
-};
+    // Add the text to the note 
+    ho.get("notes", function(notes) {
+      switch(mode){
+      case 0:
+      case '0':
+        newText = noteTxt;
+        //myDebug(4, `addTextToHandout: Mode 0 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
+        break;
+      case 1:
+      case '1':
+        newText = `${notes}<br>${noteTxt}`
+        //myDebug(4, `addTextToHandout: Mode 1 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
+        break;
+      case 2:
+      case '2':
+        //myDebug(4, `addTextToHandout: Mode 2 (${handoutName}, mode:${mode}, len:(${newText.length})`)
+        newText = `${noteTxt}<br>${notes}`
+        break;
+      case 3:
+      case '3':
+        //myDebug(4, `addTextToHandout: Mode 3 (${handoutName}, mode:${mode}, len:(${newText.length})`)
+        let sysDate = GetSystemUTCDate();
+        newText = `${notes}<br>${sysDate}: ${noteTxt}`
+        break;
+      }
+      //myDebug(4, `addTextToHandout: set (${handoutName}, mode:${mode}, len:(${newText.length})`)
+      setTimeout(()=>ho.set("notes", newText),0);
+    });
+  }
 
-function getNoteLog() {
-  const noteLog = filterObjs(function(o){
-    return ( 'handout' === o.get('type') && 'DM Turnorder Log' === o.get('name') && false === o.get('archived'));
-  })[0];
-
-  if(noteLog) {
+  function createNoteLog() {
+    const noteLog = createObj('handout',{
+      name: 'DM Turnorder Log'
+    });
+    noteLog.set('notes', '<h3>Turnorder Log</h3>');
     return noteLog;
-  } 
-  return createNoteLog();
-};
+  };
 
-function torHandleMsg(msg_content){
+  function getNoteLog() {
+    const noteLog = filterObjs(function(o){
+      return ( 'handout' === o.get('type') && 'DM Turnorder Log' === o.get('name') && false === o.get('archived'));
+    })[0];
+
+    if(noteLog) {
+      return noteLog;
+    } 
+    return createNoteLog();
+  };
 
   function updateTurnOrderStartTime(){
     state.DMDashboard.LastDT1 = getSystemTimeInSecs();
     state.DMDashboard.LastUTCDate = GetSystemUTCDate();
   }
-
-  function calcEncounterDifficulty(aryPartyMemberLevel, aryMonsterExp){
-    // Based on: https://www.dndbeyond.com/sources/dmg/creating-adventures#EvaluatingEncounterDifficulty
-    // Need a way to distinguish between friends🍻 and enemies🧌 for the calculation
-
-    // First - Calcuate Party XP Thresholds
-      // Easy, Medium, Hard, Deadly
-
-    // Total the Monsters XP
-
-    // Modify the XP based on monster count multiplier table
-
-    // For parties of less than 3 shift the table up 1
-    // For parties of more than 5 shift the table down 1
-  }
-
-
   function myGetAttrByName(character_id,
                            attribute_name,
                            attribute_default_current,
@@ -259,7 +581,6 @@ function torHandleMsg(msg_content){
           return attribute.get('current');
       }
   }
-
   function DidTOAdvance(){
     let cmd_advance = 0; //Boolean value where next_cmd = 1 means TO changed as a result of advancing the TO
 
@@ -272,7 +593,6 @@ function torHandleMsg(msg_content){
     if (prev_to.length = 0) {
       return 0;
     }
-
     
     if (!prev_to || !curr_to){
       return 0;
@@ -316,7 +636,6 @@ function torHandleMsg(msg_content){
     // log('DidTOAdvance: ' + cmd_advance);
     return cmd_advance;  
   };
-
   function createNoteLog() {
     const noteLog = createObj('handout',{
       name: 'DM Turnorder Log'
@@ -324,7 +643,6 @@ function torHandleMsg(msg_content){
     noteLog.set('notes', '<h3>Turnorder Log</h3>');
     return noteLog;
   };
-
   function getNoteLog() {
     const noteLog = filterObjs(function(o){
       return ( 'handout' === o.get('type') && 'DM Turnorder Log' === o.get('name') && false === o.get('archived'));
@@ -341,11 +659,12 @@ function torHandleMsg(msg_content){
     let utcDate = `${d.getUTCMonth().toString().padStart(2,'0')}/${d.getUTCDate().toString().padStart(2,'0')}/${d.getUTCFullYear()} ${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')}:${d.getUTCSeconds().toString().padStart(2,'0')}`;
     return utcDate;
   };
-
-
   function AddToTurnorderLog(){
 
-    return;
+    if (state.DMDashboard.DataLogging == false){
+      return;
+    }
+    // return;
   // Purpose:  Write a csv record to a handout called 
     let toChar = [];
     let toObj = [];
@@ -365,7 +684,6 @@ function torHandleMsg(msg_content){
     let cTraitCnt = 0;
     let tType = '';
 
-    log('********** AddTurnOrderLog ***************');
     let curr_to = Campaign().get("turnorder");
     if (curr_to === '') {
       return;
@@ -392,6 +710,7 @@ function torHandleMsg(msg_content){
         break;
 
       case 'CHAR':
+      case 'NPC-CHARSHEET':
       
         // TokenType, Start, End, 'Char', TurnOrderId, pr, CharacterName, 0, Level, Class, Race, Attacks_Count, Traits_Count, Spells_Count
         toToken = getObj("graphic", toObj[toObj.length-1].id);
@@ -404,7 +723,6 @@ function torHandleMsg(msg_content){
         cHP = toToken.get(`bar${state.DMDashboard.HPBar}_value`);
         cHPMax = toToken.get(`bar${state.DMDashboard.HPBar}_max`);
 
-
         repeatingSection = 'repeating_attack';  //Prefix
         repeatingName = 'atkname';              //Suffix 
         repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
@@ -416,7 +734,12 @@ function torHandleMsg(msg_content){
         repeatingValues = findObjs({_type: "attribute", _characterid: toChar.get('_id')})
           .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
         cTraitCnt = repeatingValues.length
-        NewData = `CHAR,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},"${cName}",0,"${cLevel}","${cClass}","${cRace}",${cAtkCnt},${cTraitCnt},${cCasterLevel},${cHP},${cHPMax}`
+        if (tType = 'CHAR'){
+          NewData = `CHAR,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},"${cName}",0,"${cLevel}","${cClass}","${cRace}",${cAtkCnt},${cTraitCnt},${cCasterLevel},${cHP},${cHPMax}`          
+        } else {
+          NewData = `NPC,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},"${cName}",0,"${cLevel}","${cClass}","${cRace}",${cAtkCnt},${cTraitCnt},${cCasterLevel},${cHP},${cHPMax}`
+        }
+
         break;
 
       case 'NPC':
@@ -431,7 +754,6 @@ function torHandleMsg(msg_content){
         cCasterLevel = getAttrByName(toChar.get('_id'),'caster_level','current');
         cHP = toToken.get(`bar${state.DMDashboard.HPBar}_value`);
         cHPMax = toToken.get(`bar${state.DMDashboard.HPBar}_max`);
-
 
         repeatingSection = 'repeating_npcaction';  //Prefix
         repeatingName = 'name'                    //Suffix 
@@ -459,7 +781,8 @@ function torHandleMsg(msg_content){
         break;
     }
 
-    gDataLog += '<br>' + NewData;
+    // Build up the datalog over time, flush it to a handout (DM Turnorder Log)  when the Roll20 Turnorder is closed
+    state.DMDashboard.DataLog += '<br>' + NewData;
   };
 
   function tokenToggleVisibility(tId){
@@ -563,14 +886,14 @@ function torHandleMsg(msg_content){
     //           SpellCasterLvl: getAttrByName(toChar.get('_id'), 'caster_level') ,
     //           Exp: edNPCExp});
 
-    myDebug(4,`toggleFriendFoe(${tId})`)
+    myDebug(2,`toggleFriendFoe(${tId})`)
     //dumpMapObject(foeMap);
 
     if (foeMap.has(tId)) {
 
       // Yes - use the map data (as it might change when toggled)
       let foeItem = foeMap.get(tId);
-      myDebug(4, `ToggleFriendFoe: Found id: ${foeItem.id} State: ${foeItem.State} Type: ${foeItem.Type}`);
+      myDebug(2, `ToggleFriendFoe: Found id: ${foeItem.id} State: ${foeItem.State} Type: ${foeItem.Type}`);
 
       if (foeItem.Type == 'CHAR') { //CHAR: (Friend->Neutral->Foe->Friend)
         if (foeItem.State == 'FRIEND') {
@@ -696,15 +1019,6 @@ function torHandleMsg(msg_content){
 
     if (doToken==true) {
 
-      /*
-      myDebug(4, `showGMNote - DoToken ${tId}`)
-      //tObj.get('gmnotes', function(gmnotes){
-      tObj.get('gmnotes', function(gmnotes){
-        myDebug(4, `showGMNote(Token): gmnotes:${gmnotes}`);
-        let handout = getHandout('DM GMNotes');
-        setTimeout(()=>handout.set("notes", gmnotes),500);
-      });*/
-
       let handout = getHandout('DM GMNotes');
       //gmnotes =tObj.get('gmnotes');
       gmnotes = unescape(decodeUnicode(tObj.get('gmnotes')));
@@ -756,7 +1070,7 @@ function torHandleMsg(msg_content){
         let msgPrefix = '';
         if (bWhisper){
           msgPrefix='/w gm '
-          msgSendToPlayers = `\n[Send to Players: With Title](!tor --SHOWAVATAR ${tId} 1 0) \n[Send to Players: No Title](!tor --SHOWAVATAR ${tId} 0 0) \n[Send to Players: No Frame](!tor --SHOWAVATAR ${tId} 2 0)`
+          msgSendToPlayers = `\n[Send to Players: With Title](!DMDash --SHOWAVATAR ${tId} 1 0) \n[Send to Players: No Title](!DMDash --SHOWAVATAR ${tId} 0 0) \n[Send to Players: No Frame](!DMDash --SHOWAVATAR ${tId} 2 0)`
         }
         myDebug(3, `ShowAvatar: Avatar ${avatar}`)
         myDebug(3, `ShowAvatar: name ${name}`)
@@ -840,7 +1154,7 @@ function torHandleMsg(msg_content){
             artwork = String(artwork)
             let imgCnt = (artwork.split(",").length);
             for (let ndx = 0;  ndx < imgCnt; ndx++) {
-              msgSendToPlayers += `\nImage ${ndx+1} [w/ Title](!tor --SHOWIMAGE ${toId} ${ndx} 1 0) [w/o Title](!tor --SHOWIMAGE ${toId} ${ndx} 0 0)`
+              msgSendToPlayers += `\nImage ${ndx+1} [w/ Title](!DMDash --SHOWIMAGE ${toId} ${ndx} 1 0) [w/o Title](!DMDash --SHOWIMAGE ${toId} ${ndx} 0 0)`
             }
           }
 
@@ -893,8 +1207,12 @@ function torHandleMsg(msg_content){
       return 'UTILITY';
     }
 
-    if (cObj.get('controlledby')=='' || getAttrByName(cObj.get('_id'),'npc','current')==1){
-        return 'NPC';
+    if (cObj.get('controlledby') == '' && getAttrByName(cObj.get('_id'),'npc','current')==1){
+      return 'NPC';
+    };
+
+    if (cObj.get('controlledby') == '' && getAttrByName(cObj.get('_id'),'npc','current')==0){
+      return 'NPC-CHARSHEET';
     };
 
     // If we got all here - then this Turnorder Id is associated with a player controlled 
@@ -1159,7 +1477,8 @@ function torHandleMsg(msg_content){
   }
 
   function makeButton(name, link, minwidth) {
-    const buttonStyle = `background-color: #cccccc25; color:#521E10 !important; font-weight:bold; border-radius: 0px; padding: 0px; margin: 1px 1px 1px 0px; display: inline-block`;  
+    //const buttonStyle = `background-color: #cccccc25; color: #521E10 !important; font-weight:bold; border-radius: 0px; padding: 0px; margin: 1px 1px 1px 0px; display: inline-block`;  
+    const buttonStyle = `background-color: #00000000; color: #521E10 !important; font-weight:bold; border-radius: 0px; padding: 0px; margin: 1px 1px 1px 0px; display: inline-block`;      
     if (minwidth === "f") {
       minwidth = "100%"
     } else {
@@ -1330,7 +1649,6 @@ function torHandleMsg(msg_content){
             name: handoutName,
             archived: false
         });
-        // log(`Created new handout: ${handoutName}`);
     }
     return handout;
   }
@@ -1403,6 +1721,31 @@ function torHandleMsg(msg_content){
     sendChat('DM Dashboard', `/w gm ${openChat}DM Dashboard is now using Bar <b>${bar}</b> for HP.${closeChat}`);                    
   }
 
+  function mySendChat(whisper, title, message, links){
+    let chatTxt = '';
+
+    if(whisper == true){
+      chatTxt = `/w gm `
+    }
+    chatTxt += `${openChat}<table style="${tblChatStyle}"><tr style="${trhChatStyle}"><td style="${tdChatStyle}">${title}</td></tr>`
+    chatTxt += `<tr><td style="${tdChatStyle}">${message}</td></tr>`
+    if (links){
+      chatTxt += `<tr><td style="${tdChatStyle}">${links}</td></tr>`
+    }
+    chatTxt += `</table>${closeChat}`
+    sendChat('DMDashboard', chatTxt);
+  }
+
+
+  function setSBHeights(charBoxHeight, toBoxHeight){
+    if (charBoxHeight == 0 || toBoxHeight == 0) {
+      charBoxHeight = '200px'
+      toBoxHeight = '40vh'
+    }
+    state.DMDashboard.charBox_ScrollHeight = charBoxHeight;
+    state.DMDashboard.toBox_ScrollHeight = toBoxHeight;
+  }
+
   function addTooltip(tt, item) {
     let newItem = `<div style="display:inline;" title="${tt}">${item}</div>`
     return newItem;
@@ -1461,6 +1804,7 @@ function torHandleMsg(msg_content){
   }
   
   function CR_to_XP(cr){
+    const tblCR2XP =  [[0,0],[0.125,25],[0.25,50],[0.5,100],[1,200],[2,450],[3,700],[4,1100],[5,1800],[6,2300],[7,2900],[8,3900],[9,5000],[10,5900],[11,7200],[12,8400],[13,10000],[14,11500],[15,13000],[16,15000],[17,18000],[18,20000],[19,22000],[20,25000],[21,33000],[22,41000],[23,50000],[24,62000],[25,75000],[26,90000],[27,105000],[28,120000],[29,135000],[30,155000]];
     if (cr == '1/8'){cr = Number(0.125)}
     if (cr == '1/4'){cr = Number(0.25)}
     if (cr == '1/2'){cr = Number(0.5)}
@@ -1470,7 +1814,6 @@ function torHandleMsg(msg_content){
   }
 
   function addInitiative(tokenIds) {
-
     //tokenIds will be a comma-delimited list of tokenids
     const aryTokenIds = tokenIds.split(',');
 
@@ -1504,9 +1847,12 @@ function torHandleMsg(msg_content){
         chatMsg = `@{${cObj.get('name')}|wtype}&{template:simple} {{rname=^{init-u}}} {{r1=[[${d20Roll}[INIT]+[[${initBonus}]][DEX]]]}} {{normal=1}} @{${cObj.get('name')}|charname_output}`
       } else if (tType == 'NPC') {
         chatMsg = `/w gm @{${cObj.get('name')}|wtype}&{template:npc} @{${cObj.get('name')}|npc_name_flag} {{rname=^{init}}} {{r1=[[${d20Roll}+[[${initBonus}]][DEX]]]}} {{normal=1}} {{type=Initiative}}`
+      } else if (tType == 'NPC-CHARSHEET') {
+        chatMsg = `w/ gm @{${cObj.get('name')}|wtype}&{template:simple} {{rname=^{init-u}}} {{r1=[[${d20Roll}[INIT]+[[${initBonus}]][DEX]]]}} {{normal=1}} @{${cObj.get('name')}|charname_output}`
       } else {
         return;
       }
+
       sendChat('API', chatMsg);
       // log(`AddInitiative: tId:${tId} result: ${result} TO-Length:${turnOrder.length}`)
       // Add to the TurnOrder
@@ -1525,6 +1871,7 @@ function torHandleMsg(msg_content){
 
     });
     Campaign().set("turnorder", JSON.stringify(turnOrder));
+    
   }
  
   function LoadEncounterRating() {
@@ -1555,34 +1902,18 @@ function torHandleMsg(msg_content){
 
   }
 
+  // ****************************
+  // *** Refresh Reports Function ***  
+  // ****************************
 
-  /******************************
-  *** Refresh Reports Function ***  
-  *******************************/
   function refreshReports() {
 
     // log('refreshReports: Start ');
 
     // **** Variable Declarations  ****
-    const openReport = "<div style='color: #000; border: 1px solid #000; background-color: #EFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
-    const openReportx = `<div style='background-image: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url(https://i.imgur.com/8Mm94QY.png); background-size: 100% 100%; box-shadow: 0 0 3px #fff; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; color: black; font-family: serif; white-space: pre-wrap; line-height:1.2em; font-style:normal'>`;
-    const closeReport = '</div>';
-    const openHeader = "<div style='font-weight:bold; color:#fff; background-color:#404040; margin-right:3px; padding:3px;'>"
-    const closeHeader = `</div>`;
-    const openHeaderInfo = "<div style='font-style:italic; color:#fff; background-color:#404040; margin-right:3px; padding:3px; text-align:right;'>"
-    const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
-    const closeChat= `<\div><\div>`;
-    const openBox = "<div style='color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
-    const closeBox = '</div>';
-    const openScrollCharBox = `<div style='height:200px; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
-    const openScrollTOBox = `<div style='height:40vh; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
-    const closeScrollBox = '</div>';
+
 
     let lines = '';
-    let sheetURL = 'http://journal.roll20.net/character/';
-    let profileURL = 'https://app.roll20.net/users/';
-    let handoutURL = 'https://app.roll20.net/handout';
-    let tableURL = `!&#10;/roll 1t[`;
     let rows = [];
     let urlCount = 0;
     let dmChar = [];
@@ -1633,8 +1964,8 @@ function torHandleMsg(msg_content){
     let TO_Count = 0;
 
     // Table Formating Variables  
-    let ts = ' style="border: 0px; padding: 0;border-collapse:collapse;border-color:#93a1a1;border-spacing:0" class="tg"';
-    let th = ' style="background-color:#657b83;border-color:#93a1a1;border-style:solid;border-width:0px;color:#fdf6e3;font-family:Arial, sans-serif;font-size:12px;font-weight:normal;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
+    let ts = ' style="border: 0px; padding: 0;border-collapse:collapse;border-color:#93a1a1;border-spacing:0" class="tg"; margin: 0 auto;';
+    let th = ' style="background-color:#657b83;border-color:#93a1a1;border-style:solid;border-width:0px;color:#fdf6e3;font-family:Arial, sans-serif;font-size:12px;font-weight:normal;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal;"';
     let tdbak = ' style="background-color:#DCDACF;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
     let td = ' style="background-color:#EFEBD6;border-color:#EFEBD6;border-style:solid;border-width:0px;color:#521E10;font-family:ScalySansRemake, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
     let td1bak = ' style="background-color:#F9EBEA;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
@@ -1656,7 +1987,10 @@ function torHandleMsg(msg_content){
     let tr = '';
     let td_hp = '';
     let charDetail = '';
+    let charDetail_TOPage = '';
+    let charDetail_CSPage = '';
     let charHeader = '';
+    let charHeader_CSPage='';
     let charDetail_col1 = '';
     let charDetail_col2 = '';
     let charDetail_col3 = '';
@@ -1664,8 +1998,8 @@ function torHandleMsg(msg_content){
     let charDetail_col5 = '';
 
     // **** Load Objects and Arrays of Objects ****
-    let ho_TOReport = getHandout('DM Turnoder List');
-    let ho_TOCharSheet = getHandout('DM Character Sheet')
+    //let ho_TOReport = getHandout('DM Turnoder List');
+    //let ho_TOCharSheet = getHandout('DM Character Sheet')
 
     let mapXPThresholds = LoadEncounterRating(); //Returns a Map object containing the thresholds table
     let edEasy = 0;
@@ -1698,22 +2032,23 @@ function torHandleMsg(msg_content){
     //***************************************************************************************
 
     // PR, TokenName/Custom, HP/HPMax, AC, PP, Attributes, Speed, Senses, Tooltip, Status
-    let cmdRefresh = '&#13;!tor --TOReport';
-    let btnRefresh = makeMenuButton('REFRESH!', '!tor --TOReport');
-    let btnExp = '   ' + makeButton('[+] Expand Current Character Details', '!tor --TOReport expand');
-    let btnCps = '   ' + makeButton('[-] Collapse Current Character Details', '!tor --TOReport collapse');
+    let cmdRefresh = '&#13;!DMDash --TOReport';
+    let btnRefresh = makeMenuButton('REFRESH!', '!DMDash --TOReport');
+    let btnExp = '   ' + makeButton('[+] Expand Current Character Details', '!DMDash --TOReport expand');
+    let btnCps = '   ' + makeButton('[-] Collapse Current Character Details', '!DMDash --TOReport collapse');
 
-    let btnPrev = makeButton('Prev',`!tor --TO-Prev`);
-    let btnNext = makeButton('Next',`!tor --TO-Next`);
-    let btnSort = makeButton('Sort',`!tor --TO-Sort`);
-    let btnSortWrapped = makeButton('Sort-Wrap',`!tor --TO-SortWrapped`);
-    let btnClear = makeButton('Clear',`!tor --TO-Clear`);
+    let btnPrev = makeMenuButton('Prev',`!DMDash --TO-Prev`);
+    let btnNext = makeMenuButton('Next',`!DMDash --TO-Next`);
+    let btnSort = makeButton('Sort',`!DMDash --TO-Sort`);
+    let btnSortWrapped = makeButton('Sort-Wrap',`!DMDash --TO-SortWrapped`);
+    let btnClear = makeButton('Clear',`!DMDash --TO-Clear`);
 
-    let btnRound = makeButton('Round', `!tor --TO-AddRound`);
-    let btnCounter = makeButton('Counter', `!tor --TO-AddCountdown ?{Counter direction|Count Down,-1|Count Up,+1} ?{Counter starting position|10} "?{Counter Name|}"`);
-    let btnCustom = makeButton('Custom', `!tor --TO-AddCustom ?{Custom turnorder position|10} "?{Custom turnorder Name|}"`);
-    let btnResetStats = makeButton('Reset-Stats', `!tor --ResetStats`);
-    let btnAddNote = makeButton('GMNote', `!tor --AddGMNote "?{Session GM Note?|}"`)
+    let btnRound = makeButton('Round', `!DMDash --TO-AddRound`);
+    let btnCounter = makeButton('Counter', `!DMDash --TO-AddCountdown ?{Counter direction|Count Down,-1|Count Up,+1} ?{Counter starting position|10} "?{Counter Name|}"`);
+    let btnCustom = makeButton('Custom', `!DMDash --TO-AddCustom ?{Custom turnorder position|10} "?{Custom turnorder Name|}"`);
+    let btnResetStats = makeButton('Reset-Stats', `!DMDash --ResetStats`);
+    let btnPlayerStats = makeButton('Player-Stats', `!DMDash --PlayerStats`);
+    let btnAddNote = makeButton('GMNote', `!DMDash --AddGMNote "?{Session GM Note?|}"`)
 
     let btnD20 = makeButton('D20', `!&#13;/roll d20 `) + makeButton('-w', `!&#13;/gmroll d20 `);
     let btnAdv = makeButton('Adv', `!&#13;/roll 2d20kh1 `) + makeButton('-w', `!&#13;/gmroll 2d20kh1 `);
@@ -1751,8 +2086,10 @@ function torHandleMsg(msg_content){
     btns += btnD10+ " "
     btns += btnD12 + "  |  "  
     // btns += btnAddNote + " "
-    btns += btnResetStats 
-    btns = openBox + btns + closeBox
+    btns += btnResetStats + " " 
+    btns += btnPlayerStats
+    //btns = openBox + btns + closeBox
+    btns = openMenuBox + btns + closeBox
     
     if(Campaign().get("turnorder")=="") {
       turnorder = [];
@@ -1764,10 +2101,10 @@ function torHandleMsg(msg_content){
     // event that advances the turnorder?
     if (toObj.length >0) { 
 
-      /******************************************************************
-      *  This section of code calculates the time a player or DM takes
-      * on a turn.
-      ******************************************************************/
+      // *************************************************************
+      // This section of code calculates the time a player or DM takes
+      // on a turn.
+      // *************************************************************
 
       // Turnorder Time Report
       let dt1 = state.DMDashboard.LastDT1;
@@ -1832,6 +2169,7 @@ function torHandleMsg(msg_content){
                 break;
 
               case 'NPC':  
+              case 'NPC-CHARSHEET':
 
                 // Store NPC turnorder stats in State Memory
                 TO_Count = state.DMDashboard.DM_Count;
@@ -1850,6 +2188,7 @@ function torHandleMsg(msg_content){
                 state.DMDashboard.DM_Secs = TO_Secs;
                 state.DMDashboard.DM_Count = TO_Count;
                 state.DMDashboard.DM_Avg = TO_Avg;
+                state.DMDashboard.DM_LastTurn = dt_diff;
                 break;
             }
           }
@@ -1858,9 +2197,10 @@ function torHandleMsg(msg_content){
 
       reportPerformance('Complete Stats Calcs');
 
-      /******************************************************************
-      *  Build the Detailed NPC or Character section if expanded        *
-      ******************************************************************/
+      // *************************************************************
+      // Build the Detailed NPC or Character section if expanded 
+      // *************************************************************
+
 
       charDetail = '';
   
@@ -1870,19 +2210,26 @@ function torHandleMsg(msg_content){
         case 'OTHER':
 
           toToken = getObj("graphic", toObj[0].id);                
-          tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
-          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
-          charHeader = `<table style='font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px;'><tr><td>${tknImg} ${toToken.get('name')} - Graphic Token (Not associated with Character/NPC)</td> <td>Turnorder: (${toObj[0].pr}) <span id=EncDiff>1</span></td></tr></table>`;
+          tknImg = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
+          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!DMDash --PingToken-GM ${toToken.get('_id')}`));
+          charHeader = `<table style='font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;'><tr><td>${tknImg} ${toToken.get('name')} - Graphic Token (Not associated with Character/NPC)</td> <td>Turnorder: (${toObj[0].pr}) <span id=EncDiff>1</span></td></tr></table>`;
+          charHeader_CSPage = charHeader;
           charDetail = '';
           
           break;
 
         case 'CUSTOM':
-          charHeader = `<table style='font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px;'><tr><td>Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}] <span id=EncDiff>1</span></td></tr></table>`;
+          charHeader = `<table style='border: 0; border-collapse:collapse; font-weight:normal; color:#fff; background-color:#404040; padding: 0; margin: 0 auto;'>`
+          charHeader +=   `<tr><td style='vertical-align: middle; text-align: center; padding: 0; border:0'>Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}]</td>`
+          charHeader +=       `<td style='vertical-align: middle; text-align: left; padding: 0; border:0'><table style='font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px;'><span id=EncDiff>1</span></td>`
+          charHeader +=   `</tr></table>`;
+
+          charHeader_CSPage = charHeader;
           charDetail = '';
           break;
 
         case 'CHAR':
+        case 'NPC-CHARSHEET':
           // log('TOReport: PC');                                    
 
           toToken = getObj("graphic", toObj[0].id);
@@ -1898,16 +2245,24 @@ function torHandleMsg(msg_content){
 
           //Header Info
           // charBtn = addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20));
-          tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
-          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
+          tknImg = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
+          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!DMDash --PingToken-GM ${toToken.get('_id')}`));
 
-          //charHeader = `<table style='border-collapse: collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:1px; padding:1px;'><tr><td style="width: 40%; vertical-align: middle; text-align: left"> ${charBtn} ${addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`, 20))} ${tknImg} ${toToken.get('name')}<br> (<i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>)</td>`
-          charHeader = `<table style='border:1px; border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:0px; padding:0px;'><tr><td style="width: 40%; vertical-align: middle; text-align: left"> ${tknImg} ${toToken.get('name')}<br> (<i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>)</td>`
-          charHeader += `<td style="width: 20%; vertical-align: middle; text-align: center;">[Avg Turn: ${TO_Avg} / Secs:  ${TO_Secs} / Cnt: ${TO_Count}] </td>`
-          charHeader += `<td style="width: 40%; vertical-align: middle;"><span id=EncDiff>1</span></td></tr></table></td></tr></table>`
-          // charHeader += `(<i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>)`;
+          charHeader = `<table style='border: 0; border-collapse: collapse; margin: 0 auto; color:#fff; background-color:#404040; padding: 0; margin: 0 auto;'>`
+          charHeader +=   `<tr><td style='vertical-align: middle; text-align: center; padding: 0; border:0'>`
+          charHeader +=       `<table style='border: 0; border-collapse: collapse; font-weight:normal; color:#fff; background-color: #404040; padding: 0; margin: 0 auto;'>`
+          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0;'>${tknImg} <b>${toToken.get('name')}</b>  <i>(${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i></td></tr>`
+          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0;'></td></tr>`
+          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0; background-color: #404040'><i>Avg Turn: ${TO_Avg}secs Total Secs: ${TO_Secs} Turns: ${TO_Count}</i></td></tr>`
+          charHeader +=       `</table></td>` 
+          charHeader +=   `<td style='vertical-align: bottom; text-align: left; padding: 0; border:0'><span id=EncDiff>1</span></td></tr></table>`
 
-          if (true && charMap.has(toObj[0].id)) {
+          charHeader_CSPage = `<table style='border:0px; border-collapse:collapse; font-weight:normal; color:#fff; background-color:#404040; margin-right:0px; padding:0px;'>`
+          charHeader_CSPage += `<tr><td style='width: 100%; vertical-align: middle; text-align: left; padding: 0; border:0'>${tknImg} ${toToken.get('name')}   <i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>)</td></tr>`
+          charHeader_CSPage += `</table>`
+
+          // Load the the cached Detail page (Performance Improvement)
+          if (charMap.has(toObj[0].id)) {
             // log('Using Map for: ' + toObj[0].id)
             charMapItem = charMap.get(toObj[0].id)
             charDetail = charMapItem.txt
@@ -1919,6 +2274,11 @@ function torHandleMsg(msg_content){
               let sr = getAttrByName(toChar.get('_id'),`lvl${sl}_slots_expended`,'current');
               charDetail = replaceDynamicSpanElement(charDetail, `chardetail-spellslots-${sl}`, sr)
             });
+
+            charDetail_TOPage = openScrollCharBox + charDetail + closeScrollBox;
+            charDetail_CSPage = openBox + charDetail + closeBox
+
+            // Done.
             break;
           }
 
@@ -1927,9 +2287,10 @@ function torHandleMsg(msg_content){
 
           // Send a "Next Turn" message to the game chat, if this is being refreshed for that purpose
           // log('Advance? ' + cmd_advance);
-
-          if (cmd_advance == 1){
-            sendChat('Turn Order', `${openChat}<table><tr><td>${tknImg}</td><td><b>${toToken.get('name')} is up!</b><br> (ATPT: ${TO_Avg} Secs / Last turn: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')})</td></tr></table> ${closeChat}`);                
+          
+          if (cmd_advance == 1 && state.DMDashboard.TurnNotification == true){
+            // sendChat('Turn Order', `${openChat}<table><tr><td>${tknImg}</td><td><b>${toToken.get('name')} is up!</b><br> ATPT: ${TO_Avg} Secs / Last turn: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')})</td></tr></table> ${closeChat}`);
+            mySendChat(false, 'Turn Order', `${tknImg}<b>${toToken.get('name')} is up!</b>  <i>ATPT: ${TO_Avg} Secs / Last turn: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`)
           }
 
           //Row2 - Column 1: Basic Info
@@ -2174,7 +2535,9 @@ function torHandleMsg(msg_content){
           }
 
           charDetail += '</table></td></tr></table>';
-          charDetail = openScrollCharBox + charDetail + closeScrollBox;
+          //charDetail = openScrollCharBox + charDetail + closeScrollBox;
+          charDetail_TOPage = openScrollCharBox + charDetail + closeScrollBox;
+          charDetail_CSPage = openBox + charDetail + closeBox
 
           // log('Loading Char int Map Object: ' + toObj[0].id);
           //charMap.set(toChar.get('id'), {id: toChar.get('id'), charId: toChar.get('id'), txt: charDetail})
@@ -2193,28 +2556,40 @@ function torHandleMsg(msg_content){
 
           // Header 
           // charBtn = makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'), 20);
-          tknImg = `<img style = 'max-height: 50px; max-width: 50px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
-          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`));
-          charHeader = `<table style='border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px;'><tr><td style="width: 40%;vertical-align: middle;"> ${tknImg} ${toToken.get('name')} <br><i>(${getAttrByName(toChar.get('_id'),'npc_type','current')})</i></td>`
-          charHeader += `<td style="width: 20%;vertical-align: middle; text-align: center;">[Avg Turn: ${state.DMDashboard.DM_Avg} / Secs: ${state.DMDashboard.DM_Secs} / Cnt: ${state.DMDashboard.DM_Count}] </td>`
-          charHeader += `<td style="width: 40%;vertical-align: middle;"><span id=EncDiff>1</span></td></tr></table>`
-          //charHeader += `<b><i>${getAttrByName(toChar.get('_id'),'npc_type','current')}</i></b> `;
+          tknImg = `<img style = 'max-height: 60px; max-width: 60px; padding:0 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
+          tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!DMDash --PingToken-GM ${toToken.get('_id')}`));
 
-          if (true && charMap.has(toObj[0].id)) {
+          charHeader = `<table style='border: 0; border-collapse:collapse; font-weight:normal; color:#fff; background-color:#404040; padding: 0; margin: 0 auto;'>`
+          charHeader +=   `<tr><td style='vertical-align: middle; text-align: center; padding: 0; border:0'>`
+          charHeader +=       `<table style='border: 0; border-collapse: collapse; font-weight:normal; color:#fff; background-color: #404040; padding: 0; margin: 0 auto;'>`
+          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0;'>${tknImg} ${toToken.get('name')} <i>(${getAttrByName(toChar.get('_id'),'npc_type','current')})</i></td></tr>`
+          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0;'></td></tr>`
+          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0;'><i>Avg Turn: ${state.DMDashboard.DM_Avg}secs Total Secs: ${state.DMDashboard.DM_Secs} Turns: ${state.DMDashboard.DM_Count}</i></td></tr>`
+          charHeader +=       `</table></td>` 
+          charHeader +=   `<td style='vertical-align: bottom; text-align: left; padding: 0; border:0'><span id=EncDiff>1</span></td></tr></table>`
+
+
+          charHeader_CSPage = `<table style='border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;'>`
+          charHeader_CSPage += `<tr><td style="width: 100%;vertical-align: middle;"> ${tknImg} ${toToken.get('name')}    <i>(${getAttrByName(toChar.get('_id'),'npc_type','current')})</i></td></tr>`
+          charHeader_CSPage += `</table>`
+
+          if (charMap.has(toObj[0].id)) {
               // log('Using Map for: ' + toObj[0].id)
               charMapItem = charMap.get(toObj[0].id)
               charDetail = charMapItem.txt
               charDetail = replaceDynamicSpanElement(charDetail, 'chardetail-hp', toToken.get(`bar${state.DMDashboard.HPBar}_value`))
+
+              charDetail_TOPage = openScrollCharBox + charDetail + closeScrollBox;
+              charDetail_CSPage = openBox + charDetail + closeBox
               break;
           }
 
           //Row1 - Column 1-5: Basic Info
-          //charDetail = '<table>';
-          charDetail += '<table><thead><tr><th' + th.slice(0,-1) + ';width:10%">Attributes</th><th' + th.slice(0,-1) + ';width:20%">Stats</th><th' + th.slice(0,-1) + ';width:20%">Info</th><th' + th.slice(0,-1) + ';width:20%">Traits/Actions</th><th' + th.slice(0,-1) + ';width:30%">Spells</th></tr></thead><tbody>';
+          charDetail += `<table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;"><thead><tr><th${th}>Attributes</th><th${th}>Stats</th><th${th}>Info</th><th${th}>Traits/Actions</th><th${th}>Spells</th></tr></thead><tbody>`;
 
           //Row2 - Column 1: Basic Info
           charDetail += '<tr><td' + tdnpc + '>'
-          charDetail += '<table>';
+          charDetail += `<table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;">`;
           charDetail += '<tr><td' + tdnpc + '><b>Str:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'strength','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) +')</td></tr>';
           charDetail += '<tr><td' + tdnpc + '><b>Dex:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'dexterity','current')  + '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td></tr>';
           charDetail += '<tr><td' + tdnpc + '><b>Con:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'constitution','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td></tr>';
@@ -2224,7 +2599,7 @@ function torHandleMsg(msg_content){
           charDetail += '</table></td>'
 
           // Basics
-          charDetail += '<td' + tdnpc + '><table>';
+          charDetail += `<td${tdnpc}><table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;">`;
           charDetail += '<tr><td' + tdnpc + '><b>AC:</b>' + getAttrByName(toChar.get('_id'),'npc_ac','current') + ' (' + getAttrByName(toChar.get('_id'),'npc_actype','current') + ')</td></tr>';
           charDetail += '<tr><td' + tdnpc + '><b>HP:</b><span id=chardetail-hp>' + toToken.get(`bar${state.DMDashboard.HPBar}_value`) + '</span>/' + toToken.get(`bar${state.DMDashboard.HPBar}_max`) + '(' + getAttrByName(toChar.get('_id'),'npc_hpformula','current') + ')</td></tr>';
           charDetail += '<tr><td' + tdnpc + '><b>Speed:</b>' + getAttrByName(toChar.get('_id'),'npc_speed','current') + '</td></tr>';
@@ -2233,11 +2608,11 @@ function torHandleMsg(msg_content){
           charDetail += '<tr><td' + tdnpc + '><b>Caster:</b>' + getAttrByName(toChar.get('_id'),'caster_level','current') + '</td></tr>';
           charDetail += '<tr><td' + tdnpc + '><b>Spell DC:</b>' + getAttrByName(toChar.get('_id'),'spell_save_dc','current') + '</td></tr>';
           charDetail += '<tr><td' + tdnpc + '><b>Spell Attack Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'spell_attack_bonus','current')) + '</td></tr>';
-
           charDetail += '</table></td>';
 
           // Skills
-          charDetail += '<td' + tdnpc + '><table>';
+          charDetail += '<td' + tdnpc + '>'
+          charDetail += `<table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;">`;
           charDetail += '<tr><td' + tdnpc + '><b>Skills:</b>';
           skills = ['acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleight_of_hand', 'stealth', 'survival'];
           skills.forEach(mySkill => {
@@ -2258,7 +2633,8 @@ function torHandleMsg(msg_content){
           charDetail += '<tr><td' + tdnpc + '><b>CR:</b>' + getAttrByName(toChar.get('_id'),'npc_challenge','current') + '</td></tr>';
           charDetail += '<tr><td' + tdnpc + '><b>Prof Bonus:</b>' + AddSign(getAttrByName(toChar.get('_id'),'npc_pb','current')) + '</td></tr>';
           charDetail += '</table></td>';
-          charDetail += '<td' + tdnpc + '><table>';
+          charDetail += '<td' + tdnpc + '>';
+          charDetail += `<table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;">`;
 
           // Define the repeating section identifier
           repeatingSection = 'repeating_npctrait';  //Prefix
@@ -2352,7 +2728,8 @@ function torHandleMsg(msg_content){
           // ************* Spells *******************
           spell_lvls = ['cantrip', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
           charDetail += '</table></td>';
-          charDetail += '<td' + tdnpc + '><table>';
+          charDetail += '<td' + tdnpc + '>'
+          charDetail += `<table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;">`;
 
           spell_lvls.forEach(spell_lvl => {
 
@@ -2390,13 +2767,13 @@ function torHandleMsg(msg_content){
             }
           });
           charDetail += '</table></td></tr></table>';
-          charDetail = openScrollCharBox + charDetail + closeScrollBox;
-          // charDetail += '</table>';
 
-          // Add charDetail to my set of maps
-          // charMapItem = {id: toChar.get('id'), txt: charDetail};
-          // log('Loading Char int Map Object: ' + toObj[0].id);
+          myDebug(4, charDetail);
+
           charMap.set(toObj[0].id, {id: toObj[0].id, charId: toChar.get('id'), txt: charDetail})
+
+          charDetail_TOPage = openScrollCharBox + charDetail + closeScrollBox;
+          charDetail_CSPage = openBox + charDetail + closeBox
 
           break;
       } // End of switch case for token type
@@ -2404,17 +2781,18 @@ function torHandleMsg(msg_content){
 
     // Logic to expand or collapse the Character information
     if (state.DMDashboard.DetailExpand == 1) {
-      toList = btns + '<br>' + charHeader + btnCps + charDetail;
+      toList = charHeader + btnCps + charDetail_TOPage;
     } else {
-      toList = btns + '<br>' + charHeader + btnExp;                    
+      toList = charHeader + btnExp;                    
     }
-    charReport = openReport + charHeader + charDetail + btns + closeReport;
+
+    charReport = openReport + charHeader_CSPage + charDetail_CSPage + closeReport;
 
     reportPerformance('Complete Character Detail');
 
     // Header row for the turnorder list
     toList += openScrollTOBox
-    //toList += `<table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse;"><tr><td style="border: 0px; padding: 0;">Turn Order</td><td><span id=EncDiff>1</span></td></tr></table>`;
+    //toList += `<table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse; margin: 0 auto;"><tr><td style="border: 0px; padding: 0;">Turn Order</td><td><span id=EncDiff>1</span></td></tr></table>`;
     toList +=  '<table ' + ts +'>';
     toList +=  '<thead><tr><th' + th + '>Turn</th>';
     toList +=  '<th' + th + '>Name</th>';
@@ -2429,10 +2807,10 @@ function torHandleMsg(msg_content){
     toList +=  '<th' + th + '>Tootltip</th>';
     toList +=  '</tr></thead><tbody>';
 
+    // **********************************************************
+    // Build the table of items on the Turnorder list            
+    // ***********************************************************
 
-    /******************************************************************
-    *  Build the table of items on the Turnorder list                 *
-    ******************************************************************/
     // For each item in the Turnorder
     for (i=0;i<toObj.length;i++) {
       
@@ -2454,33 +2832,33 @@ function torHandleMsg(msg_content){
             // Col 2 (Name/Img)
             tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
             if(toToken.get('layer') == 'objects'){
-              toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`, 40) + '<b>' + toToken.get('name') + '</b></td>';
+              toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!DMDash --PingToken-GM ${toToken.get('_id')}`, 40) + '<b>' + toToken.get('name') + '</b></td>';
             } else {
-              toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!tor --PingToken-GM ${toToken.get('_id')}`, 40) + '<i>' + toToken.get('name') + '</i></td>';
+              toList += '<td ' + tdcustom + '>' + makeButton(tknImg, `!DMDash --PingToken-GM ${toToken.get('_id')}`, 40) + '<i>' + toToken.get('name') + '</i></td>';
             }
 
             // Col 3 (Functions: Remove Item, Toggle Token between GM/Obj Layer)
             toList +=  '<td ' + tdcustom + '>' 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Remove Item from TurnOrder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`)) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Remove Item from TurnOrder", makeButton('❌',`!DMDash --TO-Remove ${toObj[i].id}`)) + '</span>';
             if(toToken.get('layer') == 'objects'){
-              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Invisible", makeButton('😑', '!tor --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>';
+              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Invisible", makeButton('😑', '!DMDash --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>';
              } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Visible", makeButton('🫥', '!tor --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>'; 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Visible", makeButton('🫥', '!DMDash --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>'; 
             }
 
             if(toToken.get('lockMovement')){
-              toList += '<span style="font-size: 16px">'+ addTooltip("Unlock Token Movement", makeButton('🔐', '!tor --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Unlock Token Movement", makeButton('🔐', '!DMDash --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
             } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Lock Token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Lock Token Movement", makeButton('🔓', '!DMDash --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
             }
             if (toToken.get('showplayers_name')){
-              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
+              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate for Players", makeButton('📛', '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
             } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate for Players", makeButton('📛', '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
             }
 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('👤', '!tor --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('🖼', '!tor --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('👤', '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('🖼', '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
 
             toList+='</td>'
 
@@ -2497,7 +2875,7 @@ function torHandleMsg(msg_content){
             if (hp_pct <= 0) {td_hp=td_healthDead;} // Dead
 
             // Button to enable adjusting Hit Points
-            btnAdjHP = makeButton(hp + ' / ' + hpmax,`!tor --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
+            btnAdjHP = makeButton(hp + ' / ' + hpmax,`!DMDash --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
             toList += '<td ' + td_hp + '>'+ btnAdjHP + ' (' + hp_pct + '%)</td>';
             
             // COL 5 Status Markers (Span 5 (5-9))
@@ -2508,15 +2886,15 @@ function torHandleMsg(msg_content){
             // Col 10 (Tooltips)
             tt = toToken.get('tooltip');
             toList += '<td ' + tdbase + '>' 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`))+ '</span>';
-            toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton('🖊', `!tor --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`))+ '</span>' 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton('❌', '!tor --TokenClearTooltip ' + toToken.get('_id')))+ '</span>'
+            toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('🎯', `!DMDash --PingToken-All ${toToken.get('_id')}`))+ '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton('🖊', `!DMDash --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`))+ '</span>' 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton('❌', '!DMDash --TokenClearTooltip ' + toToken.get('_id')))+ '</span>'
 
             if(toToken.get('show_tooltip')){
-              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton('😑', '!tor --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
+              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton('😑', '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
               toList += '<b>' + tt + '</b></td>';               
             } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip",makeButton('🫥', '!tor --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
+              toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip",makeButton('🫥', '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
               toList += '<i>' + tt + '</i></td>'; 
             }
 
@@ -2526,10 +2904,11 @@ function torHandleMsg(msg_content){
         case 'CUSTOM':
           toList +=  '<td ' + tdcustom + '><b>' + toObj[i].pr + '</b></td>';
           toList +=  '<td ' + tdcustom + '>' + toObj[i].custom + ' [' + toObj[i].formula + ']' + '</td>';
-          toList +=  '<td ' + tdcustom + '>' + '<span style="font-size: 16px">'+  addTooltip("Remove Item from Turnorder",makeButton('❌',`!tor --TO-RemoveCustom ${i}`,20)) + '</span></td>';
+          toList +=  '<td ' + tdcustom + '>' + '<span style="font-size: 16px">'+  addTooltip("Remove Item from Turnorder",makeButton('❌',`!DMDash --TO-RemoveCustom ${i}`,20)) + '</span></td>';
           toList +=  '<td ' + tdcustom + ' colspan=8></td>';
           break;
         case 'NPC':
+        case 'NPC-CHARSHEET':
           isnpc = 1;
           tdbase = tdnpc;
           // NO break on purpose
@@ -2538,20 +2917,18 @@ function torHandleMsg(msg_content){
 
           toToken = getObj("graphic", toObj[i].id);
           toChar = getObj('character', toToken.get('represents'));
-
           
           // Has this character already been loaded?
           if (foeMap.has(toObj[i].id)) {
-
             
-            myDebug(4, `foe1: (foeItem Already Exists) ${toToken.get('name')}`)
+            myDebug(2, `foe1: (foeItem Already Exists) ${toToken.get('name')}`)
 
             foeItem = foeMap.get(toObj[i].id);
 
             // Yes - Load up the appraproiate data from the foeMap
             if (foeItem.State == 'FRIEND'){
               //Friend
-              myDebug(4, `foe2: (foeItem Exists and is Friend) ${toToken.get('name')}`)
+              myDebug(2, `foe2: (foeItem Exists and is Friend) ${toToken.get('name')}`)
               edPartyCount = edPartyCount + 1;
               edCharLevel = foeItem.Level;
               let xpThresholdItem = mapXPThresholds.get(edCharLevel)
@@ -2562,11 +2939,11 @@ function torHandleMsg(msg_content){
 
             } else if (foeItem.State == 'FOE'){
               //Foe
-              myDebug(4, `foe3: (foeItem Exists and is Foe) ${toToken.get('name')}`)              
+              myDebug(2, `foe3: (foeItem Exists and is Foe) ${toToken.get('name')}`)              
               edFoeCount = edFoeCount + 1;
               edNPCExpTotal = edNPCExpTotal + foeItem.Exp;
             } else {
-              myDebug(4, `foe4: (foeItem Exists and is Neutral) ${toToken.get('name')}`)              
+              myDebug(2, `foe4: (foeItem Exists and is Neutral) ${toToken.get('name')}`)              
             }
 
             
@@ -2575,7 +2952,7 @@ function torHandleMsg(msg_content){
             if (tType == 'CHAR') {
               
               // Load CHAR into foe map, do the NPC Calcs now too
-              myDebug(4, `foe5: (New Char to be added) ${toToken.get('name')}`)
+              myDebug(2, `foe5: (New Char to be added) ${toToken.get('name')}`)
 
               edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level');
               edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
@@ -2593,14 +2970,14 @@ function torHandleMsg(msg_content){
             } else {
               
               //NPC
-              myDebug(4, `foe6: (New NPC to be added) ${toToken.get('name')}`)
+              myDebug(2, `foe6: (New NPC to be added) ${toToken.get('name')}`)
               edFoeCount = edFoeCount + 1;
 
               // This could be an NPC using a Charsheet - "controledby" Is blank
               if (getAttrByName(toChar.get('_id'), 'npc', 'current') == 0) {
 
                 // It is a NPC in a Character's clothing (character sheet)
-                myDebug(4, `foe7: (New NPC living in a Character Sheet (npc=0)) ${toToken.get('name')}`)
+                myDebug(2, `foe7: (New NPC living in a Character Sheet (npc=0)) ${toToken.get('name')}`)
                 edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level')
                 edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
                 edCR = CharLvl_to_CR(edCharLevel, edSpellCasterLvl)
@@ -2617,7 +2994,7 @@ function torHandleMsg(msg_content){
 
               } else {
                 // It is a NPC using a traditional NPC setup
-                myDebug(4, `foe8: (New Traditional NPC) ${toToken.get('name')}`)
+                myDebug(2, `foe8: (New Traditional NPC) ${toToken.get('name')}`)
                 edNPCExp = getAttrByName(toChar.get('_id'),'npc_xp','current');
                 edNPCExpTotal = edNPCExpTotal + edNPCExp;
                 edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level')
@@ -2635,14 +3012,12 @@ function torHandleMsg(msg_content){
             }
           }
 
-          
-
           // Col 1 (Turn/PR)
           toList += '<td ' + tdbase + '><b>' + toObj[i].pr + '</b></td>';
 
           // Col 2 (Name)
           tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
-          tknImg = addTooltip("Ping Me", makeButton(tknImg, `!tor --PingToken-GM ${toObj[i].id}`, 40)) 
+          tknImg = addTooltip("Ping Me", makeButton(tknImg, `!DMDash --PingToken-GM ${toObj[i].id}`, 40)) 
 
           if(toToken.get('showplayers_name')){
             // toList += '<td ' + tdbase + '>' + makeButton(tknImg, '!ping-token --' + toToken.get('_id'), 40) + '<b>' + toToken.get('name') + '</b></td>';
@@ -2654,52 +3029,52 @@ function torHandleMsg(msg_content){
 
           // Col 3 (Commands)
           toList += '<td ' + tdbase + '>';
-          //toList += '<span style="font-size: 16px;>' + addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`));
-          toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('🎯', `!tor --PingToken-All ${toToken.get('_id')}`)) + '</span>';
-          toList += '<span style="font-size: 16px">'+ addTooltip("Remove Token from Turnorder", makeButton('❌',`!tor --TO-Remove ${toObj[i].id}`)) + '</span>';
+          //toList += '<span style="font-size: 16px;>' + addTooltip("Ping Me - Show All Players", makeButton('🎯', `!DMDash --PingToken-All ${toToken.get('_id')}`));
+          toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('🎯', `!DMDash --PingToken-All ${toToken.get('_id')}`)) + '</span>';
+          toList += '<span style="font-size: 16px">'+ addTooltip("Remove Token from Turnorder", makeButton('❌',`!DMDash --TO-Remove ${toObj[i].id}`)) + '</span>';
 
           if(toToken.get('layer') == 'objects'){
-            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Token on Map", makeButton('😑', '!tor --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';  
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Token on Map", makeButton('😑', '!DMDash --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';  
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Unhide Token on Map", makeButton('🫥', '!tor --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unhide Token on Map", makeButton('🫥', '!DMDash --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';
           }
 
           toList +=  '<span style="font-size: 16px">'+ addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'))) + '</span>';
-          toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton('📓', '!tor --showGMNote ' + toToken.get('_id'))) + '</span>';
+          toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton('📓', '!DMDash --showGMNote ' + toToken.get('_id'))) + '</span>';
 
 
           if (isnpc) {
             //tmp = toToken.get('gmnotes');
-            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Token Note', makeButton('🖊', '!tor --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"')) + '</span>';  
+            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Token Note', makeButton('🖊', '!DMDash --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"')) + '</span>';  
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Character Note', makeButton('🖊', '!tor --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"')) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Character Note', makeButton('🖊', '!DMDash --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"')) + '</span>';
           }
 
           //log('LockMovement' + toToken.get('lockMovement'))
           if(toToken.get('lockMovement')){
-            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton('🔐', '!tor --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton('🔐', '!DMDash --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton('🔓', '!tor --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton('🔓', '!DMDash --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
           }
 
           if (toToken.get('showplayers_name')){
-            //toList += addTooltip("Hide Nameplate for Players", makeButton('📛', '!tor --TokenNameplate ' + toToken.get('_id'))) ;
-            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate to Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+            //toList += addTooltip("Hide Nameplate for Players", makeButton('📛', '!DMDash --TokenNameplate ' + toToken.get('_id'))) ;
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate to Players", makeButton('📛', '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate to Players", makeButton('📛', '!tor --TokenToggleNameplate ' + toToken.get('_id')))  + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate to Players", makeButton('📛', '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))  + '</span>';
           }
-          toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('👤', '!tor --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
-          toList += '<span style="font-size: 16px">'+ addTooltip("Show Images", makeButton('🖼', '!tor --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
+          toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('👤', '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
+          toList += '<span style="font-size: 16px">'+ addTooltip("Show Images", makeButton('🖼', '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
 
           // myDebug(4, `foe-Buttons: ${foeItem.State}`)
           // dumpMapObject(foeMap);
 
           if (foeItem.State == 'FRIEND') {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Friend) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('😇', '!tor --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Friend) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('😇', '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
           } else if (foeItem.State == 'FOE') {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Foe) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('😡', '!tor --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Foe) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('😡', '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Neutral) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('💩', '!tor --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Neutral) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('💩', '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
           }
 
           toList += '</td>';
@@ -2717,7 +3092,7 @@ function torHandleMsg(msg_content){
           if (hp_pct < 25) {td_hp=td_health25;} // Red 
           if (hp_pct <= 0) {td_hp=td_healthDead;} // Dead
 
-          btnAdjHP = makeButton(hp + ' / ' + hpmax,`!tor --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
+          btnAdjHP = makeButton(hp + ' / ' + hpmax,`!DMDash --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
           toList = toList + '<td ' + td_hp + '>'+ btnAdjHP + ' (' + hp_pct + '%)</td>';
           
           // COL 5 Status Markers
@@ -2771,14 +3146,14 @@ function torHandleMsg(msg_content){
           // Col 10 (Tooltips)
           tt = toToken.get('tooltip');
           toList += '<td ' + tdbase + '>';
-          toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton('🖊', `!tor --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) +'</span>'
-          toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton('❌', '!tor --TokenClearTooltip ' + toToken.get('_id')) )+'</span>'
+          toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton('🖊', `!DMDash --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) +'</span>'
+          toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton('❌', '!DMDash --TokenClearTooltip ' + toToken.get('_id')) )+'</span>'
 
           if(toToken.get('show_tooltip')){
-            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton('😑', '!tor --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton('😑', '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
             toList += '<b>' + tt + '</b></td>'; 
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip", makeButton('🫥', '!tor --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip", makeButton('🫥', '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
             toList += '<i>' + tt + '</i></td>'; 
           }
 
@@ -2870,33 +3245,51 @@ function torHandleMsg(msg_content){
 
     edEncounterExp = edNPCExpTotal * edDiffMult;
     if (edEncounterExp < edEasy) {
-      edDifficulty = 'Super Easy';
-      edColor = '#24CE10';
+      edDifficulty = 'Trivial';
+      edColor = '#ced9e0';
     }
     if (edEncounterExp > edEasy && edEncounterExp < edMedium) {
       edDifficulty = 'Easy';
-      edColor = '#24CE10';
+      //edColor = '#24CE10';
+      edColor = '#00c797';
     }
     if (edEncounterExp >= edMedium && edEncounterExp < edHard) {
       edDifficulty = 'Medium';
-      edColor = '#FFFE00';      
+      //edColor = '#FFFE00';      
+      edColor = '#f5a623';
     }
     if (edEncounterExp >= edHard && edEncounterExp < edDeadly) {      
       edDifficulty = 'Hard';
-      edColor = '#FFAC00';
+      //edColor = '#FFAC00';
+      edColor = '#e45a1d';
     }
     if (edEncounterExp >= edDeadly) {      
       edDifficulty = 'Deadly';
-      edColor = '#FF0000';
+      //edColor = '#FF0000';
+      edColor = '#d54f4f';
     }
 
-    edDifficulty = `<table style="background-color: ${edColor}; color: black; border-collapse: collapse; padding: 0; border: 1"><tr><td style="padding: 0; border: 0; vertical-align: middle; text-align: center" rowspan="4">Encounter ${edDifficulty}<br><br><i>(Total Encounter Experience: ${edEncounterExp})</i></td>`
-    edDifficulty +=   `<td style="padding: 0; border: 0; text-align: right">Easy: ${edEasy}</td><td style="padding: 0; border: 0; text-align: right">Party Count: ${edPartyCount}</td><td style="padding: 0; border: 0; text-align: right"> </td></tr>`
-    edDifficulty +=   `<tr><td style="padding: 0; border: 0; text-align: right">Medium: ${edMedium}</td><td style="padding: 0; border: 0; text-align: right">Foes: ${edFoeCount}</td><td style="padding: 0; border: 0; text-align: right"> </td></tr>`
-    edDifficulty +=   `<tr><td style="padding: 0; border: 0; text-align: right">Hard: ${edHard}</td><td style="padding: 0; border: 0; text-align: right">Multiplier: ${edDiffMult}</td><td style="padding: 0; border: 0; text-align: right"> </td></tr>`
-    edDifficulty +=   `<tr><td style="padding: 0; border: 0; text-align: right">Deadly: ${edDeadly}</td><td style="padding: 0; border: 0; text-align: right">Σ NPC Exp: ${edNPCExpTotal}</td><td style="padding: 0; border: 0; text-align: right"></td></tr></table>`
+    let edTbl = `<table style="border-collapse: collapse; padding: 0; border: 0; margin: 0 auto;">`
+    edTbl +=  `<tr><th style="background-color: ${edColor}; color: black;padding: 0px; border: 0px; text-align: center" colspan=8>Encounter ${edDifficulty} <i>(Total Encounter Experience: ${edEncounterExp})</i></th></tr>`
+    edTbl +=  `<tr><td style="padding: 0px; border: 0px; text-align: center">Easy</td>`
+    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Medium</td>`
+    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Hard</td>`
+    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Deadly</td>`
+    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Party #</td>`
+    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Foe #</td>`
+    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Mult</td>`
+    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Exp Total</td></tr>`
+    edTbl +=  `<tr><td style="padding: 0px; border: 0px; text-align: center">${edEasy}</td>`
+    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edMedium}</td>`
+    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edHard}</td>`    
+    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edDeadly}</td>`
+    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edPartyCount}</td>`
+    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edFoeCount} </td>`
+    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edDiffMult}</td>`
+    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edNPCExpTotal}</td></tr></table>` //Σ NPC Exp: 
+
     //replaceDynamicSpanElement(toList,"encdiff",edDifficulty);
-    toList = toList.replace('<span id=EncDiff>1</span>', edDifficulty);
+    toList = toList.replace('<span id=EncDiff>1</span>', edTbl);
     // log('Difficult: ' + edDifficulty);
 
     reportPerformance('Complete Turorder List');
@@ -2918,12 +3311,12 @@ function torHandleMsg(msg_content){
         let ndx = toStr.indexOf(t.get('_id'));  //If this TokenId isn't found in the current turnorder, add it to the list of available tokens?
         if(ndx<0){
           let tImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${t.get('imgsrc')}'</img>`;
-          let btn_ping = makeButton(tImg, `!tor --PingToken-GM ${t.id}`);
+          let btn_ping = makeButton(tImg, `!DMDash --PingToken-GM ${t.id}`);
           if (tType == 'NPC') {
-            btnNPCs += btn_ping + t.get('name') + makeButton(' [+] ', `!tor --Initiative ${t.get('_id')}`);
+            btnNPCs += btn_ping + t.get('name') + makeButton(' [+] ', `!DMDash --Initiative ${t.get('_id')}`);
             btnAddAllNPCs += t.get('_id') + ',';
           } else {
-            btnPCs += btn_ping + t.get('name') + makeButton(' [+] ', `!tor --Initiative ${t.get('_id')}`);
+            btnPCs += btn_ping + t.get('name') + makeButton(' [+] ', `!DMDash --Initiative ${t.get('_id')}`);
             btnAddAllPCs += t.get('_id') + ',';
           }
         }
@@ -2931,20 +3324,19 @@ function torHandleMsg(msg_content){
     });
 
     btnAddAllNPCs = btnAddAllNPCs.replace(/,([^,]*)$/, '$1'); // Remove last comma
-    btnAddAllNPCs = '!tor --Initiative ' + btnAddAllNPCs;
+    btnAddAllNPCs = '!DMDash --Initiative ' + btnAddAllNPCs;
     btnAddAllNPCs = makeButton(' [+] ', btnAddAllNPCs ,20) + '  ';
 
     btnAddAllPCs = btnAddAllPCs.replace(/,([^,]*)$/, '$1');
-    btnAddAllPCs = '!tor --Initiative ' + btnAddAllPCs;
+    btnAddAllPCs = '!DMDash --Initiative ' + btnAddAllPCs;
     btnAddAllPCs = makeButton(' [+] ', btnAddAllPCs ,20) + '  ';
 
-    toList += btns + '<b><u>NPCs</u></b>' + btnAddAllNPCs + '<br>' + btnNPCs + '<br><b><u>Player Characters</u></b>' + btnAddAllPCs + '<br>' + btnPCs + '<br>';
-    toList = openReport + toList + closeReport;
+    toList += '<b><u>NPCs</u></b>' + btnAddAllNPCs + '<br>' + btnNPCs + '<br><b><u>Player Characters</u></b>' + btnAddAllPCs + '<br>' + btnPCs + '<br>';
+    toList = btns + openReport + toList + closeReport;
 
     // Footer links for the other handouts
-    toList += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('DM Dashboard Character Sheet', 'https://journal.roll20.net/handout/' + ho_TOCharSheet.get('_id')) + '  |  ';
-    let ho_GMNotes = getHandout('DM GMNotes');
-    toList += makeButton('DM Dashboard GMNotes Handount', 'https://journal.roll20.net/handout/' + ho_GMNotes.get('_id')) + '</div>';
+    toList += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('DM Dashboard Character Sheet', 'https://journal.roll20.net/handout/' + getHandout(toReportName).get('_id')) + '  |  ';
+    toList += makeButton('DM Dashboard GMNotes Handount', 'https://journal.roll20.net/handout/' + getHandout(gmNotesReportName).get('_id')) + '</div>';
 
     reportPerformance('Complete Report Build');
 
@@ -2955,30 +3347,58 @@ function torHandleMsg(msg_content){
 
     // Write out the results back to a handout.
     if (toList) {
-      ho_TOReport.get("notes", function(notes) {
-        setTimeout(()=>ho_TOReport.set("notes", toList),0);
-      });
+      addTextToHandout(toList, toReportName, 0)
     }
 
     if (charReport) {
-      charReport += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('Turnorder List', 'https://journal.roll20.net/handout/' + ho_TOReport.get('_id')) + '  |  ';
-      charReport += makeButton('Turnorder Log', 'https://journal.roll20.net/handout/' + getNoteLog().get('_id')) + '</div>';
-      ho_TOCharSheet.get("notes", function(notes) {
-        setTimeout(()=>ho_TOCharSheet.set("notes", charReport),0);
-      });
+      charReport += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('Turnorder Dashboard', 'https://journal.roll20.net/handout/' + getHandout(toReportName).get('_id')) + '  |  ';
+      // charReport += makeButton('Turnorder Log', 'https://journal.roll20.net/handout/' + getNoteLog().get('_id')) + '</div>';
+      addTextToHandout(charReport, CharSheetName, 0)
     }
 
     reportPerformance('RefreshReport End');
 
     return;
+    
   };
 
   startPeformanceCheck();
 
   // Load them at the start to improve performance in the 
   const tokenMarkers = JSON.parse(Campaign().get("token_markers"));
-  const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
+  //const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
+  //const closeChat= `<\div><\div>`;
+  const openReport = "<div style='color: #000; border: 1px solid #000; background-color: #EFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
+  const openReportx = `<div style='background-image: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url(https://i.imgur.com/8Mm94QY.png); background-size: 100% 100%; box-shadow: 0 0 3px #fff; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; color: black; font-family: serif; white-space: pre-wrap; line-height:1.2em; font-style:normal'>`;
+  const closeReport = '</div>';
+  const openHeader = "<div style='font-weight:bold; color:#fff; background-color:#404040; margin-right:3px; padding:3px;'>"
+  const closeHeader = `</div>`;
+  const openHeaderInfo = "<div style='font-style:italic; color:#fff; background-color:#404040; margin-right:3px; padding:3px; text-align:right;'>"
+  // const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
+
+  const openChat = `<div style="border-radius: 10px ; border: none ; background-color: ; overflow: hidden ; width: 100%"><div style = "border-radius: 10px ; border: 2px solid #000000 ; background-color:  #00000000; overflow: hidden ; margin: 0px 16px 16px 0px ; box-shadow: 5px 8px 8px #888888">`
+  const tblChatStyle = `width: 100% ; margin: 0 auto ; border-collapse: collapse ; font-size: 12px;`
+  const trhChatStyle = `border-bottom: 1px solid #000000 ; font-weight: bold ; line-height: 22px ; background-color: #521e10 ; color: #ffffff;`
+  const tdChatStyle = `padding: 4px ; min-width: 10px;`
+  const tdButtonAreaStyle = `padding: 8px ; min-width: 10px ; background-color: #ffebd6; text-align: right ; margin: 4px 4px 8px;`
+
   const closeChat= `<\div><\div>`;
+
+  const openBox = "<div style='margin-top: 40px;color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
+  const openMenuBox = "<div style='position:fixed; top:0px left:0px; height:30px; color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 2px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";    
+  const closeBox = '</div>';
+  const openScrollCharBox = `<div style='height:${state.DMDashboard.charBox_ScrollHeight}; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
+  const openScrollTOBox = `<div style='height:${state.DMDashboard.toBox_ScrollHeight}; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
+  const closeScrollBox = '</div>';
+  const sheetURL = 'http://journal.roll20.net/character/';
+  const profileURL = 'https://app.roll20.net/users/';
+  const handoutURL = 'https://app.roll20.net/handout';
+  const tableURL = `!&#10;/roll 1t[`;
+  const toReportName = 'DM Turnoder List'
+  const CharSheetName = 'DM Character Sheet'
+  const gmNotesReportName = 'DM GMNotes'
+  const debugLogName = 'DM Debug Log'
+
   let chatMsg = '';
 
   // Parse Args and Commands
@@ -2992,10 +3412,10 @@ function torHandleMsg(msg_content){
     commands.push('OPEN');
   }
 
-  myDebug(2, `MsgHandler: msg_content: ${msg_content}`)
-  myDebug(2, `MsgHandler: commands: ${commands}`)
+  myDebug(4, `MsgHandler: msg_content: ${msg_content}`)
+  myDebug(4, `MsgHandler: commands: ${commands}`)
   commands.forEach(c => {
-    myDebug(2, `MsgHandler: command: ${c}`);
+    myDebug(4, `MsgHandler: command: ${c}`);
   });
 
   commands[0] = commands[0].toUpperCase();
@@ -3041,12 +3461,12 @@ function torHandleMsg(msg_content){
       refreshReports();
       break;
     case 'TO-REMOVE':
-      to_Remove(commands[1]); // Assumes that the next the command is "!tor --to-Remove tid"
+      to_Remove(commands[1]); // Assumes that the next the command is "!DMDash --to-Remove tid"
       updateTurnOrderStartTime();
       refreshReports();
       break;
     case 'TO-REMOVECUSTOM':
-      to_RemoveCustom(commands[1]); // Assumes that the next the command is "!tor --to-RemoveCustom ndx"
+      to_RemoveCustom(commands[1]); // Assumes that the next the command is "!DMDash --to-RemoveCustom ndx"
       updateTurnOrderStartTime();
       refreshReports();
       break;
@@ -3138,23 +3558,81 @@ function torHandleMsg(msg_content){
       setHPBar(commands[1]);
       refreshReports();
       break;
+    case 'SBHEIGHT':
+      setSBHeights(commands[1], commands[2]);  // Character Box Height, Turnorder Box Height
+      refreshReports();
+      break;
     case 'OPEN':
       refreshReports();
-      chatMsg = `/w gm ${openChat}[Click to open DM Turnorder List handout](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
-      chatMsg += `<br>[Click to open Character Sheet handout](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`
-      chatMsg += `<br>[Click to open Turnorder Log handout](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})${closeChat}`
-      sendChat("DM Dashboard", chatMsg);
+      chatMsg = `<b>&nbsp;&nbsp;[DM Dashboard](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
+      chatMsg += `<br>&nbsp;&nbsp;[Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
+      chatMsg += `<br>&nbsp;&nbsp;[DM Notes](https://journal.roll20.net/handout/${getHandout('DM GMNotes').get('_id')})</b>`;      
+      chatMsg += `<br>&nbsp;&nbsp;[Turnorder Log](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})</b>`;      
+      // sendChat("DM Dashboard", chatMsg);
+      mySendChat(true, "DM Dashboard", chatMsg)
       break;
     case 'SHOW-HO-DIALOG':
       refreshReports();
-      chatMsg = `/w gm ${openChat}Click to open Dashboard handouts:<br>  [DM Turnorder List](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
-      chatMsg += `<br>  [Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
-      chatMsg += `<br>  [DM Notes](https://journal.roll20.net/handout/${getHandout('DM GMNotes').get('_id')})${closeChat}`;      
-      sendChat("DM Dashboard", chatMsg);
+      chatMsg = `<b>&nbsp;&nbsp;[DM Dashboard](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
+      chatMsg += `<br>&nbsp;&nbsp;[Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
+      chatMsg += `<br>&nbsp;&nbsp;[DM Notes](https://journal.roll20.net/handout/${getHandout('DM GMNotes').get('_id')})</b>`;      
+      chatMsg += `<br>&nbsp;&nbsp;[Turnorder Log](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})</b>`;      
+      // sendChat("DM Dashboard", chatMsg);
+      mySendChat(true, "DM Dashboard Handouts", chatMsg)
+
+    case 'FLUSHDATALOG':
+      flushDataLog();
+      break;
+
+    case 'DATALOGGING':
+      if (commands[1] == 0 || commands[1] == false || commands[1] == 'false' || commands[1] == 'off'){
+        state.DMDashboard.DataLogging = false;
+        mySendChat(true, "DM Dashboard", `Data Logging turned off`);
+      } else {
+        state.DMDashboard.DataLogging = true;
+        mySendChat(true, "DM Dashboard", `Data Logging turned on`);
+      }
+      break;
+
+    case 'NOTIFICATIONS':
+      if (commands[1] == 0 || commands[1] == false || commands[1] == 'false' || commands[1] == 'off'){
+        state.DMDashboard.TurnNotification = false;
+        mySendChat(true, "DM Dashboard", `Turn Notifications turned off`);
+      } else {
+        state.DMDashboard.TurnNotification = true;
+        mySendChat(true, "DM Dashboard", `Turn Notifications turned on`);
+      }
+      break;  
+
+    case 'DEBUG':
+        // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout(Currently has issue writing quickly to handout)
+        // 4; //0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
+      if (commands[1]) {
+        state.DMDashboard.Debug = commands[1];
+      }
+      if (commands[2]) {
+        state.DMDashboard.DebugLvl = commands[2];
+      }
+
+      mySendChat(true, "DM Dashboard", `Debugging set to ${commands[1]}.  Level set to ${commands[2]}.`);
+      break;
+    case 'HELP':
+      dmdash_Help();
+      break;
+    
+    case 'CONFIG':
+      dmdash_ConfigSettings();
+      break;
+
+    case 'PLAYERSTATS':
+      showPlayerStats(commands[1]);
+      break;
 
     default:
+      mySendChat(true, "DM Dashboard", `Command ${commands[0]} not recognized.`)
   }
 
-  reportPerformance('Function execution time');
+  reportPerformance('Function execution time'); 
 }
+
 {try{throw new Error('');}catch(e){API_Meta.DMDashboard.lineCount=(parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/,'$1'),10)-API_Meta.DMDashboard.offset);}}
