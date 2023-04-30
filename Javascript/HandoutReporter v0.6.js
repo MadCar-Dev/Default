@@ -9,14 +9,9 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 *************************************/
 // To get started, type !DMDash into the chat window to create your initial handouts
 
-// Bug
-// 1. Initiative tie breaker still has long 9999999999
-
 // Future Enhancements
-//  * Add saving throw to the character sheet
-//  * Leverage msgbox.html class in all my dialogs.
-//  * Add feature to dump current config settings (HPBar, Debug, DataLogging, ...)
-//  * Add feature to dump quick table of player stats to chat, with option to send to players
+//  * Leverage msgbox and html/css class in all my dialogs.
+//  * Add Adv/Dis/Normal and Whisper/Public flags? 
 //  * replace some of my other gmnotes/notes update fields with the new asyn method
 //  * Toggle through auras (GM/Player)
 //  * Dynamic Lighting Setup
@@ -26,7 +21,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.7';
+  const version = '0.6.8';
 
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
@@ -104,7 +99,7 @@ on('change:graphic:bar3_value', async () => {
 
 on('chat:message', async (msg_orig) => {
   let msg = _.clone(msg_orig);
-  if (!/^!DMDash/.test(msg.content)) {
+  if (!/^!DMDash/i.test(msg.content)) {
     return;
   }
   // log('HO Event: chat:message');
@@ -197,7 +192,6 @@ function DMDash_HandleMsg(msg_content){
   const defaultThemeColor2 = '#84c6a6';
   const defaultThemeColor3 = '#ffc286';
   const defaultThemeColor4 = '#fff1af';
-
   const defaultbgcolor = "#ce0f69";
 
   const defaultdivCSS = {
@@ -253,7 +247,6 @@ function DMDash_HandleMsg(msg_content){
       width: '100%',
       border: 'none'
   };
-
   const combineCSS = (origCSS = {}, ...assignCSS) => {
       return Object.assign({}, origCSS, assignCSS.reduce((m, v) => {
           return Object.assign(m, v || {});
@@ -268,7 +261,6 @@ function DMDash_HandleMsg(msg_content){
   const assembleCSS = (css) => {
       return `"${Object.keys(css).map((key) => { return `${key}:${css[key]};` }).join('')}"`;
   };
-
   // HTML =======================================
   const html = {
       div: (content, CSS) => `<div style=${assembleCSS(combineCSS(defaultdivCSS, (CSS || {})))}>${content}</div>`,
@@ -286,7 +278,6 @@ function DMDash_HandleMsg(msg_content){
       code: (content, CSS) => `<code style=${assembleCSS(combineCSS(defaultcodeCSS, (CSS || {})))}>${content}</code>`,
       a: (content, CSS, link) => `<a href="${link}" style=${assembleCSS(combineCSS(defaultaCSS, (CSS || {})))}>${content}</a>`
   };
-
   // HTML Escaping function
   const HE = (() => {
       const esRE = (s) => s.replace(/(\\|\/|\[|\]|\(|\)|\{|\}|\?|\+|\*|\||\.|\^|\$)/g, '\\$1');
@@ -306,7 +297,6 @@ function DMDash_HandleMsg(msg_content){
       const re = new RegExp(`(${Object.keys(entities).map(esRE).join('|')})`, 'g');
       return (s) => s.replace(re, (c) => (entities[c] || c));
   })();
-
   // MESSAGING ==================================
   const btnAPI = ({ api: api = "", label: btnlabel = "Run API", css: css = defaultButtonCSS } = {}) => {
       let btnCSS = confirmReadability(css);
@@ -314,7 +304,6 @@ function DMDash_HandleMsg(msg_content){
       //if(['t', 'true', 'y', 'yes', true].includes(r20style)) Object.assign(r20css, {padding: '5px', display: 'inline-block', border: '1px solid white;'});
       return html.a(btnlabel, btnCSS, HE(api));
   };
-
   const msgbox = ({
       msg: msg = "message",
       title: title = "DMDash Output",
@@ -335,7 +324,6 @@ function DMDash_HandleMsg(msg_content){
       if (whisperto) output = `/w "${whisperto}" ${output}`;
       sendChat(sendas, output);
   };
-
   function dmdash_ConfigSettings(){
     msgbox({
       msg: html.table(
@@ -360,7 +348,6 @@ function DMDash_HandleMsg(msg_content){
         whisperto: `GM`
     });
   }
-
   function dmdash_Help(){
     msgbox({
       msg: html.h2(`INTRODUCTION`) +
@@ -373,13 +360,14 @@ function DMDash_HandleMsg(msg_content){
               html.tr(html.td(`--dataloggin (0/1)`) + html.td(`Turs on/off data logging`)) +
               html.tr(html.td(`--hpbar (1/2/3)`) + html.td(`Sets the token bar (1, 2, or 3) to be used for HP display.`)) +
               html.tr(html.td(`--sbheight (CB Height) (TO Height)`) + html.td(`Sets the height of the Character Detail and Turnorder areas of the dashboard.`)) +
-              html.tr(html.td(`--playerstats`) + html.td(`Report player time statistics.`))
+              html.tr(html.td(`--playerstats`) + html.td(`Report player time statistics.`)) +
+              html.tr(html.td(`--clearcache`) + html.td(`Report player time statistics.`))
           ) +
           html.h2(`EXAMPLES`) +
           html.table(
-              html.tr(html.td2(`!dmdash --hpbar 3`, { 'font-weight': 'bold' })) +
+              html.tr(html.td2(`!DMDash --hpbar 3`, { 'font-weight': 'bold' })) +
               html.tr(html.td(`&nbsp;`) + html.td(`> Tells DM Dashboard to use bar3_value for tracking HP`, { 'font-style': 'italic' })) +
-              html.tr(html.td2(`!dmdash --dataloggin 1`, { 'font-weight': 'bold' })) +
+              html.tr(html.td2(`!DMDash --dataloggin 1`, { 'font-weight': 'bold' })) +
               html.tr(html.td(`&nbsp;`) + html.td(`> Turns on data logging to DM Turnorder Log handout`, { 'font-style': 'italic' })) 
           ),
       headercss: { 'background-color': defaultThemeColor1 },
@@ -388,7 +376,6 @@ function DMDash_HandleMsg(msg_content){
   });
 
   }
-
   function showPlayerStats(bShowPlayers){
 
     let pcs = findObjs({
@@ -429,7 +416,6 @@ function DMDash_HandleMsg(msg_content){
       });
     }
   }
-
   function flushDataLog(){
     if (state.DMDashboard.DataLog.length == 0 || state.DMDashboard.DataLogging == false) { 
       return; 
@@ -437,7 +423,6 @@ function DMDash_HandleMsg(msg_content){
     addTextToHandout(state.DMDashboard.DataLog, "DM Turnorder Log", 1);
     state.DMDashboard.DataLog = '';
   }
-
   function myDebug(lvl,txt){
   // giDebug: 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout (future)
   // giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
@@ -453,7 +438,6 @@ function DMDash_HandleMsg(msg_content){
       addTextToHandout(`${txt} lvl(${lvl}`, "DM Debug Log", 3) 
     }
   }
-
   // Debug routines to dump out map and object contents
   function dumpMapObject(map) {
     for (let [key, value] of map) {
@@ -468,7 +452,6 @@ function DMDash_HandleMsg(msg_content){
       }
     }
   }
-
   function interpolate(x, dataset) {
     if (x <= dataset[0][0]) {
       return dataset[0][1];
@@ -487,7 +470,6 @@ function DMDash_HandleMsg(msg_content){
       }
     }
   }
-
   function addTextToHandout(noteTxt, handoutName, mode){
     // mode - Determines how txt will be added to the handout
     //  0: Complete replacement
@@ -528,7 +510,6 @@ function DMDash_HandleMsg(msg_content){
       setTimeout(()=>ho.set("notes", newText),0);
     });
   }
-
   function createNoteLog() {
     const noteLog = createObj('handout',{
       name: 'DM Turnorder Log'
@@ -536,7 +517,6 @@ function DMDash_HandleMsg(msg_content){
     noteLog.set('notes', '<h3>Turnorder Log</h3>');
     return noteLog;
   };
-
   function getNoteLog() {
     const noteLog = filterObjs(function(o){
       return ( 'handout' === o.get('type') && 'DM Turnorder Log' === o.get('name') && false === o.get('archived'));
@@ -547,7 +527,6 @@ function DMDash_HandleMsg(msg_content){
     } 
     return createNoteLog();
   };
-
   function updateTurnOrderStartTime(){
     state.DMDashboard.LastDT1 = getSystemTimeInSecs();
     state.DMDashboard.LastUTCDate = GetSystemUTCDate();
@@ -653,7 +632,6 @@ function DMDash_HandleMsg(msg_content){
     } 
     return createNoteLog();
   };
-
   function GetSystemUTCDate() {
     let d = new Date();
     let utcDate = `${d.getUTCMonth().toString().padStart(2,'0')}/${d.getUTCDate().toString().padStart(2,'0')}/${d.getUTCFullYear()} ${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')}:${d.getUTCSeconds().toString().padStart(2,'0')}`;
@@ -784,7 +762,6 @@ function DMDash_HandleMsg(msg_content){
     // Build up the datalog over time, flush it to a handout (DM Turnorder Log)  when the Roll20 Turnorder is closed
     state.DMDashboard.DataLog += '<br>' + NewData;
   };
-
   function tokenToggleVisibility(tId){
     const token = getObj('graphic', tId);
     if (!token){
@@ -797,7 +774,6 @@ function DMDash_HandleMsg(msg_content){
       token.set('layer', 'objects');
     }
   }
-
   function tokenAdjHP(tId, adjHP){
     //If there is a '+'' or '-' in front of HP, will adjust hp
     //  Otherwise, it will set it.
@@ -818,7 +794,6 @@ function DMDash_HandleMsg(msg_content){
       token.set(`bar${state.DMDashboard.HPBar}_value`, hp);
     }
   }
-
   function tokenSetTooltip(tId, textToAdd){
     const token = getObj('graphic', tId);
     if (!token){
@@ -827,7 +802,6 @@ function DMDash_HandleMsg(msg_content){
     // log(`tokenSetTooltip: tId:${tId} Text:${textToAdd}`);
     token.set('tooltip', textToAdd);
   }
-  
   function tokenClearTooltip(tId){
     const token = getObj('graphic', tId);
     if (!token){
@@ -835,7 +809,6 @@ function DMDash_HandleMsg(msg_content){
     }
     token.set('tooltip', '');
   }
-
   function tokenToggleTooltip(tId){
     const token = getObj('graphic', tId);
     if (!token){
@@ -848,7 +821,6 @@ function DMDash_HandleMsg(msg_content){
       token.set('show_tooltip',true);
     }
   }
-
   function tokenToggleLock(tId){
     const token = getObj('graphic', tId);
     if (!token){
@@ -861,7 +833,6 @@ function DMDash_HandleMsg(msg_content){
       token.set('lockMovement',true);
     }
   }
-
   function tokenToggleNameplate(tId){
     const token = getObj('graphic', tId);
     if (!token){
@@ -873,8 +844,6 @@ function DMDash_HandleMsg(msg_content){
       token.set('showplayers_name',true);
     }
   }
-
-
   function toggleFriendFoe(tId){
 
     // foeMap (toObj[0].id, 
@@ -915,7 +884,6 @@ function DMDash_HandleMsg(msg_content){
       foeMap.set(tId, foeItem);
     }
   }
-
   function addTextToCharGMNote(characterId, text){
     const char = getObj('character', characterId);
     if (!char) {
@@ -932,7 +900,6 @@ function DMDash_HandleMsg(msg_content){
       }
     });
   }
-
   const addTextToTokenGMNote = async (tokenId, textToAdd) => {
     const token = getObj('graphic', tokenId);
 
@@ -958,7 +925,6 @@ function DMDash_HandleMsg(msg_content){
     });
     // log(`AddTextToTokenGMNote: tokenId:${tokenId} text:${textToAdd} currText:${currentNotes} newText:${updatedNotes}`)
   };
-
   const addTextToGMNote = async (textToAdd) => {
     const ho = getHandout('DM Turnoder List');
 
@@ -979,7 +945,6 @@ function DMDash_HandleMsg(msg_content){
     sendChat('API', `/w gm Tried to add "${textToAdd}" to gmnotes `);
 
   };
-
   function showGMNote(tId, flag) {
     //Flag - Determines what to return
     // 0: For NPC type, Token GM Note
@@ -1046,8 +1011,6 @@ function DMDash_HandleMsg(msg_content){
       });
     }
   }
-
-
   function showAvatar(tId, bTitle, bWhisper) {
     // bTitle, 0: No Title, 1: Title(In Template Box) 2: Just Image
     let msgPrefix = '';
@@ -1086,8 +1049,7 @@ function DMDash_HandleMsg(msg_content){
       }
     }
   }
-
-  const decodeUnicode = (str) => str.replace(/%u[0-9a-fA-F]{2,4}/g, (m) => String.fromCharCode(parseInt(m.slice(2), 16)));    
+  const decodeUnicode = (str) => str.replace(/%u[0-9a-fA-F]{2,4}/g, (m) => String.fromCharCode(parseInt(m.slice(2), 16)));  
 
   function showCharImage(toId, imageIndex, bTitle, bWhisper) {
     // imageIndex: -1 all images, 0+: image index
@@ -1175,8 +1137,6 @@ function DMDash_HandleMsg(msg_content){
       }
     }
   }
-
-
   function getTokenType(toId) {
     // Given a TurnOrderId 
     //  Returns UTILITY, CUSTOM, PC, NPC, or OTHER
@@ -1218,7 +1178,6 @@ function DMDash_HandleMsg(msg_content){
     // If we got all here - then this Turnorder Id is associated with a player controlled 
     return 'CHAR';
   };
-
   function getGMPlayerID() {
     const gmPlayers = findObjs({ _type: 'player' }).filter((player) => {
       return playerIsGM(player.get('_id'));
@@ -1230,14 +1189,12 @@ function DMDash_HandleMsg(msg_content){
       return null;
     }
   }
-
   function getAllPlayerIDsArray() {
     const players = findObjs({ _type: 'player' });
     const playerIds = players.map((player) => player.get('_id'));
 
     return playerIds;
   }
-
   function pingToken(tokenId, mode) {
     //when Mode is:
     //  mode=0; Private ping for GM Only
@@ -1263,7 +1220,6 @@ function DMDash_HandleMsg(msg_content){
       //log('Token not found');
     }
   }
-
   function to_MoveNext() {
     // First - Make sure the turnorder is populated
     var turnOrder = Campaign().get('turnorder');
@@ -1292,7 +1248,6 @@ function DMDash_HandleMsg(msg_content){
     turnOrder = JSON.stringify(turnOrder);
     Campaign().set('turnorder', turnOrder);
   }
-
   function to_MovePrev() {
     // First - Make sure the turnorder is populated
     var turnOrder = Campaign().get('turnorder');
@@ -1311,7 +1266,6 @@ function DMDash_HandleMsg(msg_content){
     turnOrder.unshift(last_turn);
     Campaign().set('turnorder', JSON.stringify(turnOrder));
   }
-
   function to_AddCustom(itemName, position, formula) {
     const turnorder = JSON.parse(Campaign().get('turnorder') || '[]');
     let newItem = [];
@@ -1335,7 +1289,6 @@ function DMDash_HandleMsg(msg_content){
     turnorder.unshift(newItem);
     Campaign().set('turnorder', JSON.stringify(turnorder));
   }
-
   function to_Sort() {
     let turnOrder = JSON.parse(Campaign().get('turnorder'));
     if (!turnOrder || turnOrder.length === 0) {
@@ -1351,7 +1304,6 @@ function DMDash_HandleMsg(msg_content){
     Campaign().set('turnorder', JSON.stringify(turnOrder));
     // sendChat('SortTurnOrder', '/w gm Turn order has been sorted by initiative.');
   }
-
   function to_SortWrapped() {
     let turnOrder = JSON.parse(Campaign().get('turnorder'));
 
@@ -1378,11 +1330,9 @@ function DMDash_HandleMsg(msg_content){
     }
     Campaign().set('turnorder', JSON.stringify(turnOrder));
   }
-
   function to_Clear() {
     Campaign().set('turnorder', '[]');
   }  
-
   function to_Remove(itemId){
     const turnOrder = JSON.parse(Campaign().get('turnorder'));
     if (!turnOrder || turnOrder.length === 0) {
@@ -1398,7 +1348,6 @@ function DMDash_HandleMsg(msg_content){
     Campaign().set('turnorder', JSON.stringify(turnOrder));
     // log(`to_Remove: Item with ID "${itemId}" has been removed from the turn order.`);
   }
-
   function to_RemoveCustom(ndx){
     const turnOrder = JSON.parse(Campaign().get('turnorder'));
     if (!turnOrder || turnOrder.length === 0) {
@@ -1413,7 +1362,6 @@ function DMDash_HandleMsg(msg_content){
     Campaign().set('turnorder', JSON.stringify(turnOrder));
     // log(`to_RemoveCustom: Item with Index Position of "${ndx}" has been removed from the turn order.`);
   }
-
   const getRepeatingSectionAttrs = function (charid, prefix) {
     // #### Not Used - Could be moved to my Library of functions ###
     // Input
@@ -1444,7 +1392,6 @@ function DMDash_HandleMsg(msg_content){
     const repRowIds = [...new Set(repOrder.filter(x => unorderedIds.includes(x)).concat(unorderedIds))];
     return [repRowIds, repeatingAttrs];
   }
-
   function makeMenuButton(name, link, minwidth) {
     // let buttonStyle = `background-color: red; color:yellow !important; font-weight:normal; border-radius: 1px; padding: 1px; margin: 1px 1px 1px 0px; display: inline-block`;  
     // let buttonStyle = `display: flex; flex-direction: column; align-items: center; padding: 6px 14px; font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif; border-radius: 6px; border: none; background: #6E6D70; box-shadow: 0px 0.5px 1px rgba(0, 0, 0, 0.1), inset 0px 0.5px 0.5px rgba(255, 255, 255, 0.5), 0px 0px 0px 0.5px rgba(0, 0, 0, 0.12); color: #DFDEDF; user-select: none; -webkit-user-select: none; touch-action: manipulation;`
@@ -1475,7 +1422,6 @@ function DMDash_HandleMsg(msg_content){
       return `<div style = '${buttonStyle}; ${minwidth}; display:inline-block !important'>${name}</div>`;
     }
   }
-
   function makeButton(name, link, minwidth) {
     //const buttonStyle = `background-color: #cccccc25; color: #521E10 !important; font-weight:bold; border-radius: 0px; padding: 0px; margin: 1px 1px 1px 0px; display: inline-block`;  
     const buttonStyle = `background-color: #00000000; color: #521E10 !important; font-weight:bold; border-radius: 0px; padding: 0px; margin: 1px 1px 1px 0px; display: inline-block`;      
@@ -1504,19 +1450,15 @@ function DMDash_HandleMsg(msg_content){
       return `<div style = '${buttonStyle}; ${minwidth}; display:inline-block !important'>${name}</div>`;
     }
   }
-
   function imgBorder(url){ // #### Not Used - Could be moved to my Library of functions ###
     return ((url.includes('marketplace')) ? 'border: 1px solid #000;; ' : 'border: 1px solid #aaa;');
   }
-
   function makeHelpButton(title, helpText) { // #### Not Used - Could be moved to my Library of functions ###
     return `<div style = 'float:right '><a style = 'color: red; display:inline-block; padding:0px; margin:0px; background-color:white; border-radius:8px;' href = '!survey --sendtext|${title}|${helpText}'>&nbsp;?&nbsp;</a></div>`
   }
-
   function makeBox(color, id, name) { // #### Not Used - Could be moved to my Library of functions ###
     return `<a href = '!survey --pcs ${id}' style= 'float: left; display:inline-block; height: 20px; width: 20px;  margin-top: 2px; margin-right: 2px; background-color:${color}; border: 1px solid black; clear: both; !important'</a>`;
   }
-
   function formatAsPercent(num) { // #### Not Used - Could be moved to my Library of functions ###
     return new Intl.NumberFormat('default', {
       style: 'percent',
@@ -1524,7 +1466,6 @@ function DMDash_HandleMsg(msg_content){
       maximumFractionDigits: 0,
     }).format(num / 100);
   }
-
   function resolveAttr(cid, attname) {
 
     // log('debug ra 1' + attname);
@@ -1541,7 +1482,6 @@ function DMDash_HandleMsg(msg_content){
     let att2 = { name: attobj.get('name'), current: attobj.get('current'), max: attobj.get('max') };
     return att2;
   }
-
   function getCharMainAtt2(cid2) { // #### Not Used - Could be moved to my Library of functions ###
     let tbl = '<table border=0><tr>';
     let z = '';
@@ -1559,7 +1499,6 @@ function DMDash_HandleMsg(msg_content){
     tbl += '</tr></table>';
     return z;
   }
-
   function changeAttributeValue(characterId, attributeName, newValue, maxValue) {
     // Get the attribute object
     let attribute = findObjs({
@@ -1591,7 +1530,6 @@ function DMDash_HandleMsg(msg_content){
       }
     }
   }
-
   function getCharacterByName(characterName) { // #### Not Used - Could be moved to my Library of functions ###
   // Find the character with the specified name
   let character = findObjs({
@@ -1602,7 +1540,6 @@ function DMDash_HandleMsg(msg_content){
   // Return the character object or null if not found
   return character || null;
   }
-
   function getSMImages(sm) {
     // Build an array of Token Status Marker images for later use
     let x = 0;
@@ -1630,14 +1567,12 @@ function DMDash_HandleMsg(msg_content){
     }
     return sm_Images; // Return the final string containing the img elements
   }
-
   function AddSign(v){
     if (v>0){
       v='+' + v;
     }
     return v;
   }
-
   function getHandout(handoutName) {
     let handout = findObjs({
         _type: 'handout',
@@ -1652,7 +1587,6 @@ function DMDash_HandleMsg(msg_content){
     }
     return handout;
   }
-
   const getAttrCountByChar = () => findObjs({ // #### Not Used - Could be moved to my Library of functions ###
     type: 'attribute'
     })
@@ -1661,7 +1595,6 @@ function DMDash_HandleMsg(msg_content){
         ...m,
         [o]: (m[o] || 0) + 1
     }), {});
-
   const getAbilityCountByChar = () => findObjs({ // #### Not Used - Could be moved to my Library of functions ###
     type: 'ability'
     })
@@ -1671,7 +1604,6 @@ function DMDash_HandleMsg(msg_content){
         [o]: (m[o] || 0) + 1
     }), {}
   );
-
   function getSystemTimeInSecs()
   {
     let d = new Date();
@@ -1682,13 +1614,11 @@ function DMDash_HandleMsg(msg_content){
     // log('Date Time: ' + d.getUTCDate() + ' '  + d.getUTCHours() + ':' + d.getUTCMinutes() + ':' + d.getUTCSeconds())
     return s;
   }
-
   function resetAttributeValue(attr, def) {
     findObjs({ _type: 'attribute', name: attr }).forEach((attr) => {
       attr.set('current', def);
     });
   }
-
   function ResetStats(){
 
     //Reset Player Stats
@@ -1702,7 +1632,6 @@ function DMDash_HandleMsg(msg_content){
     state.DMDashboard.DM_Count = 0;
     state.DMDashboard.DM_Avg = 0;
   }
-
   function randomInteger(min, max) {
     const randomDecimal = Math.random();
 
@@ -1712,7 +1641,6 @@ function DMDash_HandleMsg(msg_content){
     // Truncate the decimal part and return the resulting integer
     return Math.floor(scaledRandom);
   }
-
   function setHPBar(bar){
     if (bar < 1 || bar > 3) {
       sendChat('DM Dashboard', `/w gm Error setting HP Bar value to <b>${bar}</b>!`)
@@ -1720,7 +1648,6 @@ function DMDash_HandleMsg(msg_content){
     state.DMDashboard.HPBar = bar
     sendChat('DM Dashboard', `/w gm ${openChat}DM Dashboard is now using Bar <b>${bar}</b> for HP.${closeChat}`);                    
   }
-
   function mySendChat(whisper, title, message, links){
     let chatTxt = '';
 
@@ -1735,8 +1662,6 @@ function DMDash_HandleMsg(msg_content){
     chatTxt += `</table>${closeChat}`
     sendChat('DMDashboard', chatTxt);
   }
-
-
   function setSBHeights(charBoxHeight, toBoxHeight){
     if (charBoxHeight == 0 || toBoxHeight == 0) {
       charBoxHeight = '200px'
@@ -1745,23 +1670,19 @@ function DMDash_HandleMsg(msg_content){
     state.DMDashboard.charBox_ScrollHeight = charBoxHeight;
     state.DMDashboard.toBox_ScrollHeight = toBoxHeight;
   }
-
   function addTooltip(tt, item) {
     let newItem = `<div style="display:inline;" title="${tt}">${item}</div>`
     return newItem;
   }
-
   function startPeformanceCheck(){
     gStartTime = new Date().getTime();
     // log('Starting Performance Test');
   }
-
   function reportPerformance(msg){
     let gEndTime = new Date().getTime();
     let runTime = gEndTime - gStartTime;
     // log(`${msg} execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`);
   }
-
   function replaceDynamicSpanElement(source, spanId, item){
     const regexPattern = `(<span id=${spanId}>)(.*?)(</span>)`;
     const regexFlags = 'gi';
@@ -1771,7 +1692,6 @@ function DMDash_HandleMsg(msg_content){
     //log(`replaceDynamicSpanElement: source:${source}`);
     return newSource;
   }
-
   function CR_to_CharLvl(cr, bSpellcaster){
     // Basedon on some math I found online
     //  Spellcaster level x 2/3 = CR
@@ -1789,7 +1709,6 @@ function DMDash_HandleMsg(msg_content){
     }
     return lvl;
   }
-
   function CharLvl_to_CR(lvl, bSpellcaster){
     // Basedon on some math I found online
     //  Spellcaster level x 2/3 = CR
@@ -1802,7 +1721,6 @@ function DMDash_HandleMsg(msg_content){
     }
     return cr;
   }
-  
   function CR_to_XP(cr){
     const tblCR2XP =  [[0,0],[0.125,25],[0.25,50],[0.5,100],[1,200],[2,450],[3,700],[4,1100],[5,1800],[6,2300],[7,2900],[8,3900],[9,5000],[10,5900],[11,7200],[12,8400],[13,10000],[14,11500],[15,13000],[16,15000],[17,18000],[18,20000],[19,22000],[20,25000],[21,33000],[22,41000],[23,50000],[24,62000],[25,75000],[26,90000],[27,105000],[28,120000],[29,135000],[30,155000]];
     if (cr == '1/8'){cr = Number(0.125)}
@@ -1812,7 +1730,6 @@ function DMDash_HandleMsg(msg_content){
     let xp = Math.round(interpolate(cr, tblCR2XP));
     return xp;
   }
-
   function addInitiative(tokenIds) {
     //tokenIds will be a comma-delimited list of tokenids
     const aryTokenIds = tokenIds.split(',');
@@ -1873,7 +1790,30 @@ function DMDash_HandleMsg(msg_content){
     Campaign().set("turnorder", JSON.stringify(turnOrder));
     
   }
- 
+  function buildTraitOutput(charName, traitName, traitSource, traitDescription) {
+    // Roll Template: @{Thorin|wtype}&{template:traits} @{Thorin|charname_output} {{name=Fighting Style: Interception}} {{source=Class: Paladin}} {{description=When a creature you...}}
+    //let traitOutput = `!${htmlCR}${htmlAt}{${charName}|wtype${htmlRBrace}`
+
+    // the Question Mark (?) is the key to getting the browser to accept this link
+    let traitOutput = `!${htmlCR}/w GM ?@{${charName}|wtype${htmlRBrace}`
+    traitOutput += `&amp;{template:traits${htmlRBrace}`
+    traitOutput += `@{${charName}|charname_output${htmlRBrace}`
+    traitOutput += `{{name=${traitName}${htmlRBrace}${htmlRBrace}` 
+    if (traitSource && traitSource.length>0) {  //NPCs generally don't have sources
+      traitOutput += `{{source=${traitSource}${htmlRBrace}${htmlRBrace}`
+    }
+    traitDescription = HE(traitDescription)
+    traitOutput += `{{description=${traitDescription}${htmlRBrace}${htmlRBrace}`;
+    myDebug(4, traitOutput)
+    return traitOutput;
+  }
+
+  function buildRollOutput(){
+    // let rollOutput = `!${htmlCR}?${htmlAt}${htmlRBrace}${toChar.get('name')}|wtype${htmlRBrace}&amp;${htmlLBrace}template:npc${htmlRBrace}&nbsp;${htmlAt}{${toChar.get('name')}|npc_name_flag}&nbsp;${htmlAt}${htmlLBrace}${toChar.get('name')}|rtype${htmlRBrace}+[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{r1=[[@{${toChar.get('name')}|d20}+[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{mod=[[[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{rname=${mySkill}&#125;&#125; {{type=Skill&#125;    let myRoll = `!&#13;?&#64;{${toChar.get('name')}|wtype}&amp;&#123;template:npc&#125;&nbsp;&#64;{${toChar.get('name')}|npc_name_flag}&nbsp;&#64;{${toChar.get('name')}|rtype&#125;+[[@{${toChar.get('name')}|npc_${mySkill}}]]]]${htmlRBrace}${htmlRBrace} ${htmlLBrace}${htmlLBrace}r1=[[${htmlAt}${htmlLBrace}${toChar.get('name')}|d20${htmlRBrace}+[[${htmlRAt}${htmlLBrace}${toChar.get('name')}|npc_${mySkill}${htmlRBrace}]]]]${htmlRBrace}${htmlRBrace} ${htmlLBrace}${htmlLBrace}mod=[[[[${htmlAt}${htmlLBrace}${toChar.get('name')}|npc_${mySkill}${htmlRBrace}]]]]${htmlRBrace}${htmlRBrace} ${htmlRbrace}${htmlLBrace}${htmlLBrace}rname=${mySkill}${htmlRBrace}${htmlRBrace} ${htmlLBrace}${htmlLBrace}type=Skill${htmlRBrace}${htmlRBrace}
+
+    return rollOutput;
+  }
+
   function LoadEncounterRating() {
     // As described in: https://www.dndbeyond.com/sources/dmg/creating-adventures#CreatingaCombatEncounter
 
@@ -1900,19 +1840,16 @@ function DMDash_HandleMsg(msg_content){
     mapXPThresholdsByCharLevel.set(20, {level: 20, easy:2800, medium:5700, hard:8500, deadly:12700})
     return mapXPThresholdsByCharLevel;
 
+  
+  
   }
+
 
   // ****************************
   // *** Refresh Reports Function ***  
   // ****************************
-
   function refreshReports() {
-
-    // log('refreshReports: Start ');
-
     // **** Variable Declarations  ****
-
-
     let lines = '';
     let rows = [];
     let urlCount = 0;
@@ -1991,11 +1928,6 @@ function DMDash_HandleMsg(msg_content){
     let charDetail_CSPage = '';
     let charHeader = '';
     let charHeader_CSPage='';
-    let charDetail_col1 = '';
-    let charDetail_col2 = '';
-    let charDetail_col3 = '';
-    let charDetail_col4 = '';
-    let charDetail_col5 = '';
 
     // **** Load Objects and Arrays of Objects ****
     //let ho_TOReport = getHandout('DM Turnoder List');
@@ -2034,30 +1966,31 @@ function DMDash_HandleMsg(msg_content){
     // PR, TokenName/Custom, HP/HPMax, AC, PP, Attributes, Speed, Senses, Tooltip, Status
     let cmdRefresh = '&#13;!DMDash --TOReport';
     let btnRefresh = makeMenuButton('REFRESH!', '!DMDash --TOReport');
-    let btnExp = '   ' + makeButton('[+] Expand Current Character Details', '!DMDash --TOReport expand');
-    let btnCps = '   ' + makeButton('[-] Collapse Current Character Details', '!DMDash --TOReport collapse');
+    let btnExp = '   ' + makeButton(emojiPlus + 'Expand Current Character Details', '!DMDash --TOReport expand');
+    let btnCps = '   ' + makeButton(emojiMinus + 'Collapse Current Character Details', '!DMDash --TOReport collapse');
 
     let btnPrev = makeMenuButton('Prev',`!DMDash --TO-Prev`);
     let btnNext = makeMenuButton('Next',`!DMDash --TO-Next`);
-    let btnSort = makeButton('Sort',`!DMDash --TO-Sort`);
-    let btnSortWrapped = makeButton('Sort-Wrap',`!DMDash --TO-SortWrapped`);
-    let btnClear = makeButton('Clear',`!DMDash --TO-Clear`);
+    let btnSort = makeMenuButton('Sort',`!DMDash --TO-Sort`);
+    let btnSortWrapped = makeMenuButton('Sort-Wrap',`!DMDash --TO-SortWrapped`);
+    let btnClear = makeMenuButton('Clear',`!DMDash --TO-Clear`);
 
     let btnRound = makeButton('Round', `!DMDash --TO-AddRound`);
     let btnCounter = makeButton('Counter', `!DMDash --TO-AddCountdown ?{Counter direction|Count Down,-1|Count Up,+1} ?{Counter starting position|10} "?{Counter Name|}"`);
     let btnCustom = makeButton('Custom', `!DMDash --TO-AddCustom ?{Custom turnorder position|10} "?{Custom turnorder Name|}"`);
-    let btnResetStats = makeButton('Reset-Stats', `!DMDash --ResetStats`);
-    let btnPlayerStats = makeButton('Player-Stats', `!DMDash --PlayerStats`);
+    let btnResetStats = makeButton('Reset Stats', `!DMDash --ResetStats`);
+    let btnPlayerStats = makeButton('Player Stats', `!DMDash --PlayerStats`);
     let btnAddNote = makeButton('GMNote', `!DMDash --AddGMNote "?{Session GM Note?|}"`)
 
-    let btnD20 = makeButton('D20', `!&#13;/roll d20 `) + makeButton('-w', `!&#13;/gmroll d20 `);
-    let btnAdv = makeButton('Adv', `!&#13;/roll 2d20kh1 `) + makeButton('-w', `!&#13;/gmroll 2d20kh1 `);
-    let btnDis = makeButton('Dis', `!&#13;/roll 2d20kl1 `) + makeButton('-w', `!&#13;/gmroll 2d20kl1 `);
-    let btnD4 = makeButton('D4', `!&#13;/roll d4 `) + makeButton('-w', `!&#13;/gmroll d4 `);
-    let btnD6 = makeButton('D6', `!&#13;/roll d6 `) + makeButton('-w', `!&#13;/gmroll d6 `);
-    let btnD8 = makeButton('D8', `!&#13;/roll d8 `) + makeButton('-w', `!&#13;/gmroll d8 `);
-    let btnD10 = makeButton('D10', `!&#13;/roll d10 `) + makeButton('-w', `!&#13;/gmroll d10 `);
-    let btnD12 = makeButton('D12', `!&#13;/roll d12 `) + makeButton('-w', `!&#13;/gmroll d12 `);
+    let btnD20 = makeButton('D20', `!${htmlCR}/roll d20 `) + makeButton('-w', `!${htmlCR}/gmroll d20 `);
+    let btnAdv = makeButton('Adv', `!${htmlCR}/roll 2d20kh1 `) + makeButton('-w', `!${htmlCR}/gmroll 2d20kh1 `);
+    let btnDis = makeButton('Dis', `!${htmlCR}/roll 2d20kl1 `) + makeButton('-w', `!${htmlCR}/gmroll 2d20kl1 `);
+    let btnD4 = makeButton('D4', `!${htmlCR}/roll d4 `) + makeButton('-w', `!${htmlCR}/gmroll d4 `);
+    let btnD6 = makeButton('D6', `!${htmlCR}/roll d6 `) + makeButton('-w', `!${htmlCR}/gmroll d6 `);
+    let btnD8 = makeButton('D8', `!${htmlCR}/roll d8 `) + makeButton('-w', `!${htmlCR}/gmroll d8 `);
+    let btnD10 = makeButton('D10', `!${htmlCR}/roll d10 `) + makeButton('-w', `!${htmlCR}/gmroll d10 `);
+    let btnD12 = makeButton('D12', `!${htmlCR}/roll d12 `) + makeButton('-w', `!${htmlCR}/gmroll d12 `);
+    let btnSaves ='';
 
     // Look at building logic to dynamically add macros from a Mule, based on a prefix of DMR-
     // let btn1 = makeButton('[Player Macros*]', '!&#13;&#37;{Mule|Player-Macros}', 105);
@@ -2201,7 +2134,6 @@ function DMDash_HandleMsg(msg_content){
       // Build the Detailed NPC or Character section if expanded 
       // *************************************************************
 
-
       charDetail = '';
   
       tType = getTokenType(toObj[0].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
@@ -2217,7 +2149,6 @@ function DMDash_HandleMsg(msg_content){
           charDetail = '';
           
           break;
-
         case 'CUSTOM':
           charHeader = `<table style='border: 0; border-collapse:collapse; font-weight:normal; color:#fff; background-color:#404040; padding: 0; margin: 0 auto;'>`
           charHeader +=   `<tr><td style='vertical-align: middle; text-align: center; padding: 0; border:0'>Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}]</td>`
@@ -2227,7 +2158,6 @@ function DMDash_HandleMsg(msg_content){
           charHeader_CSPage = charHeader;
           charDetail = '';
           break;
-
         case 'CHAR':
         case 'NPC-CHARSHEET':
           // log('TOReport: PC');                                    
@@ -2283,11 +2213,17 @@ function DMDash_HandleMsg(msg_content){
           }
 
           //Row1 - Column 1-5: Basic Info
-          charDetail += '<table><thead><tr><th' + th.slice(0,-1) + ';width:15%">Attributes</th><th' + th.slice(0,-1) + ';width:15%">Stats</th><th' + th.slice(0,-1) + ';width:20%">Skills</th><th' + th.slice(0,-1) + ';width:12%">Attacks</th><th' + th.slice(0,-1) + ';width:13%">Traits</th><th' + th.slice(0,-1) + ';width:25%">Spells/Resources</th></tr></thead><tbody>';
+          charDetail += `<table><thead><tr>`
+          charDetail += `<th${th.slice(0,-1)}width:15%">Attributes</th>`
+          charDetail += `<th${th.slice(0,-1)}width:15%">Stats</th>`
+          charDetail += `<th${th.slice(0,-1)}width:25%">Skills</th>`
+          charDetail += `<th${th.slice(0,-1)}width:12%">Attacks</th>`
+          charDetail += `<th${th.slice(0,-1)}width:13%">Traits</th>`
+          charDetail += `<th${th.slice(0,-1)}width:20%">Spells/Resources</th>`
+          charDetail += `</tr></thead><tbody>`;
 
           // Send a "Next Turn" message to the game chat, if this is being refreshed for that purpose
           // log('Advance? ' + cmd_advance);
-          
           if (cmd_advance == 1 && state.DMDashboard.TurnNotification == true){
             // sendChat('Turn Order', `${openChat}<table><tr><td>${tknImg}</td><td><b>${toToken.get('name')} is up!</b><br> ATPT: ${TO_Avg} Secs / Last turn: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')})</td></tr></table> ${closeChat}`);
             mySendChat(false, 'Turn Order', `${tknImg}<b>${toToken.get('name')} is up!</b>  <i>ATPT: ${TO_Avg} Secs / Last turn: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`)
@@ -2296,12 +2232,37 @@ function DMDash_HandleMsg(msg_content){
           //Row2 - Column 1: Basic Info
           charDetail += '<tr><td' + tdpc + '>' // 1 Row Table incapsalating columns of info
           charDetail += '<table>'; // Table for Column 1
-          charDetail += '<tr><td' + tdpc + '><b>Str:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'strength','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'strength_save_bonus','current')) + '</td></tr>';
-          charDetail += '<tr><td' + tdpc + '><b>Dex:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'dexterity','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_save_bonus','current')) + '</td></tr>';
-          charDetail += '<tr><td' + tdpc + '><b>Con:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'constitution','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'constitution_save_bonus','current')) + '</td></tr>';
-          charDetail += '<tr><td' + tdpc + '><b>Wis:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'wisdom','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td><td ' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_save_bonus','current')) + '</td></tr>';
-          charDetail += '<tr><td' + tdpc + '><b>Int:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'intelligence','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_save_bonus','current')) + '</td></tr>';
-          charDetail += '<tr><td' + tdpc + '><b>Cha:</b></td><td' + tdpc + '>' + getAttrByName(toChar.get('_id'),'charisma','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td><td' + tdpc + '>sv:' + AddSign(getAttrByName(toChar.get('_id'),'charisma_save_bonus','current')) + '</td></tr>';
+          
+          charDetail += '<tr><td' + tdpc + '><b>Str:</b></td><td' + tdpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'strength','current')
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) + ')</td><td' + tdpc + '>' 
+          charDetail += addTooltip('Strength Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'strength_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|strength_save_roll}')) + '</td></tr>';
+
+          charDetail += '<tr><td' + tdpc + '><b>Dex:</b></td><td' + tdpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'dexterity','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td><td' + tdpc + '>' 
+          charDetail += addTooltip('Dexterity Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|dexterity_save_roll}')) + '</td></tr>';
+          
+          charDetail += '<tr><td' + tdpc + '><b>Con:</b></td><td' + tdpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'constitution','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td><td' + tdpc + '>' 
+          charDetail += addTooltip('Constitution Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'constitution_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|constitution_save_roll}')) + '</td></tr>';
+          
+          charDetail += '<tr><td' + tdpc + '><b>Wis:</b></td><td' + tdpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'wisdom','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td><td' + tdpc + '>' 
+          charDetail += addTooltip('Wisdom Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|wisdom_save_roll}')) + '</td></tr>';
+
+          charDetail += '<tr><td' + tdpc + '><b>Int:</b></td><td' + tdpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'intelligence','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td><td' + tdpc + '>' 
+          charDetail += addTooltip('Intelligence Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|intelligence_save_roll}')) + '</td></tr>';
+
+          charDetail += '<tr><td' + tdpc + '><b>Cha:</b></td><td' + tdpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'charisma','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td><td' + tdpc + '>' 
+          charDetail += addTooltip('Charisma Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'charisma_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|charisma_save_roll}')) + '</td></tr>';
+
           charDetail += '</table>'
           charDetail += '<table>'; // Table for Bonds/Flaws/...
           charDetail += '<tr><td' + tdpc + '><b>Personality Traits</b></td></tr>'
@@ -2374,7 +2335,7 @@ function DMDash_HandleMsg(msg_content){
               let skill = resolveAttr(toChar.get('_id'), mySkill + '_bonus');
               let skill_value = skill.current;
               let skill_name = mySkill;
-              charDetail += '<tr><td' + tdpc + '><b>' + makeButton(skill_name,`!&#13;&#64;{${toChar.get('name')}|${mySkill}_roll}`)+ ':</b>' + AddSign(skill_value) + '</td></tr>';
+              charDetail += '<tr><td' + tdpc + '><b>' + makeButton(skill_name,`!${htmlCR}${htmlAt}{${toChar.get('name')}|${mySkill}_roll}`)+ ':</b>' + AddSign(skill_value) + '</td></tr>';
               if (mySkill == 'investigation'){
                   charDetail += '</table></td><td' + tdpc + '><table>';
               }
@@ -2400,7 +2361,7 @@ function DMDash_HandleMsg(msg_content){
 
             repeatingField = row.get('name').slice(0,-8);
             let repeatingAction = repeatingField + '_attack';
-            repeatingAction = makeButton(row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 125);
+            repeatingAction = makeButton(row.get('current'), `!${htmlCR}${htmlPct}{${toChar.get('_id')}|${repeatingAction}}`, 125);
             charDetail += '<tr><td' + tdpc + '>' + repeatingAction + '</td></tr>';
           }
 
@@ -2420,9 +2381,12 @@ function DMDash_HandleMsg(msg_content){
           for (let rowId in repeatingValues) {
             row = repeatingValues[rowId];
             repeatingField=row.get('name').slice(0,-5);
-            let repeatingDesc = getAttrByName(toChar.get('_id'),repeatingField + '_description','current')
-            let ttdiv = `<div class="showtip" title="${repeatingDesc}">`
-            charDetail += '<tr><td' + tdpc + '><b>' + ttdiv + row.get('current') + '</div></b></td></tr>';
+            let repeatingDesc = decodeUnicode(getAttrByName(toChar.get('_id'),repeatingField + '_description','current'))
+            let traitSource = getAttrByName(toChar.get('_id'),repeatingField + '_source','current') + ': ' + getAttrByName(toChar.get('_id'),repeatingField + '_source_type','current')
+            let rtRoll = makeButton(row.get('current'), buildTraitOutput(toChar.get('name'), row.get('current'), traitSource, repeatingDesc));
+            let ttDiv = addTooltip(repeatingDesc, rtRoll)
+
+            charDetail += '<tr><td' + tdpc + '>' + ttDiv + '</td></tr>';
           }
           charDetail += '</table></td>';
           charDetail += '<td' + tdpc + '><table>';
@@ -2461,13 +2425,12 @@ function DMDash_HandleMsg(msg_content){
                 let spellInnate = getAttrByName(toChar.get('_id'),`${repeatingField}_innate`,'current');
                 if (spellInnate.length > 2) { spellInnate = '<i>(' + spellInnate + ')</i>'; } else {spellInnate = ''; }
 
-                // repeatingAction = makeButton('🧙', `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 10);
-                repeatingAction = '<div style="border: 1px solid #dcdcdc; padding: 1px; display: inline-block;">' + makeButton(row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
+                repeatingAction = '<div style="border: 1px solid #dcdcdc; padding: 1px; display: inline-block;">' + makeButton(row.get('current'), `!${htmlCR}${htmlAt}{${toChar.get('_id')}|${repeatingAction}}`);
 
                 // let spellLink = 'https://www.dndbeyond.com/spells/' + row.get('current').replace('/ /g', "-")
                 let spellLink = 'https://app.roll20.net/compendium/dnd5e/Spells:'+encodeURIComponent(row.get('current'))+'#content'
                 // log(`spellLink: ${row.get('current')} ${spellLink}`)                                
-                spellLink = makeButton('🔗', spellLink, 15)
+                spellLink = makeButton(emojiLink, spellLink, 15)
 
                 // Build a spell description field here (Range, Action, Target, Duration, Con, Desc)
                 if (spell_lvl != 'cantrip') {
@@ -2544,7 +2507,6 @@ function DMDash_HandleMsg(msg_content){
           charMap.set(toObj[0].id, {id: toObj[0].id, charId: toChar.get('id'), txt: charDetail});
 
           break;
-
         case 'NPC':
           // log('TOReport: NPC');                                    
 
@@ -2584,18 +2546,54 @@ function DMDash_HandleMsg(msg_content){
               break;
           }
 
-          //Row1 - Column 1-5: Basic Info
-          charDetail += `<table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;"><thead><tr><th${th}>Attributes</th><th${th}>Stats</th><th${th}>Info</th><th${th}>Traits/Actions</th><th${th}>Spells</th></tr></thead><tbody>`;
+          //Row1 - Header Column
+          charDetail += `<table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;">`
+          charDetail += `<thead><tr><th${th.slice(0,-1)}width:15%">Attributes</th>`
+          charDetail += `<th${th.slice(0,-1)}width:20%">Stats</th>`
+          charDetail += `<th${th.slice(0,-1)}width:20%">Info</th>`
+          charDetail += `<th${th.slice(0,-1)}width:20%">Traits/Actions</th>`
+          charDetail += `<th${th.slice(0,-1)}width:40%">Spells</th></tr></thead><tbody>`;
 
           //Row2 - Column 1: Basic Info
           charDetail += '<tr><td' + tdnpc + '>'
           charDetail += `<table style="border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;">`;
-          charDetail += '<tr><td' + tdnpc + '><b>Str:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'strength','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) +')</td></tr>';
-          charDetail += '<tr><td' + tdnpc + '><b>Dex:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'dexterity','current')  + '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td></tr>';
-          charDetail += '<tr><td' + tdnpc + '><b>Con:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'constitution','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td></tr>';
-          charDetail += '<tr><td' + tdnpc + '><b>Wis:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'wisdom','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td></tr>';
-          charDetail += '<tr><td' + tdnpc + '><b>Int:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'intelligence','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td></tr>';
-          charDetail += '<tr><td' + tdnpc + '><b>Cha:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'charisma','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td></tr>';
+          
+          charDetail += '<tr><td' + tdnpc + '><b>Str:</b></td><td' + tdnpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'strength','current')
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) + ')</td><td' + tdnpc + '>' 
+          charDetail += addTooltip('Strength Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'strength_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|strength_save_roll}')) + '</td></tr>';
+
+          charDetail += '<tr><td' + tdnpc + '><b>Dex:</b></td><td' + tdnpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'dexterity','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td><td' + tdnpc + '>' 
+          charDetail += addTooltip('Dexterity Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|dexterity_save_roll}')) + '</td></tr>';
+          
+          charDetail += '<tr><td' + tdnpc + '><b>Con:</b></td><td' + tdnpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'constitution','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td><td' + tdnpc + '>' 
+          charDetail += addTooltip('Constitution Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'constitution_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|constitution_save_roll}')) + '</td></tr>';
+          
+          charDetail += '<tr><td' + tdnpc + '><b>Wis:</b></td><td' + tdnpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'wisdom','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td><td' + tdnpc + '>' 
+          charDetail += addTooltip('Wisdom Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|wisdom_save_roll}')) + '</td></tr>';
+
+          charDetail += '<tr><td' + tdnpc + '><b>Int:</b></td><td' + tdnpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'intelligence','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td><td' + tdnpc + '>' 
+          charDetail += addTooltip('Intelligence Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|intelligence_save_roll}')) + '</td></tr>';
+
+          charDetail += '<tr><td' + tdnpc + '><b>Cha:</b></td><td' + tdnpc + '>' 
+          charDetail += getAttrByName(toChar.get('_id'),'charisma','current') 
+          charDetail += '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td><td' + tdnpc + '>' 
+          charDetail += addTooltip('Charisma Saving Throw', makeButton('sv:' + AddSign(getAttrByName(toChar.get('_id'),'charisma_save_bonus','current')),`!${htmlCR}${htmlAt}{` + toChar.get('name') + '|charisma_save_roll}')) + '</td></tr>';
+
+          // charDetail += '<tr><td' + tdnpc + '><b>Str:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'strength','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'strength_mod','current')) +')</td></tr>';
+          // charDetail += '<tr><td' + tdnpc + '><b>Dex:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'dexterity','current')  + '(' + AddSign(getAttrByName(toChar.get('_id'),'dexterity_mod','current')) +')</td></tr>';
+          // charDetail += '<tr><td' + tdnpc + '><b>Con:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'constitution','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'constitution_mod','current')) +')</td></tr>';
+          // charDetail += '<tr><td' + tdnpc + '><b>Wis:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'wisdom','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'wisdom_mod','current')) +')</td></tr>';
+          // charDetail += '<tr><td' + tdnpc + '><b>Int:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'intelligence','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'intelligence_mod','current')) +')</td></tr>';
+          // charDetail += '<tr><td' + tdnpc + '><b>Cha:</b></td><td' + tdnpc + '>' + getAttrByName(toChar.get('_id'),'charisma','current') + '(' + AddSign(getAttrByName(toChar.get('_id'),'charisma_mod','current')) +')</td></tr>';
           charDetail += '</table></td>'
 
           // Basics
@@ -2619,7 +2617,7 @@ function DMDash_HandleMsg(msg_content){
             let skill = resolveAttr(toChar.get('_id'), 'npc_' + mySkill + '_base');
             let skill_value = skill.current;
             if (skill_value != 0) {
-              let myRoll = `!&#13;?&#64;{${toChar.get('name')}|wtype}&amp;&#123;template:npc&#125;&nbsp;&#64;{${toChar.get('name')}|npc_name_flag}&nbsp;&#64;{Noble|rtype&#125;+[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{r1=[[@{${toChar.get('name')}|d20}+[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{mod=[[[[@{${toChar.get('name')}|npc_${mySkill}}]]]]&#125;&#125; {{rname=${mySkill}&#125;&#125; {{type=Skill&#125;&#125;`
+              let myRoll = `!${htmlCR}${htmlAt}${htmlRBrace}${toChar.get('name')}|wtype${htmlRBrace}&amp;${htmlLBrace}template:npc${htmlRBrace}&nbsp;${htmlAt}${htmlLBrace}${toChar.get('name')}|npc_name_flag}&nbsp;${htmlAt}${htmlLBrace}${toChar.get('name')}|rtype${htmlRBrace}+[[${htmlAt}{${toChar.get('name')}|npc_${mySkill}}]]]]${htmlRBrace}${htmlRBrace} ${htmlLBrace}${htmlLBrace}r1=[[@${htmlLBrace}${toChar.get('name')}|d20${htmlRBrace}+[[@${htmlLBrace}${toChar.get('name')}|npc_${mySkill}}]]]]${htmlRBrace}${htmlRBrace} ${htmlLBrace}${htmlLBrace}mod=[[[[@{${toChar.get('name')}|npc_${mySkill}}]]]]${htmlRBrace}${htmlRBrace} ${htmlLBrace}${htmlLBrace}rname=${mySkill}${htmlRBrace}${htmlRBrace} ${htmlLBrace}${htmlLBrace}type=Skill${htmlRBrace}${htmlRBrace}`
               charDetail += makeButton(mySkill, myRoll) + ' ' + skill_value + ', ';
             }
           });
@@ -2651,8 +2649,10 @@ function DMDash_HandleMsg(msg_content){
 
             repeatingField=row.get('name').slice(0,-5);
             let repeatingDesc = getAttrByName(toChar.get('_id'),repeatingField + '_description','current')
-            let ttdiv = `<div class="showtip" title="${repeatingDesc}">`
-            charDetail += '<tr><td' + tdnpc + '>' + ttdiv + 'T: ' + row.get('current') + '</div></td></tr>';
+            let traitSource = toChar.get('name')
+            let rtRoll = makeButton('T: '+ row.get('current'), buildTraitOutput(toChar.get('name'), row.get('current'), traitSource, repeatingDesc));
+            let ttDiv = addTooltip(repeatingDesc, rtRoll)
+            charDetail += '<tr><td' + tdnpc + '>'+ ttDiv + '</td></tr>';
           }
 
           // ******* Actions *******
@@ -2703,9 +2703,15 @@ function DMDash_HandleMsg(msg_content){
           for (let rowId in repeatingValues) {
             row = repeatingValues[rowId];
             repeatingField=row.get('name').slice(0,-5);
-            let repeatingAction = repeatingField + '_npc_action';
-            repeatingAction = makeButton('RA: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
-            charDetail += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';
+            //let repeatingAction = repeatingField + '_npc_action';
+            //repeatingAction = makeButton('RA: ' + row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
+            //charDetail += '<tr><td' + tdnpc + '>' + repeatingAction + '</td></tr>';            
+            let repeatingDesc = getAttrByName(toChar.get('_id'),repeatingField + '_description','current')
+            let traitSource = toChar.get('name')
+            let rtRoll = makeButton('RA: '+ row.get('current'), buildTraitOutput(toChar.get('name'), row.get('current'), traitSource, repeatingDesc));
+            let ttDiv = addTooltip(repeatingDesc, rtRoll)
+            charDetail += '<tr><td' + tdnpc + '>'+ ttDiv + '</td></tr>';
+
           }
 
           // Legendary Actions
@@ -2746,14 +2752,12 @@ function DMDash_HandleMsg(msg_content){
                 row = repeatingValues[rowId];
                 repeatingField=row.get('name').slice(0,-10);
                 let repeatingAction = repeatingField + '_spell';
-                // repeatingAction = makeButton('🧙', `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`, 10);
-                repeatingAction = '<div style="border: 1px solid #dcdcdc; padding: 1px; display: inline-block;">' + makeButton(row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
 
+                repeatingAction = '<div style="border: 1px solid #dcdcdc; padding: 1px; display: inline-block;">' + makeButton(row.get('current'), `!&#13;&#37;{${toChar.get('_id')}|${repeatingAction}}`);
                 // let spellLink = 'https://www.dndbeyond.com/spells/' + row.get('current').replace(/ /g, "-")
                 let spellLink = 'https://app.roll20.net/compendium/dnd5e/Spells:'+encodeURIComponent(row.get('current'))+'#content'
-                // log(`spellLink: ${row.get('current')} ${spellLink}`)
 
-                spellLink = makeButton('🔗', spellLink, 15)
+                spellLink = makeButton(emojiLink, spellLink, 15)
 
                 let spellInnate = getAttrByName(toChar.get('_id'),`${repeatingField}_innate`,'current');
                 if (spellInnate.length > 2) { spellInnate = '<i>(' + spellInnate + ')</i>'; } else {spellInnate = ''; }
@@ -2768,7 +2772,7 @@ function DMDash_HandleMsg(msg_content){
           });
           charDetail += '</table></td></tr></table>';
 
-          myDebug(4, charDetail);
+          // myDebug(4, charDetail);
 
           charMap.set(toObj[0].id, {id: toObj[0].id, charId: toChar.get('id'), txt: charDetail})
 
@@ -2785,9 +2789,7 @@ function DMDash_HandleMsg(msg_content){
     } else {
       toList = charHeader + btnExp;                    
     }
-
     charReport = openReport + charHeader_CSPage + charDetail_CSPage + closeReport;
-
     reportPerformance('Complete Character Detail');
 
     // Header row for the turnorder list
@@ -2839,26 +2841,26 @@ function DMDash_HandleMsg(msg_content){
 
             // Col 3 (Functions: Remove Item, Toggle Token between GM/Obj Layer)
             toList +=  '<td ' + tdcustom + '>' 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Remove Item from TurnOrder", makeButton('❌',`!DMDash --TO-Remove ${toObj[i].id}`)) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Remove Item from TurnOrder", makeButton(emojiClear,`!DMDash --TO-Remove ${toObj[i].id}`)) + '</span>';
             if(toToken.get('layer') == 'objects'){
-              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Invisible", makeButton('😑', '!DMDash --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>';
+              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Invisible", makeButton(emojiShow, '!DMDash --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>';
              } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Visible", makeButton('🫥', '!DMDash --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>'; 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Make Token Visible", makeButton(emojiHide, '!DMDash --TokenToggleVisabity ' + toToken.get('_id')))+ '</span>'; 
             }
 
             if(toToken.get('lockMovement')){
-              toList += '<span style="font-size: 16px">'+ addTooltip("Unlock Token Movement", makeButton('🔐', '!DMDash --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Unlock Token Movement", makeButton(emojiLock, '!DMDash --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
             } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Lock Token Movement", makeButton('🔓', '!DMDash --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
+              toList += '<span style="font-size: 16px">'+ addTooltip("Lock Token Movement", makeButton(emojiUnlock, '!DMDash --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
             }
             if (toToken.get('showplayers_name')){
-              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate for Players", makeButton('📛', '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
+              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate for Players", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
             } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate for Players", makeButton('📛', '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate for Players", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
             }
 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('👤', '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('🖼', '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiAvatar, '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiImages, '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
 
             toList+='</td>'
 
@@ -2886,18 +2888,17 @@ function DMDash_HandleMsg(msg_content){
             // Col 10 (Tooltips)
             tt = toToken.get('tooltip');
             toList += '<td ' + tdbase + '>' 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('🎯', `!DMDash --PingToken-All ${toToken.get('_id')}`))+ '</span>';
-            toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton('🖊', `!DMDash --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`))+ '</span>' 
-            toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton('❌', '!DMDash --TokenClearTooltip ' + toToken.get('_id')))+ '</span>'
+            toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('\u{1F3AF}', `!DMDash --PingToken-All ${toToken.get('_id')}`))+ '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton(emojiEdit, `!DMDash --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`))+ '</span>' 
+            // toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton(emojiClear, '!DMDash --TokenClearTooltip ' + toToken.get('_id')))+ '</span>'
 
             if(toToken.get('show_tooltip')){
-              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton('😑', '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
+              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton(emojiHide, '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
               toList += '<b>' + tt + '</b></td>';               
             } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip",makeButton('🫥', '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
+              toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip",makeButton(emojiShow, '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+ '</span>'
               toList += '<i>' + tt + '</i></td>'; 
             }
-
           }
           break;
 
@@ -2932,10 +2933,12 @@ function DMDash_HandleMsg(msg_content){
               edPartyCount = edPartyCount + 1;
               edCharLevel = foeItem.Level;
               let xpThresholdItem = mapXPThresholds.get(edCharLevel)
-              edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
-              edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
-              edHard = Number(edHard) + Number(xpThresholdItem.hard)
-              edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
+              if (Object(xpThresholdItem.keys).length !== 0) {
+                edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
+                edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
+                edHard = Number(edHard) + Number(xpThresholdItem.hard)
+                edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
+              }
 
             } else if (foeItem.State == 'FOE'){
               //Foe
@@ -2958,14 +2961,16 @@ function DMDash_HandleMsg(msg_content){
               edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
               edPartyCount = edPartyCount + 1;
               let xpThresholdItem = mapXPThresholds.get(edCharLevel)
-              edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
-              edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
-              edHard = Number(edHard) + Number(xpThresholdItem.hard)
-              edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
-              edCR = CharLvl_to_CR(edCharLevel, edSpellCasterLvl)
-              edNPCExp = CR_to_XP(edCR)
-              foeMap.set(toObj[i].id, {id: toObj[i].id, charId: toChar.get('id'), Type: 'CHAR', State:'FRIEND', Level: edCharLevel, SpellCasterLvl: edSpellCasterLvl, Exp: edNPCExp});
-              foeItem = foeMap.get(toObj[i].id);
+              if (Object(xpThresholdItem.keys).length !== 0) {
+                edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
+                edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
+                edHard = Number(edHard) + Number(xpThresholdItem.hard)
+                edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
+                edCR = CharLvl_to_CR(edCharLevel, edSpellCasterLvl)
+                edNPCExp = CR_to_XP(edCR)
+                foeMap.set(toObj[i].id, {id: toObj[i].id, charId: toChar.get('id'), Type: 'CHAR', State:'FRIEND', Level: edCharLevel, SpellCasterLvl: edSpellCasterLvl, Exp: edNPCExp});
+                foeItem = foeMap.get(toObj[i].id);
+              }
               
             } else {
               
@@ -3029,52 +3034,52 @@ function DMDash_HandleMsg(msg_content){
 
           // Col 3 (Commands)
           toList += '<td ' + tdbase + '>';
-          //toList += '<span style="font-size: 16px;>' + addTooltip("Ping Me - Show All Players", makeButton('🎯', `!DMDash --PingToken-All ${toToken.get('_id')}`));
-          toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton('🎯', `!DMDash --PingToken-All ${toToken.get('_id')}`)) + '</span>';
-          toList += '<span style="font-size: 16px">'+ addTooltip("Remove Token from Turnorder", makeButton('❌',`!DMDash --TO-Remove ${toObj[i].id}`)) + '</span>';
+          //toList += '<span style="font-size: 16px;>' + addTooltip("Ping Me - Show All Players", makeButton(emojiPing, `!DMDash --PingToken-All ${toToken.get('_id')}`));
+          toList += '<span style="font-size: 16px">'+ addTooltip("Ping Me - Show All Players", makeButton(emojiPing, `!DMDash --PingToken-All ${toToken.get('_id')}`)) + '</span>';
+          toList += '<span style="font-size: 16px">'+ addTooltip("Remove Token from Turnorder", makeButton(emojiClear,`!DMDash --TO-Remove ${toObj[i].id}`)) + '</span>';
 
           if(toToken.get('layer') == 'objects'){
-            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Token on Map", makeButton('😑', '!DMDash --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';  
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Token on Map", makeButton(emojiShow, '!DMDash --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';  
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Unhide Token on Map", makeButton('🫥', '!DMDash --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unhide Token on Map", makeButton(emojiHide, '!DMDash --TokenToggleVisabity ' + toToken.get('_id'))) + '</span>';
           }
 
-          toList +=  '<span style="font-size: 16px">'+ addTooltip("Open Character Sheet", makeButton('📑', 'https://journal.roll20.net/character/' + toToken.get('represents'))) + '</span>';
-          toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton('📓', '!DMDash --showGMNote ' + toToken.get('_id'))) + '</span>';
+          toList +=  '<span style="font-size: 16px">'+ addTooltip("Open Character Sheet", makeButton(emojiDocument, 'https://journal.roll20.net/character/' + toToken.get('represents'))) + '</span>';
+          toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton(emojiNote, '!DMDash --showGMNote ' + toToken.get('_id'))) + '</span>';
 
 
           if (isnpc) {
             //tmp = toToken.get('gmnotes');
-            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Token Note', makeButton('🖊', '!DMDash --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"')) + '</span>';  
+            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Token Note', makeButton(emojiEdit, '!DMDash --AddTokenGMNote ' + toToken.get('_id') + ' "?{Token GM Note?|}"')) + '</span>';  
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Character Note', makeButton('🖊', '!DMDash --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"')) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip('Add a Character Note', makeButton(emojiEdit, '!DMDash --AddCharGMNote ' + toToken.get('represents') + ' "?{Character GM Note?|}"')) + '</span>';
           }
 
           //log('LockMovement' + toToken.get('lockMovement'))
           if(toToken.get('lockMovement')){
-            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton('🔐', '!DMDash --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton(emojiLock, '!DMDash --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton('🔓', '!DMDash --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
+            toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton(emojiUnlock, '!DMDash --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
           }
 
           if (toToken.get('showplayers_name')){
             //toList += addTooltip("Hide Nameplate for Players", makeButton('📛', '!DMDash --TokenNameplate ' + toToken.get('_id'))) ;
-            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate to Players", makeButton('📛', '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate to Players", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate to Players", makeButton('📛', '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))  + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate to Players", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))  + '</span>';
           }
-          toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton('👤', '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
-          toList += '<span style="font-size: 16px">'+ addTooltip("Show Images", makeButton('🖼', '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
+          toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiAvatar, '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
+          toList += '<span style="font-size: 16px">'+ addTooltip("Show Images", makeButton(emojiImages, '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
 
           // myDebug(4, `foe-Buttons: ${foeItem.State}`)
           // dumpMapObject(foeMap);
 
           if (foeItem.State == 'FRIEND') {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Friend) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('😇', '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Friend) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiFriend, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
           } else if (foeItem.State == 'FOE') {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Foe) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('😡', '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Foe) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiFoe, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Neutral) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton('💩', '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Neutral) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiNeutral, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
           }
 
           toList += '</td>';
@@ -3132,7 +3137,7 @@ function DMDash_HandleMsg(msg_content){
           // Col 9 (Senses)
           toList += '<td ' + tdbase + '><table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse;"><tr style="border: 0px; padding: 0;><td ' + tdbase + '>' + senses + '</td>'; //Senses
 
-          let btnSaves = makeButton('Str', `!&#13;&#64;{${toChar.get('name')}|strength_save_roll}`) + ' '
+          btnSaves = makeButton('Str', `!&#13;&#64;{${toChar.get('name')}|strength_save_roll}`) + ' '
           btnSaves += makeButton('Dex', `!&#13;&#64;{${toChar.get('name')}|dexterity_save_roll}`) + ' '
           btnSaves += makeButton('Con', `!&#13;&#64;{${toChar.get('name')}|constitution_save_roll}`) + ' '
           btnSaves += makeButton('Wis', `!&#13;&#64;{${toChar.get('name')}|wisdom_save_roll}`) + ' '
@@ -3146,14 +3151,14 @@ function DMDash_HandleMsg(msg_content){
           // Col 10 (Tooltips)
           tt = toToken.get('tooltip');
           toList += '<td ' + tdbase + '>';
-          toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton('🖊', `!DMDash --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) +'</span>'
-          toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton('❌', '!DMDash --TokenClearTooltip ' + toToken.get('_id')) )+'</span>'
+          toList += '<span style="font-size: 16px">'+ addTooltip("Edit Tooltip", makeButton(emojiEdit, `!DMDash --TokenSetTooltip ${toToken.get('_id')} "?{Edit Tooltip|${tt}}"`)) +'</span>'
+          // toList += '<span style="font-size: 16px">'+ addTooltip("Clear Tooltip", makeButton(emojiClear, '!DMDash --TokenClearTooltip ' + toToken.get('_id')) )+'</span>'
 
           if(toToken.get('show_tooltip')){
-            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton('😑', '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Tooltip", makeButton(emojiShow, '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
             toList += '<b>' + tt + '</b></td>'; 
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip", makeButton('🫥', '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Tooltip", makeButton(emojiHide, '!DMDash --TokenToggleTooltip ' + toToken.get('_id')))+'</span>'
             toList += '<i>' + tt + '</i></td>'; 
           }
 
@@ -3269,6 +3274,26 @@ function DMDash_HandleMsg(msg_content){
       edColor = '#d54f4f';
     }
 
+    let htmlTbl = [];
+    htmlTbl.push(`<table style="border-collapse: collapse; padding: 0; border: 0; margin: 0 auto;">`)
+    htmlTbl.push(`<tr><th style="background-color: ${edColor}; color: black;padding: 0px; border: 0px; text-align: center" colspan=8>Encounter ${edDifficulty} <i>(Total Encounter Experience: ${edEncounterExp})</i></th></tr>`)
+    htmlTbl.push(`<tr><td style="padding: 0px; border: 0px; text-align: center">Easy</td>`)
+    htmlTbl.push(`<td style="padding: 0px; border: 0px; text-align: center">Medium</td>`)
+    htmlTbl.push(`<td style="padding: 0px; border: 0px; text-align: center">Hard</td>`)
+    htmlTbl.push(`<td style="padding: 0px; border: 0px; text-align: center">Deadly</td>`)
+    htmlTbl.push(`<td style="padding: 0px; border: 0px; text-align: center">Party #</td>`)
+    htmlTbl.push(`<td style="padding: 0px; border: 0px; text-align: center">Foe #</td>`)
+    htmlTbl.push(`<td style="padding: 0px; border: 0px; text-align: center">Mult</td>`)
+    htmlTbl.push(`<td style="padding: 0px; border: 0px; text-align: center">Exp Total</td></tr>`)
+    htmlTbl.push(`<tr><td style="padding: 0px; border: 0px; text-align: center">${edEasy}</td>`)
+    htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edMedium}</td>`)
+    htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edHard}</td>`) 
+    htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edDeadly}</td>`)
+    htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edPartyCount}</td>`)
+    htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edFoeCount} </td>`)
+    htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edDiffMult}</td>`)
+    htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edNPCExpTotal}</td></tr></table>`) //Σ NPC Exp: 
+
     let edTbl = `<table style="border-collapse: collapse; padding: 0; border: 0; margin: 0 auto;">`
     edTbl +=  `<tr><th style="background-color: ${edColor}; color: black;padding: 0px; border: 0px; text-align: center" colspan=8>Encounter ${edDifficulty} <i>(Total Encounter Experience: ${edEncounterExp})</i></th></tr>`
     edTbl +=  `<tr><td style="padding: 0px; border: 0px; text-align: center">Easy</td>`
@@ -3287,6 +3312,8 @@ function DMDash_HandleMsg(msg_content){
     edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edFoeCount} </td>`
     edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edDiffMult}</td>`
     edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edNPCExpTotal}</td></tr></table>` //Σ NPC Exp: 
+
+    edTbl = htmlTbl.join('');
 
     //replaceDynamicSpanElement(toList,"encdiff",edDifficulty);
     toList = toList.replace('<span id=EncDiff>1</span>', edTbl);
@@ -3313,10 +3340,10 @@ function DMDash_HandleMsg(msg_content){
           let tImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${t.get('imgsrc')}'</img>`;
           let btn_ping = makeButton(tImg, `!DMDash --PingToken-GM ${t.id}`);
           if (tType == 'NPC') {
-            btnNPCs += btn_ping + t.get('name') + makeButton(' [+] ', `!DMDash --Initiative ${t.get('_id')}`);
+            btnNPCs += btn_ping + t.get('name') + makeButton(emojiPlus, `!DMDash --Initiative ${t.get('_id')}`);
             btnAddAllNPCs += t.get('_id') + ',';
           } else {
-            btnPCs += btn_ping + t.get('name') + makeButton(' [+] ', `!DMDash --Initiative ${t.get('_id')}`);
+            btnPCs += btn_ping + t.get('name') + makeButton(emojiPlus, `!DMDash --Initiative ${t.get('_id')}`);
             btnAddAllPCs += t.get('_id') + ',';
           }
         }
@@ -3325,11 +3352,11 @@ function DMDash_HandleMsg(msg_content){
 
     btnAddAllNPCs = btnAddAllNPCs.replace(/,([^,]*)$/, '$1'); // Remove last comma
     btnAddAllNPCs = '!DMDash --Initiative ' + btnAddAllNPCs;
-    btnAddAllNPCs = makeButton(' [+] ', btnAddAllNPCs ,20) + '  ';
+    btnAddAllNPCs = makeButton(emojiPlus, btnAddAllNPCs ,20) + '  ';
 
     btnAddAllPCs = btnAddAllPCs.replace(/,([^,]*)$/, '$1');
     btnAddAllPCs = '!DMDash --Initiative ' + btnAddAllPCs;
-    btnAddAllPCs = makeButton(' [+] ', btnAddAllPCs ,20) + '  ';
+    btnAddAllPCs = makeButton(emojiPlus, btnAddAllPCs ,20) + '  ';
 
     toList += '<b><u>NPCs</u></b>' + btnAddAllNPCs + '<br>' + btnNPCs + '<br><b><u>Player Characters</u></b>' + btnAddAllPCs + '<br>' + btnPCs + '<br>';
     toList = btns + openReport + toList + closeReport;
@@ -3355,34 +3382,34 @@ function DMDash_HandleMsg(msg_content){
       // charReport += makeButton('Turnorder Log', 'https://journal.roll20.net/handout/' + getNoteLog().get('_id')) + '</div>';
       addTextToHandout(charReport, CharSheetName, 0)
     }
-
     reportPerformance('RefreshReport End');
-
     return;
-    
   };
 
   startPeformanceCheck();
 
   // Load them at the start to improve performance in the 
+  // HTML Codes
+  const htmlCR = '&#13;'
+  const htmlRBrace = '&#125;'
+  const htmlLBrace = '&#123;'
+  const htmlPct = '&#37;'
+  const htmlAt = '&#64;'
+  
   const tokenMarkers = JSON.parse(Campaign().get("token_markers"));
-  //const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
-  //const closeChat= `<\div><\div>`;
   const openReport = "<div style='color: #000; border: 1px solid #000; background-color: #EFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
   const openReportx = `<div style='background-image: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.5)), url(https://i.imgur.com/8Mm94QY.png); background-size: 100% 100%; box-shadow: 0 0 3px #fff; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; color: black; font-family: serif; white-space: pre-wrap; line-height:1.2em; font-style:normal'>`;
   const closeReport = '</div>';
   const openHeader = "<div style='font-weight:bold; color:#fff; background-color:#404040; margin-right:3px; padding:3px;'>"
   const closeHeader = `</div>`;
   const openHeaderInfo = "<div style='font-style:italic; color:#fff; background-color:#404040; margin-right:3px; padding:3px; text-align:right;'>"
-  // const openChat= `<div style="padding:1px 3px;border: 1px solid #8B4513;background: #eeffee; color: #8B4513; font-size: 80%;"><div style="background-color: #ffeeee;">`;
 
   const openChat = `<div style="border-radius: 10px ; border: none ; background-color: ; overflow: hidden ; width: 100%"><div style = "border-radius: 10px ; border: 2px solid #000000 ; background-color:  #00000000; overflow: hidden ; margin: 0px 16px 16px 0px ; box-shadow: 5px 8px 8px #888888">`
+  const closeChat= `<\div><\div>`;
   const tblChatStyle = `width: 100% ; margin: 0 auto ; border-collapse: collapse ; font-size: 12px;`
   const trhChatStyle = `border-bottom: 1px solid #000000 ; font-weight: bold ; line-height: 22px ; background-color: #521e10 ; color: #ffffff;`
   const tdChatStyle = `padding: 4px ; min-width: 10px;`
   const tdButtonAreaStyle = `padding: 8px ; min-width: 10px ; background-color: #ffebd6; text-align: right ; margin: 4px 4px 8px;`
-
-  const closeChat= `<\div><\div>`;
 
   const openBox = "<div style='margin-top: 40px;color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
   const openMenuBox = "<div style='position:fixed; top:0px left:0px; height:30px; color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 2px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";    
@@ -3398,6 +3425,26 @@ function DMDash_HandleMsg(msg_content){
   const CharSheetName = 'DM Character Sheet'
   const gmNotesReportName = 'DM GMNotes'
   const debugLogName = 'DM Debug Log'
+  let Exp_ndx = '';
+
+  const emojiClear = '\u{274C}' // ❌
+  const emojiLink = '\u{1F517}' // 🔗
+  const emojiHide = '\u{1F47B}' // 👻 🫥
+  const emojiShow = '\u{1F611}' // 😑
+  const emojiPing = '\u{1F3AF}' // 🎯
+  const emojiDocument = '\u{1F4D1}' // 📑
+  const emojiNote = '\u{1F4D3}' // 📓
+  const emojiEdit = '\u{1F58A}' // 🖊
+  const emojiLock = '\u{1F512}' // 🔒
+  const emojiUnlock = '\u{1F513}' // 🔓
+  const emojiNameplate = '\u{1F4DB}' // 📛
+  const emojiAvatar = '\u{1F464}' // 👤
+  const emojiImages = '\u{1F5BC}' //🖼
+  const emojiFriend = '\u{1F607}' //😇
+  const emojiFoe = '\u{1F621}' // 😡
+  const emojiNeutral = '\u{1F4A9}' //💩
+  const emojiPlus = '\u{2795}' // ➕
+  const emojiMinus = '\u{2796}' // ➖
 
   let chatMsg = '';
 
@@ -3544,7 +3591,7 @@ function DMDash_HandleMsg(msg_content){
       break;
     case 'TOREPORT':
       // *** Process subcommands like 'expand' and 'collapse' ***
-      let Exp_ndx = msg_content.indexOf('expand');
+      Exp_ndx = msg_content.indexOf('expand');
       if(Exp_ndx>0){
         state.DMDashboard.DetailExpand = 1;
       }
@@ -3604,6 +3651,12 @@ function DMDash_HandleMsg(msg_content){
       }
       break;  
 
+    case 'CLEARCACHE':
+      charMap.clear();
+      mySendChat(true, "DM Dashboard", `Cache cleared`);
+      refreshReports();
+      break;
+
     case 'DEBUG':
         // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout(Currently has issue writing quickly to handout)
         // 4; //0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
@@ -3613,7 +3666,6 @@ function DMDash_HandleMsg(msg_content){
       if (commands[2]) {
         state.DMDashboard.DebugLvl = commands[2];
       }
-
       mySendChat(true, "DM Dashboard", `Debugging set to ${commands[1]}.  Level set to ${commands[2]}.`);
       break;
     case 'HELP':
