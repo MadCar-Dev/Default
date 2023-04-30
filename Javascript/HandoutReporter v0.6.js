@@ -2932,6 +2932,8 @@ function DMDash_HandleMsg(msg_content){
               myDebug(2, `foe2: (foeItem Exists and is Friend) ${toToken.get('name')}`)
               edPartyCount = edPartyCount + 1;
               edCharLevel = foeItem.Level;
+              if (edCharLevel > 20) {edCharLevel = 20;}
+              if (edCharLevel < 1) {edCharLevel = 1;}
               let xpThresholdItem = mapXPThresholds.get(edCharLevel)
               if (Object(xpThresholdItem.keys).length !== 0) {
                 edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
@@ -2957,9 +2959,11 @@ function DMDash_HandleMsg(msg_content){
               // Load CHAR into foe map, do the NPC Calcs now too
               myDebug(2, `foe5: (New Char to be added) ${toToken.get('name')}`)
 
+              edPartyCount = edPartyCount + 1;
               edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level');
               edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
-              edPartyCount = edPartyCount + 1;
+              if (edCharLevel > 20) {edCharLevel = 20;}
+              if (edCharLevel < 1) {edCharLevel = 1;}
               let xpThresholdItem = mapXPThresholds.get(edCharLevel)
               if (Object(xpThresholdItem.keys).length !== 0) {
                 edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
