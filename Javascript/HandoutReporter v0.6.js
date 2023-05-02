@@ -20,7 +20,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.9';
+  const version = '0.6.10';
 
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
@@ -69,9 +69,6 @@ on('ready', () => {
   if (!state.DMDashboard.NotesRpt_Tier1MenuSelected) { state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Tokens';}
   if (!state.DMDashboard.NotesRpt_Tier2MenuSelected) { state.DMDashboard.NotesRpt_Tier2MenuSelected = 'TokenNotes';}
   if (!state.DMDashboard.NotesRpt_Filter) { state.DMDashboard.NotesRpt_Filter = '';}
-
-  state.DMDashboard.Debug = 1
-  state.DMDashboard.DebugLvl = 4
 
   debounced_DMDash_HandleMsg('!DMDash --TOReport')   
   debounced_DMDash_HandleMsg('!DMNotes --Build')   
@@ -213,23 +210,26 @@ function DMDash_HandleMsg(msg_content){
   const defaultbgcolor = "#ce0f69";
 
   const defaultdivCSS = {
-      "border-radius": `10px`,
-      "border": `2px solid #000000`,
+      "border-radius": `2px`,
+      "border": `1px solid #000000`,
       "background-color": '#00000000',
       "overflow": `hidden`
   };
   const defaulttableCSS = {
-      width: '100%',
-      margin: '0 auto',
+      'width' : '100%',
+      'margin' : '0 auto',
       "border-collapse": 'collapse',
       "font-size": '12px',
   };
+  const defaultimgCSS = {};
   const defaultpCSS = {};
   const defaultaCSS = {};
   const defaulth1CSS = {};
   const defaulth2CSS = {};
-  const defaulth3CSS = {};
-  const defaulth4CSS = {};
+  const defaulth3CSS = {
+    'color': '#521E10'};
+  const defaulth4CSS = {
+      'color': '#521E10'};
   const defaulth5CSS = {};
   const defaultthCSS = {
       "border-bottom": `1px solid #000000`,
@@ -239,7 +239,7 @@ function DMDash_HandleMsg(msg_content){
   };
   const defaulttrCSS = {};
   const defaulttdCSS = {
-      padding: '4px',
+      'padding' : '4px',
       'min-width': '10px'
   };
   const defaultcodeCSS = {};
@@ -304,12 +304,45 @@ function DMDash_HandleMsg(msg_content){
 
   const shadoweddivCSS = {
       'margin': '0px 16px 16px 0px',
+      'padding': '5px 5px',
       'box-shadow': '5px 8px 8px #888888'
   };
   const boundingdivCSS = {
-      width: '100%',
-      border: 'none'
+      'width' : '100%',
+      'border' : 'dashed 0px'
   };
+  const imgDivContainer = {
+    'width': '50%', // Make the image width responsive to the container's width
+    'height': 'auto', // Maintain the image's aspect ratio
+    'overflow': 'hidden' // Hide any part of the image that goes beyond the container boundaries
+  };
+  const img1CSS = {
+    'border' : '1px solid black',
+  }
+
+  const divC1 = {
+    'flex' : '0 0 25%',
+    'max-width' : '25%'
+  }
+
+  const divC2 = {
+    'flex' : '0 0 75%',
+    'max-width' : '75%'
+  }
+
+  const divC3 = {
+    'display' : 'flex',
+    'flex-direction' : 'row',
+    'align-items' : 'center'
+  }
+
+  const divScrollBoxCSS = {
+    'height' : '80vh',
+    'overflow-y' : 'scroll',
+    'border' : '1px solid black',
+    'padding' : '5px',
+    'display' : 'block'    
+  }
   const combineCSS = (origCSS = {}, ...assignCSS) => {
       return Object.assign({}, origCSS, assignCSS.reduce((m, v) => {
           return Object.assign(m, v || {});
@@ -339,8 +372,9 @@ function DMDash_HandleMsg(msg_content){
       td: (content, CSS) => `<td style=${assembleCSS(combineCSS(defaulttdCSS, (CSS || {})))}>${content}</td>`,
       td2: (content, CSS) => `<td colspan="2" style=${assembleCSS(combineCSS(defaulttdCSS, (CSS || {})))}>${content}</td>`,
       code: (content, CSS) => `<code style=${assembleCSS(combineCSS(defaultcodeCSS, (CSS || {})))}>${content}</code>`,
-      a: (content, CSS, link) => `<a href="${link}" style=${assembleCSS(combineCSS(defaultaCSS, (CSS || {})))}>${content}</a>`
-  };
+      a: (content, CSS, link) => `<a href="${link}" style=${assembleCSS(combineCSS(defaultaCSS, (CSS || {})))}>${content}</a>`,
+      img:(content, CSS, link, title, width, height) => `<img src="${link}" style=${assembleCSS(combineCSS(defaultimgCSS, (CSS || {})))} alt="${content} width="${width}" height="${height}" title="${title}">`
+  }
   // HTML Escaping function
   const HE = (() => {
       const esRE = (s) => s.replace(/(\\|\/|\[|\]|\(|\)|\{|\}|\?|\+|\*|\||\.|\^|\$)/g, '\\$1');
@@ -1478,7 +1512,7 @@ function DMDash_HandleMsg(msg_content){
     let buttonStyle = `background-color: #521E10; border: 1px; color: white; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
 
     if (selected == true || selected == 1){
-      myDebug(3, `Button ${name} selected`);
+      myDebug(4, `Button ${name} selected`);
       buttonStyle = `background-color: #FFAD00; border: 1px; color: black; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
     }
 
@@ -1534,9 +1568,6 @@ function DMDash_HandleMsg(msg_content){
     } else {
       return `<div style = '${buttonStyle}; ${minwidth}; display:inline-block !important'>${name}</div>`;
     }
-  }
-  function imgBorder(url){ // #### Not Used - Could be moved to my Library of functions ###
-    return ((url.includes('marketplace')) ? 'border: 1px solid #000;; ' : 'border: 1px solid #aaa;');
   }
   function makeHelpButton(title, helpText) { // #### Not Used - Could be moved to my Library of functions ###
     return `<div style = 'float:right '><a style = 'color: red; display:inline-block; padding:0px; margin:0px; background-color:white; border-radius:8px;' href = '!survey --sendtext|${title}|${helpText}'>&nbsp;?&nbsp;</a></div>`
@@ -3503,6 +3534,12 @@ function DMDash_HandleMsg(msg_content){
     let imgField = '';
     let imgURL = '';
 
+    let txtTokenBox = ''
+    let imgTokenURL = ''
+    let avatarURL = ''
+    let fieldName1 = ''
+    let fieldName2 = ''
+
     let btnsTier1 = '';
     let btnsTokenTier2 = '';
     let btnsCharTier2 = '';
@@ -3537,12 +3574,12 @@ function DMDash_HandleMsg(msg_content){
     //-----Tier 2 menu ------------------------------------------ ;menuT2
     //----------------------------------------------------------- ;blank line?
     //[                 |                                       ] ;tblMaster   2-Column Master table
-    //[Item List | Fcts]|[         Note                         | ;   2-Column List Table/Fct & 1 column Note Table 
+    //[Item List | Fcts]|[         Notes                        | ;   2-Column List Table/Fct & 1 column Note Table 
     //[                 |                                       ]
     //----Footer ------------------------------------------------
 
-    myDebug(3, 'DM Notes Handout Build Started');
-    myDebug(3, `T1:${state.DMDashboard.NotesRpt_Tier1MenuSelected} T2:${state.DMDashboard.NotesRpt_Tier2MenuSelected} Id:${state.DMDashboard.NotesRpt_SelectedId}`)
+    myDebug(4, 'DM Notes Handout Build Started');
+    myDebug(4, `T1:${state.DMDashboard.NotesRpt_Tier1MenuSelected} Id:${state.DMDashboard.NotesRpt_SelectedId}`)
 
     // Todo - Add logic to track selections and change button look for selected items
 
@@ -3554,55 +3591,9 @@ function DMDash_HandleMsg(msg_content){
     let txtFilter = '(' + state.DMDashboard.NotesRpt_Filter + ')'
     // Tier 2 Buttons
 
-    // Token Based Tier 2
-    let btnTokenNote = makeMenuButton('Token GM Notes', '!DMNotes --TokenNotes'); // Token Notes selected from Tier 2 menu
-    let btnTokenTT = makeMenuButton('Token Tooltip', '!DMNotes --TokenTT'); // Token Tooltip selected from Tier 2 menu
-    let btnTokenCSBio = makeMenuButton('Bio', '!DMNotes --TokenCSBio'); // Token Character Bio  selected from Tier 2 menu 
-    let btnTokenCSGMNote = makeMenuButton('GM Note', '!DMNotes --TokenCSGMNote'); // Token GM Note selected from Tier 2 menu
-
-    // Character Based Tier 2
-    let btnCSBio = makeMenuButton('Bio', '!DMNotes --CSBio'); // Character Bio  selected from Tier 2 menu 
-    let btnCSGMNote = makeMenuButton('GM Note', '!DMNotes --CSGMNote'); // GM Note selected from Tier 2 menu
-
-    // Handout Based Tier 2
-    let btnHONote = makeMenuButton('Notes', '!DMNotes --HONote'); // Token Character Bio  selected from Tier 2 menu 
-    let btnHOGMNote = makeMenuButton('GM Note', '!DMNotes --HOGMNote'); // Token GM Note selected from Tier 2 menu
-
-    if (state.DMDashboard.NotesRpt_Tier1MenuSelected == 'Tokens') {
-      btnTokens = makeMenuButton('Tokens', '!DMNotes --Tokens', true);  // Token Selected from Tier 1 menu
-      if (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Token-Note') {
-        btnTokenNote = makeMenuButton('Token Notes', '!DMNotes --TokenNotes', true); // Token Notes selected from Tier 2 menu
-      } else if (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Token-Tooltip') {
-        btnTokenTT = makeMenuButton('Token Tooltip', '!DMNotes --TokenTT', true); // Token Tooltip selected from Tier 2 menu
-      } else if (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Token-CSBio') {
-        btnTokenCSBio = makeMenuButton('Bio', '!DMNotes --TokenCSBio',true); // Token Character Bio  selected from Tier 2 menu 
-      } else if (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Token-CSGMNote') {        
-        btnTokenCSGMNote = makeMenuButton('GM Note', '!DMNotes --TokenCSGMNote', true); // Token GM Note selected from Tier 2 menu
-      }
-      menuT2 = `  ${btnTokenNote} ${btnTokenTT} ${btnTokenCSBio} ${btnTokenCSGMNote}`      
-    } else if (state.DMDashboard.NotesRpt_Tier1MenuSelected == 'Characters') {
-      btnChars = makeMenuButton('Characters', '!DMNotes --Chars', true); // Character Selected from tier 1 menu
-      if (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Character-Bio') {
-        btnCSBio = makeMenuButton('Bio', '!DMNotes --CSBio', true); // Token Notes selected from Tier 2 menu
-      } else if (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Character-GMNote') {
-        btnCSGMNote = makeMenuButton('GM Note', '!DMNotes --CSGMNote', true); // Token Tooltip selected from Tier 2 menu
-      }
-      menuT2 = `  ${btnCSBio} ${btnCSGMNote}`
-    } else {
-      btnHandouts = makeMenuButton('Handouts', '!DMNotes --Handouts', true);  // Handout Selected from Tier 1 menu
-      if (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Handout-Note') {
-        btnHONote = makeMenuButton('Notes', '!DMNotes --HONote', true); // Token Notes selected from Tier 2 menu
-      } else if (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Handout-GMNote') {
-        btnHOGMNote = makeMenuButton('GM Note', '!DMNotes --HOGMNote', true); // Token Tooltip selected from Tier 2 menu
-      }
-      menuT2 = `  ${btnHONote} ${btnHOGMNote}`
-    }
-    menuT1 = `${btnTokens} ${btnChars} ${btnHandouts} ${btnFilter} ${txtFilter}`
-    menuT1 = html.div(menuT1, menuBoxCSS)
-    menuT2 = html.div(menuT2, menuBoxCSS)
-
     switch(state.DMDashboard.NotesRpt_Tier1MenuSelected){
       case ('Tokens'):
+        btnTokens = makeMenuButton('Tokens', '!DMNotes --Tokens', 1); 
         // Build list of tokens (Filtered at some point)
         tokens = findObjs({
           _type: 'graphic',
@@ -3615,14 +3606,15 @@ function DMDash_HandleMsg(msg_content){
 
         tokens.forEach(tObj => {
           if (tObj.get('layer') == 'objects' || tObj.get('layer') == 'gmlayer') {          
-            
             if (state.DMDashboard.NotesRpt_Filter.length == 0 || (tObj.get('name') && tObj.get('name').toLowerCase().includes(state.DMDashboard.NotesRpt_Filter.toLowerCase()))) {
-              btnFct = addTooltip("Ping Me - GM Only", makeButton(emojiPing, `!DMDash --PingToken-GM ${tObj.get('_id')}`));
-              btnItem = makeButton(tObj.get('name'), `!DMNotes --rowselected ${tObj.get('_id')}` )
-              if (state.DMDashboard.NotesRpt_SelectedId == tObj.get('_id')){
-                tblList += html.tr(html.td(btnItem, {'Width': '90%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
-              } else {
-                tblList += html.tr(html.td(btnItem, {'Width': '90%'}) + html.td(btnFct, {'Width': '10%'}))
+              if (tObj.get('name') != undefined && tObj.get('name').length != 0) {
+                btnFct = addTooltip("Ping Me - GM Only", makeButton(emojiPing, `!DMDash --PingToken-GM ${tObj.get('_id')}`));
+                btnItem = makeButton(tObj.get('name'), `!DMNotes --rowselected ${tObj.get('_id')}` )
+                if (state.DMDashboard.NotesRpt_SelectedId == tObj.get('_id')){
+                  tblList += html.tr(html.td(btnItem, {'Width': '90%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
+                } else {
+                  tblList += html.tr(html.td(btnItem, {'Width': '90%'}) + html.td(btnFct, {'Width': '10%'}))
+                }
               }
             }
           }
@@ -3631,6 +3623,7 @@ function DMDash_HandleMsg(msg_content){
         break;
       case ('Characters'):
         // Build list of characters
+        btnChars = makeMenuButton('Characters', '!DMNotes --Chars', 1); // Character Selected from tier 1 menu
         characters = findObjs({
           _type: 'character'
         }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
@@ -3641,6 +3634,7 @@ function DMDash_HandleMsg(msg_content){
             btnFct = addTooltip("Open Character Sheet", makeButton(emojiDocument, `https://journal.roll20.net/character/${cObj.get('_id')}`));
             btnItem = makeButton(cObj.get('name'), `!DMNotes --rowselected ${cObj.get('_id')}`)
             if (state.DMDashboard.NotesRpt_SelectedId == cObj.get('_id')){
+              myDebug(4, 'Selected Character:' + cObj.get('name'))
               tblList += html.tr(html.td(btnItem, {'Width': '90%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
             } else {
               tblList += html.tr(html.td(btnItem, {'Width': '90%'}) + html.td(btnFct, {'Width': '10%'}))
@@ -3650,6 +3644,7 @@ function DMDash_HandleMsg(msg_content){
         tblList = html.table(tblList)
         break;
       case ('Handouts'):
+        btnHandouts = makeMenuButton('Handouts', '!DMNotes --Handouts', 1);  // Handout Selected from Tier 1 menu
         // Build list of handouts
         handouts = findObjs({
           _type: 'handout'
@@ -3661,6 +3656,7 @@ function DMDash_HandleMsg(msg_content){
             btnFct = addTooltip("Open Handout", makeButton(emojiDocument, `https://journal.roll20.net/handout/${hoObj.get('_id')}`));
             btnItem = makeButton(hoObj.get('name'), `!DMNotes --rowselected ${hoObj.get('_id')}`)
             if (state.DMDashboard.NotesRpt_SelectedId == hoObj.get('_id')){
+              myDebug(4, 'Selected Handout:' + hoObj.get('name'))
               tblList += html.tr(html.td(btnItem, {'Width': '90%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
             } else {
               tblList += html.tr(html.td(btnItem, {'Width': '90%'}) + html.td(btnFct, {'Width': '10%'}))
@@ -3670,71 +3666,49 @@ function DMDash_HandleMsg(msg_content){
         tblList = html.table(tblList)
         break;
     }
+
+    menuT1 = `${btnTokens} ${btnChars} ${btnHandouts} ${btnFilter} ${txtFilter}`
+    menuT1 = html.div(menuT1, menuBoxCSS)
+
     tblList = openScrollBox + tblList + closeScrollBox;
 
     txtNote = 'Empty';
 
     if (state.DMDashboard.NotesRpt_SelectedId === '') {
       txtnote = 'No Item Selected';
-      tblNote = html.table(html.tr(html.td(txtNote)))
+      tblNote = html.div(txtnote)
       masterTable = html.table(html.tr(html.td(tblList, {'Width': '20%'}) + html.td(tblNote, {'Width': '80%'})))
-      rptText = rptHeader + menuT1 + menuT2 + masterTable + rptFooter
+      rptText = openReport + rptHeader + menuT1 + masterTable + rptFooter + closeReport;
       if (rptText) {
         addTextToHandout(rptText, hoNotesName, 0)
       }
       return;
     } else {
       txtField = '';
-      switch (state.DMDashboard.NotesRpt_Tier2MenuSelected) {
-        case('Token-Note'):
-          txtField = 'gmnotes'
-          imgField = 'imgsrc'
-          o = getObj('graphic', state.DMDashboard.NotesRpt_SelectedId);
-          break;
-        case('Token-Tooltip'):
-          txtField = 'tooltip'
-          imgField = 'imgsrc'
-          o = getObj('graphic', state.DMDashboard.NotesRpt_SelectedId);
-          break;
-        case('Token-CSBio'):
-          txtField = 'bio'
-          imgField = 'avatar'
+      switch (state.DMDashboard.NotesRpt_Tier1MenuSelected) {
+        case('Tokens'):
           tObj = getObj('graphic', state.DMDashboard.NotesRpt_SelectedId);
           if (tObj) {
             if (tObj.get('represents') != ''){
               o = getObj('character', tObj.get('represents'));
             }
+            objectName = 'Character';
+            fieldName1 = 'bio'  // Character Bio
+            fieldName2 = 'gmnotes' // Character GM Notes
           }
           break;
-        case('Token-CSGMNote'):
-          txtField = 'gmnotes';
-          imgField = 'avatar'
-          tObj = getObj('graphic', state.DMDashboard.NotesRpt_SelectedId);
-          if (tObj) {
-            if (tObj.get('represents') != ''){
-              o = getObj('character', tObj.get('represents'));
-            }
-          }
-          break;
-        case('Character-Bio'):
-          txtField = 'bio';
-          imgField = 'avatar'
+        case('Characters'):
           o = getObj('character', state.DMDashboard.NotesRpt_SelectedId);
+          objectName = 'Character';
+          fieldName1 = 'bio'
+          fieldName2 = 'gmnotes'
+
           break;
-        case('Character-GMNote'):
-          txtField = 'gmnotes';
-          imgField = 'avatar'
-          o = getObj('character', state.DMDashboard.NotesRpt_SelectedId);
-          break;
-        case('Handout-Note'):
-          txtField = 'notes';
-          imgField = 'avatar'
+        case('Handouts'):
           o = getObj('handout', state.DMDashboard.NotesRpt_SelectedId);
-          break;
-        case('Handout-GMNote'):
-          txtField = 'gmnotes'
-          imgField = 'avatar'
-          o = getObj('handout', state.DMDashboard.NotesRpt_SelectedId);
+          objectName = 'Handout';
+          fieldName1 = 'notes'
+          fieldName2 = 'gmnotes'
           break;
       }
     }
@@ -3742,33 +3716,61 @@ function DMDash_HandleMsg(msg_content){
     if (Object.keys(o).length == 0) {
       myDebug(3, "No Object Obtained")
     } else {
-      myDebug(3, `Getting ${txtField} for ${o.get('name')}`)
+      myDebug(3, `Getting ${fieldName1} and ${fieldName2} for ${o.get('name')}`)
 
-      imgURL = o.get(imgField);
-      if (imgURL != '') {
-         imgURL = `<c><div class="avatar"><a class="lightly" target="_blank" href=${imgURL}><img src='${imgURL}' draggable="false"></img></a></c>`
-      }
+      o.get(fieldName1, function(notes1) {
+        o.get(fieldName2, function(notes2) {
 
-      if ((state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Token-Note')|| (state.DMDashboard.NotesRpt_Tier2MenuSelected == 'Token-Tooltip')) {
-        txtNote = decodeHtmlString(o.get(txtField));
-        tblNote = html.table(html.tr(html.td(txtNote)))
-        tblNote = openScrollBox + imgURL +  '<hr>' +  tblNote + closeScrollBox;
-        masterTable = html.table(html.tr(html.td(tblList, {'Width': '25%'}) + html.td(tblNote, {'Width': '75%'})))
-        rptText = rptHeader + menuT1 + menuT2 + masterTable + rptFooter
-        myDebug(3,'rptText: ' + rptText);
-        addTextToHandout(rptText, hoNotesName, 0);
+          let txtTokenBox = '';
 
-      } else {
-        o.get(txtField, function(notes) {
-        txtNote = notes;
-        tblNote = html.table(html.tr(html.td(txtNote)))
-        tblNote = openScrollBox + imgURL +  '<hr>' +  tblNote + closeScrollBox;        
-        masterTable = html.table(html.tr(html.td(tblList, {'Width': '25%'}) + html.td(tblNote, {'Width': '75%'})))
-        rptText = rptHeader + menuT1 + menuT2 + masterTable + rptFooter
-        myDebug(3,'rptText: ' + rptText);
-        addTextToHandout(rptText, hoNotesName, 0);
+          if (state.DMDashboard.NotesRpt_Tier1MenuSelected == 'Tokens') {
+            // Get Token Tooltip, gmnotes and imgsrc
+            tObj = getObj('graphic', state.DMDashboard.NotesRpt_SelectedId);
+            if (tObj) {
+              imgTokenURL = tObj.get('imgsrc');
+              if (imgTokenURL != '') {
+                imgTokenURL = html.img('', img1CSS, imgTokenURL, '', "50%", "auto" )
+              }
+              let txtTooltip = html.h3('Token Tooltip') + html.div(decodeHtmlString(tObj.get('tooltip')),shadoweddivCSS);
+              let txtGMNotes =  html.h3('Token GM Notes') + html.div(decodeHtmlString(tObj.get('gmnotes')),shadoweddivCSS);
+              txtTokenBox += html.div(txtTooltip + txtGMNotes, boundingdivCSS)
+            }
+          }
+
+          let imgBox = ''
+          // Get avatar associated with this character/handout
+          avatarURL = o.get('avatar')
+          if (avatarURL != '') {
+            //avatarURL = html.div(imgBorderDS(avatarURL)) //DIV Container 
+            avatarURL = html.img('', img1CSS, avatarURL, '', "50%", "auto");
+          }
+
+          if (avatarURL != '' && imgTokenURL != '') {
+            imgBox = html.tr(html.td(html.h3('Token Image'), {'width' : '50%'}) + html.td(html.h3(objectName + ' Avatar/Image'), {'width' : '50%'}))
+            imgBox += html.tr(html.td(imgTokenURL, {'text-align':'center', 'width' : '50%'}) + html.td(avatarURL, {'text-align':'center','width' : '50%'}))
+            imgBox = html.table(imgBox);
+                        
+          } else if (imgTokenURL != '' && avatarURL == '') {
+            imgBox = html.table(html.tr(html.td(html.h3('Token Image') + imgTokenURL)), {'text-align':'center', 'width' : '100%'})
+          } else if (avatarURL != '' && imgTokenURL == '') {
+            imgBox = html.table(html.tr(html.td(html.h3(' Avatar/Image') + avatarURL)), {'text-align':'center', 'width' : '100%'})
+          }
+    
+          // Get Notes/Bio and GM Notes field data from Character or Handout object 
+          
+          let txtNote1 = html.div(html.h3(objectName + ' Notes/Bio') + html.div(notes1, shadoweddivCSS), boundingdivCSS)
+          let txtNote2 = html.div(html.h3(objectName + ' GM Notes') + html.div(notes2, shadoweddivCSS), boundingdivCSS)
+          let txtNoteBox = txtNote1 + txtNote2
+
+          txtNoteBox = html.div(imgBox + txtTokenBox + txtNoteBox, divScrollBoxCSS) 
+          rptText = html.tr(html.td(tblList, {'Width': '25%'}) + html.td(txtNoteBox, {'Width': '75%'}))
+          rptText = html.table(rptText)
+
+          rptText = openReport + rptHeader + menuT1 + rptText + rptFooter + closeReport
+          addTextToHandout(rptText, hoNotesName, 0);
+
         })
-      }
+      })
     }
     myDebug(3, 'DM Notes Handout Build Ended');
   }
@@ -4083,62 +4085,24 @@ function DMDash_HandleMsg(msg_content){
     switch (commands[0]) {
       case 'BUILD':
         state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Tokens'
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Token-Note'
         state.DMDashboard.NotesRpt_SelectedId = ''
       buildDMNotesHandout();
         break;
       case 'TOKENS':
         state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Tokens'
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Token-Note'
         state.DMDashboard.NotesRpt_SelectedId = ''
         buildDMNotesHandout();
         break;
       case 'CHARS':
         state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Characters'
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Character-Bio'        
         state.DMDashboard.NotesRpt_SelectedId = ''        
         buildDMNotesHandout();
         break;
       case 'HANDOUTS':
         state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Handouts'
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Handout-Note'
         state.DMDashboard.NotesRpt_SelectedId = ''        
         buildDMNotesHandout();
         break;
-      case 'TOKENNOTES':
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Token-Note'
-        buildDMNotesHandout();
-        break;
-      case 'TOKENTT':
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Token-Tooltip'
-        buildDMNotesHandout();
-        break;
-      case 'TOKENCSBIO':
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Token-CSBio'
-        buildDMNotesHandout();
-        break;
-      case 'TOKENCSGMNOTE':
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Token-CSGMNote'
-        buildDMNotesHandout();
-        break;
-      case 'CSBIO':
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Character-Bio'
-        buildDMNotesHandout();
-        break;
-      case 'CSGMNOTE':
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Character-GMNote'
-        buildDMNotesHandout();
-        break;
-          
-      case 'HONOTE':
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Handout-Note'
-        buildDMNotesHandout();
-        break;
-      case 'HOGMNOTE':
-        state.DMDashboard.NotesRpt_Tier2MenuSelected = 'Handout-GMNote'
-        buildDMNotesHandout();
-        break;
-
       case 'ROWSELECTED':
         myDebug(3, 'RowSelected: ' + commands[1]);
         state.DMDashboard.NotesRpt_SelectedId = commands[1];
