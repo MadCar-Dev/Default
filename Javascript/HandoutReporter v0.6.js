@@ -1797,7 +1797,7 @@ function DMDash_HandleMsg(msg_content){
   function reportPerformance(msg){
     let gEndTime = new Date().getTime();
     let runTime = gEndTime - gStartTime;
-    // log(`${msg} execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`);
+    myDebug(3, `${msg} execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`);
   }
   function replaceDynamicSpanElement(source, spanId, item){
     const regexPattern = `(<span id=${spanId}>)(.*?)(</span>)`;
@@ -3566,7 +3566,7 @@ function DMDash_HandleMsg(msg_content){
 
     const txtBreadCrumb = `${state.DMDashboard.NotesRpt_Tier1MenuSelected} -> ${state.DMDashboard.NotesRpt_Tier2MenuSelected} -> ${state.DMDashboard.NotesRpt_SelectedId}`    
     rptHeader = html.h2('DM Notes Handout')    
-    rptFooter = html.p('Brought to you by Will M.')    
+    
 
 
     //-----Header------------------------------------------------ ;rptHeader
@@ -3678,6 +3678,12 @@ function DMDash_HandleMsg(msg_content){
       txtnote = 'No Item Selected';
       tblNote = html.div(txtnote)
       masterTable = html.table(html.tr(html.td(tblList, {'Width': '20%'}) + html.td(tblNote, {'Width': '80%'})))
+
+
+      gEndTime = new Date().getTime();
+      let runTime = gEndTime - gStartTime;
+      rptFooter = html.p(`Execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`)
+            
       rptText = openReport + rptHeader + menuT1 + masterTable + rptFooter + closeReport;
       if (rptText) {
         addTextToHandout(rptText, hoNotesName, 0)
@@ -3765,6 +3771,10 @@ function DMDash_HandleMsg(msg_content){
           txtNoteBox = html.div(imgBox + txtTokenBox + txtNoteBox, divScrollBoxCSS) 
           rptText = html.tr(html.td(tblList, {'Width': '25%'}) + html.td(txtNoteBox, {'Width': '75%'}))
           rptText = html.table(rptText)
+
+          gEndTime = new Date().getTime();
+          let runTime = gEndTime - gStartTime;
+          rptFooter = html.p(`Execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`)
 
           rptText = openReport + rptHeader + menuT1 + rptText + rptFooter + closeReport
           addTextToHandout(rptText, hoNotesName, 0);
