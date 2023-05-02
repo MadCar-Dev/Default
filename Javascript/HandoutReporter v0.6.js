@@ -1043,21 +1043,21 @@ function DMDash_HandleMsg(msg_content){
       doChar = false;
     } 
 
-    myDebug(4, `showGMNote: tId:${tId} flag:${flag} doToken:${doToken} doChar:${doChar} doBoth:${doBoth}`)
+    myDebug(3, `showGMNote: tId:${tId} flag:${flag} doToken:${doToken} doChar:${doChar} doBoth:${doBoth}`)
 
     if (doToken==true) {
 
       let handout = getHandout('DM Notes');
       //gmnotes =tObj.get('gmnotes');
       gmnotes = unescape(decodeUnicode(tObj.get('gmnotes')));
-      myDebug(4, `showGMNote(Token): gmnotes: ${gmnotes}`);
+      myDebug(3, `showGMNote(Token): gmnotes: ${gmnotes}`);
       setTimeout(()=>handout.set("notes", gmnotes),500);
 
     }
 
     if (doChar==true) {
       cObj.get('gmnotes', function(gmnotes){
-        myDebug(4, `showGMNote(Char): gmnotes:${gmnotes}`);
+        myDebug(3, `showGMNote(Char): gmnotes:${gmnotes}`);
         let handout = getHandout('DM Notes');
         setTimeout(()=>handout.set("notes", gmnotes),500);
       });  
@@ -1067,7 +1067,7 @@ function DMDash_HandleMsg(msg_content){
       tObj.get('gmnotes', function(tgmnotes){
         cObj.get('gmnotes', function(cgmnotes){
           let notes = `<h2>Token GM Notes</h2>\n${tgmnotes}<hr>\n<h2>Character GM Notes</h2>\n${cgmnotes}`
-          myDebug(4, `showGMNote(Both): gmnotes:${notes}`)          
+          myDebug(3, `showGMNote(Both): gmnotes:${notes}`)          
           setTimeout(()=>handout.set("notes", notes),500);
 
         });  
@@ -1081,7 +1081,7 @@ function DMDash_HandleMsg(msg_content){
     let msg = '';
     if (bWhisper == 0){bWhisper = false} else {bWhisper = true}
 
-    myDebug(4, `ShowAvatar: ${tId}, ${bTitle}, ${bWhisper}`)
+    myDebug(3, `ShowAvatar: ${tId}, ${bTitle}, ${bWhisper}`)
 
     let tObj = getObj('graphic', tId);
     if (tObj) {
@@ -1107,7 +1107,7 @@ function DMDash_HandleMsg(msg_content){
           msg = avatar
         }
         sendChat(name, msg);
-        myDebug(4, msg)
+        myDebug(3, msg)
 
       }
     }
@@ -1115,12 +1115,21 @@ function DMDash_HandleMsg(msg_content){
   const decodeUnicode = (str) => str.replace(/%u[0-9a-fA-F]{2,4}/g, (m) => String.fromCharCode(parseInt(m.slice(2), 16)));  
 
   function decodeHtmlString(encodedString) {
-    if (encodedString.length > 0){
-      return decodeURIComponent(encodedString.replace(/\+/g, " "));
-    } else {
-      return '';
-    }  
-    
+
+    try{
+      if (encodedString.length > 0){
+        return decodeURIComponent(encodedString.replace(/\+/g, " "));
+      } else {
+        return ''
+      }  
+    } catch (error) {
+      if (error instanceof URIError){
+        myDebug(4, `DMDashboard-decodeHtmlString: Malformed URI Component ${error}`)
+        return encodedString;
+      } else {
+        throw error;
+      }
+    }
   }
   function showCharImage(toId, imageIndex, bTitle, bWhisper) {
     // imageIndex: -1 all images, 0+: image index
@@ -1135,7 +1144,7 @@ function DMDash_HandleMsg(msg_content){
   
     if (bWhisper == 0){bWhisper = false} else {bWhisper = true}
 
-    myDebug(4, `showCharImage: Tid:${toId}, Img: ${imageIndex},  Title:${bTitle}, Whisper:${bWhisper}`)
+    myDebug(3, `showCharImage: Tid:${toId}, Img: ${imageIndex},  Title:${bTitle}, Whisper:${bWhisper}`)
 
     let tObj = getObj('graphic', toId);
     if (tObj) {
@@ -1152,7 +1161,7 @@ function DMDash_HandleMsg(msg_content){
           if (bio != null && bio != undefined){
             bio = decodeUnicode(bio);
 
-            myDebug(4, `showCharImage: Img: ${imageIndex}`)
+            myDebug(3, `showCharImage: Img: ${imageIndex}`)
             if (imageIndex == -1) { // All Images
               myDebug(3, `showCharImage: ALL`)
               artwork = bio.match(/\<img src.*?\>/g)
@@ -1173,7 +1182,7 @@ function DMDash_HandleMsg(msg_content){
               bArtworkFound = true;
             } else {
               msg = 'No artwork exists for this character.';
-              myDebug(4, `showCharImage: No Artwork: ${artwork}`)
+              myDebug(3, `showCharImage: No Artwork: ${artwork}`)
             }
 
           } else {
@@ -1469,7 +1478,7 @@ function DMDash_HandleMsg(msg_content){
     let buttonStyle = `background-color: #521E10; border: 1px; color: white; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
 
     if (selected == true || selected == 1){
-      myDebug(4, `Button ${name} selected`);
+      myDebug(3, `Button ${name} selected`);
       buttonStyle = `background-color: #FFAD00; border: 1px; color: black; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
     }
 
@@ -3532,8 +3541,8 @@ function DMDash_HandleMsg(msg_content){
     //[                 |                                       ]
     //----Footer ------------------------------------------------
 
-    myDebug(4, 'DM Notes Handout Build Started');
-    myDebug(4, `T1:${state.DMDashboard.NotesRpt_Tier1MenuSelected} T2:${state.DMDashboard.NotesRpt_Tier2MenuSelected} Id:${state.DMDashboard.NotesRpt_SelectedId}`)
+    myDebug(3, 'DM Notes Handout Build Started');
+    myDebug(3, `T1:${state.DMDashboard.NotesRpt_Tier1MenuSelected} T2:${state.DMDashboard.NotesRpt_Tier2MenuSelected} Id:${state.DMDashboard.NotesRpt_SelectedId}`)
 
     // Todo - Add logic to track selections and change button look for selected items
 
@@ -3731,9 +3740,9 @@ function DMDash_HandleMsg(msg_content){
     }
 
     if (Object.keys(o).length == 0) {
-      myDebug(4, "No Object Obtained")
+      myDebug(3, "No Object Obtained")
     } else {
-      myDebug(4, `Getting ${txtField} for ${o.get('name')}`)
+      myDebug(3, `Getting ${txtField} for ${o.get('name')}`)
 
       imgURL = o.get(imgField);
       if (imgURL != '') {
@@ -3746,7 +3755,7 @@ function DMDash_HandleMsg(msg_content){
         tblNote = openScrollBox + imgURL +  '<hr>' +  tblNote + closeScrollBox;
         masterTable = html.table(html.tr(html.td(tblList, {'Width': '25%'}) + html.td(tblNote, {'Width': '75%'})))
         rptText = rptHeader + menuT1 + menuT2 + masterTable + rptFooter
-        myDebug(4,'rptText: ' + rptText);
+        myDebug(3,'rptText: ' + rptText);
         addTextToHandout(rptText, hoNotesName, 0);
 
       } else {
@@ -3756,12 +3765,12 @@ function DMDash_HandleMsg(msg_content){
         tblNote = openScrollBox + imgURL +  '<hr>' +  tblNote + closeScrollBox;        
         masterTable = html.table(html.tr(html.td(tblList, {'Width': '25%'}) + html.td(tblNote, {'Width': '75%'})))
         rptText = rptHeader + menuT1 + menuT2 + masterTable + rptFooter
-        myDebug(4,'rptText: ' + rptText);
+        myDebug(3,'rptText: ' + rptText);
         addTextToHandout(rptText, hoNotesName, 0);
         })
       }
     }
-    myDebug(4, 'DM Notes Handout Build Ended');
+    myDebug(3, 'DM Notes Handout Build Ended');
   }
 
   startPeformanceCheck();
@@ -3839,15 +3848,15 @@ function DMDash_HandleMsg(msg_content){
     commands.push('OPEN');
   }
 
-  myDebug(4, `MsgHandler: args: ${args[0]}`)
+  myDebug(3, `MsgHandler: args: ${args[0]}`)
   myDebug(2, `MsgHandler: msg_content: ${msg_content}`)
-  myDebug(4, `MsgHandler: commands: ${commands}`)
+  myDebug(3, `MsgHandler: commands: ${commands}`)
   commands.forEach(c => {
     myDebug(2, `MsgHandler: command: ${c}`);
   });
 
   commands[0] = commands[0].toUpperCase();
-  myDebug(4, `MsgHandler: commands[0]: ${commands[0]}`)  
+  myDebug(3, `MsgHandler: commands[0]: ${commands[0]}`)  
   
 
   let masterCmd = args[0].toUpperCase()
@@ -4131,7 +4140,7 @@ function DMDash_HandleMsg(msg_content){
         break;
 
       case 'ROWSELECTED':
-        myDebug(4, 'RowSelected: ' + commands[1]);
+        myDebug(3, 'RowSelected: ' + commands[1]);
         state.DMDashboard.NotesRpt_SelectedId = commands[1];
         buildDMNotesHandout();1
         break;
