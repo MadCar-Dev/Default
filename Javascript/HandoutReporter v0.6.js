@@ -3134,7 +3134,7 @@ function DMDash_HandleMsg(msg_content){
           }
 
           toList +=  '<span style="font-size: 16px">'+ addTooltip("Open Character Sheet", makeButton(emojiDocument, 'https://journal.roll20.net/character/' + toToken.get('represents'))) + '</span>';
-          toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton(emojiNote, '!DMDash --showGMNote ' + toToken.get('_id'))) + '</span>';
+          // toList +=  '<span style="font-size: 16px">'+ addTooltip("Show GMNotes", makeButton(emojiNote, '!DMDash --showGMNote ' + toToken.get('_id'))) + '</span>';
 
 
           if (isnpc) {
