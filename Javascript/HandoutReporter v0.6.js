@@ -4187,6 +4187,7 @@ function DMDash_HandleMsg(msg_content){
       case 'ROWSELECTED':
         myDebug(3, 'RowSelected: ' + commands[1]);
         state.DMDashboard.NotesRpt_SelectedId = commands[1];
+        myDebug(4, `Selected: ${commands[1]}`);
         buildDMNotesHandout();
         break;
 
@@ -4194,8 +4195,10 @@ function DMDash_HandleMsg(msg_content){
         let ndx = state.DMDashboard.NotesRpt_FavsAry.indexOf(commands[1]);
         if (ndx<0) {
           state.DMDashboard.NotesRpt_FavsAry.push(commands[1]);
+          myDebug(4, `FavsOn: ${commands[1]} count: ${state.DMDashboard.NotesRpt_FavsAry.length}`);
         } else {
-          state.DMDashboard.NotesRpt_FavsAry.slice(ndx,1);
+          state.DMDashboard.NotesRpt_FavsAry.splice(ndx,1);
+          myDebug(4, `FavsOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.NotesRpt_FavsAry.length}`);
         }
         buildDMNotesHandout();1
         break;
