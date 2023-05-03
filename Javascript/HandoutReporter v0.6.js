@@ -4,14 +4,33 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-/*************************************
-*** Start of DM Turnorder Reporter ***  
-*************************************/
+// Version 0.6.11
+// Last Updated: 4.3.2023
+// Purpose: Provides DM/GMs with a set of tools to improve their game management.
+//          These tools are based on Handouts programmed to refresh as events occur 
+//          in the game and user selections.  
+// Handouts Include:
+//  * DM Turnorder Report - Primary dashboard, providing a turnorder list with additional
+//                          information and functions to make the DM/GM more efficient.
+//                          For example, from this handout a DM can toggle a token between
+//                          the gmlayer and objects layer, edit a tooltip, make a saving throw
+//                          or adjust the tokens HP.
+//  * DM Character Sheet -  Works closely with the Turnorder Report.  The content of this 
+//                          handout allways contains the character or npc at the top of the
+//                          turnorder list.  Most functions, like attacks, checks, saves, 
+//                          and spell casting can be peformed from this handout.
+//  * DM Notes -            Provides a single location to review all the Notes, Bios, Tooltips
+//                          and GM Notes stored in tokens, handouts and character sheets.  
+//                          Includes "Favorites" functionality and key word searches. 
+//  * DM Turnorder Log -    Contains a CSV data file where each line represents the advancement
+//                          of a turn.  Information stored includes start time, end time, and 
+//                          details of the character/NPC the turn is associated with.  Plan
+//                          to add future trending and reporting against the data collected.
+
 // To get started, type !DMDash into the chat window to create your initial handouts
+// To force the initial build of your DM Notes handout type: !dmnotes --build
 
-// Added Bookmark Features - but it isn't holding between sandbox resets
-
-// Future Enhancements
+// Future Enhancements being cosidered
 //  * Leverage msgbox and html/css class in all my dialogs.
 //  * Add Adv/Dis/Normal and Whisper/Public flags? 
 //  * Toggle through auras (GM/Player)
@@ -162,24 +181,24 @@ function reportPerformance(msg){
   }
 }
 
-function myDebug(lvl,txt){
-  // giDebug: 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout (future)
-  // giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug, 5 - Performance logging
-
-  if ((state.DMDashboard.Debug == 1 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
-    log(txt);
-  }
-  if ((state.DMDashboard.Debug == 2 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
-    sendChat('Debug','/w gm '+txt);
-  }
-  if (state.DMDashboard.Debug == 4 && lvl >= state.DMDashboard.DebugLvl) {
-    // Add to Handout
-    addTextToHandout(`${txt} lvl(${lvl}`, "DM Debug Log", 3) 
-  }
-}
-
 
 function DMDash_HandleMsg(msg_content){
+
+  function myDebug(lvl,txt){
+    // giDebug: 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout (future)
+    // giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug, 5 - Performance logging
+  
+    if ((state.DMDashboard.Debug == 1 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
+      log(txt);
+    }
+    if ((state.DMDashboard.Debug == 2 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
+      sendChat('Debug','/w gm '+txt);
+    }
+    if (state.DMDashboard.Debug == 4 && lvl >= state.DMDashboard.DebugLvl) {
+      // Add to Handout
+      addTextToHandout(`${txt} lvl(${lvl}`, "DM Debug Log", 3) 
+    }
+  }
 
     // ============================================
     //      PRESENTATION
@@ -3834,7 +3853,8 @@ function DMDash_HandleMsg(msg_content){
           }
     
           // Get Notes/Bio and GM Notes field data from Character or Handout object 
-          
+          notes1 = decodeHtmlString(notes1)
+          notes2 = decodeHtmlString(notes2)
           let txtNote1 = html.div(html.h3(objectName + ' Notes/Bio') + html.div(notes1, shadoweddivCSS), boundingdivCSS)
           let txtNote2 = html.div(html.h3(objectName + ' GM Notes') + html.div(notes2, shadoweddivCSS), boundingdivCSS)
           let txtNoteBox = txtNote1 + txtNote2
