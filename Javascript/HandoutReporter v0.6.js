@@ -1539,7 +1539,7 @@ function DMDash_HandleMsg(msg_content){
     let buttonStyle = `background-color: #521E10; border: 1px; color: white; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
 
     if (selected == true || selected == 1){
-      myDebug(4, `Button ${name} selected`);
+      myDebug(3, `Button ${name} selected`);
       buttonStyle = `background-color: #FFAD00; border: 1px; color: black; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
     }
 
@@ -3597,7 +3597,7 @@ function DMDash_HandleMsg(msg_content){
     //[                 |                                       ]
     //----Footer ------------------------------------------------
 
-    myDebug(4, 'DM Notes Handout Build Started');
+    myDebug(3, 'DM Notes Handout Build Started');
     myDebug(4, `T1:${state.DMDashboard.NotesRpt_Tier1MenuSelected} Id:${state.DMDashboard.NotesRpt_SelectedId}`)
 
     // Todo - Add logic to track selections and change button look for selected items
@@ -3749,7 +3749,7 @@ function DMDash_HandleMsg(msg_content){
 
       gEndTime = new Date().getTime();
       let runTime = gEndTime - gStartTime;
-      rptFooter = html.p(`Execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`)
+      rptFooter = html.p(`Execution time: ${runTime.toFixed(2)}ms. Selected Obj Id: N/A (Version: ${state.DMDashboard.version})`)
             
       rptText = openReport + rptHeader + menuT1 + masterTable + rptFooter + closeReport;
       if (rptText) {
@@ -3760,10 +3760,10 @@ function DMDash_HandleMsg(msg_content){
       txtField = '';
       switch (state.DMDashboard.NotesRpt_Tier1MenuSelected) {
         case('Tokens'):
-          tObj = getObj('graphic', state.DMDashboard.NotesRpt_SelectedId);
-          if (tObj) {
-            if (tObj.get('represents') != ''){
-              o = getObj('character', tObj.get('represents'));
+          o = getObj('graphic', state.DMDashboard.NotesRpt_SelectedId);
+          if (o) {
+            if (o.get('represents') != ''){
+              o = getObj('character', o.get('represents'));
             }
             objectName = 'Character';
             fieldName1 = 'bio'  // Character Bio
@@ -3786,8 +3786,12 @@ function DMDash_HandleMsg(msg_content){
       }
     }
 
-    if (Object.keys(o).length == 0) {
+    if (!o) {
       myDebug(3, "No Object Obtained")
+      rptText = html.tr(html.td(tblList, {'Width': '25%'}) + html.td('', {'Width': '75%'}))
+      rptText = html.table(rptText)
+      rptText = openReport + rptHeader + menuT1 + rptText + rptFooter + closeReport
+      addTextToHandout(rptText, hoNotesName, 0);
     } else {
       myDebug(3, `Getting ${fieldName1} and ${fieldName2} for ${o.get('name')}`)
 
@@ -4167,21 +4171,21 @@ function DMDash_HandleMsg(msg_content){
       case 'BUILD':
         state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Tokens'
         state.DMDashboard.NotesRpt_SelectedId = ''
-      buildDMNotesHandout();
+        buildDMNotesHandout();
         break;
       case 'TOKENS':
         state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Tokens'
-        state.DMDashboard.NotesRpt_SelectedId = ''
+        // state.DMDashboard.NotesRpt_SelectedId = ''
         buildDMNotesHandout();
         break;
       case 'CHARS':
         state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Characters'
-        state.DMDashboard.NotesRpt_SelectedId = ''        
+        // state.DMDashboard.NotesRpt_SelectedId = ''        
         buildDMNotesHandout();
         break;
       case 'HANDOUTS':
         state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Handouts'
-        state.DMDashboard.NotesRpt_SelectedId = ''        
+        // state.DMDashboard.NotesRpt_SelectedId = ''        
         buildDMNotesHandout();
         break;
       case 'ROWSELECTED':
@@ -4195,10 +4199,10 @@ function DMDash_HandleMsg(msg_content){
         let ndx = state.DMDashboard.NotesRpt_FavsAry.indexOf(commands[1]);
         if (ndx<0) {
           state.DMDashboard.NotesRpt_FavsAry.push(commands[1]);
-          myDebug(4, `FavsOn: ${commands[1]} count: ${state.DMDashboard.NotesRpt_FavsAry.length}`);
+          myDebug(3, `FavsOn: ${commands[1]} count: ${state.DMDashboard.NotesRpt_FavsAry.length}`);
         } else {
           state.DMDashboard.NotesRpt_FavsAry.splice(ndx,1);
-          myDebug(4, `FavsOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.NotesRpt_FavsAry.length}`);
+          myDebug(3, `FavsOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.NotesRpt_FavsAry.length}`);
         }
         buildDMNotesHandout();1
         break;
