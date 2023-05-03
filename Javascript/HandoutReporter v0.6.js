@@ -9,6 +9,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 *************************************/
 // To get started, type !DMDash into the chat window to create your initial handouts
 
+// Added Bookmark Features - but it isn't holding between sandbox resets
+
 // Future Enhancements
 //  * Leverage msgbox and html/css class in all my dialogs.
 //  * Add Adv/Dis/Normal and Whisper/Public flags? 
@@ -20,7 +22,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.10';
+  const version = '0.6.11';
 
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
@@ -50,7 +52,9 @@ on('ready', () => {
           NotesRpt_Tier1MenuSelected: 'Tokens',   // Used to track selection of Notes Report Tier 1 menu
           NotesRpt_Tier2MenuSelected: 'TokenNotes', // Used to track selection of Notes Report Tier 2 menu
           NotesRpt_SelectedId: 0,  // Used to hold the id of the selected Token/Character/HO in the notes reprot
-          NotesRpt_Filter: ''
+          NotesRpt_Filter: '',
+          NotesRpt_FavsAry: [],
+          NotesRpt_FavsOn: 0
       };
   };
 
@@ -69,6 +73,11 @@ on('ready', () => {
   if (!state.DMDashboard.NotesRpt_Tier1MenuSelected) { state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Tokens';}
   if (!state.DMDashboard.NotesRpt_Tier2MenuSelected) { state.DMDashboard.NotesRpt_Tier2MenuSelected = 'TokenNotes';}
   if (!state.DMDashboard.NotesRpt_Filter) { state.DMDashboard.NotesRpt_Filter = '';}
+  if (!state.DMDashboard.hasOwnProperty('NotesRpt_FavsAry')) { 
+      state.DMDashboard.NotesRpt_FavsAry = [];
+      // log('****** NotesRpt_FavsAry initialized ******');
+  }
+  if (!state.DMDashboard.NotesRpt_FavsOn) { state.DMDashboard.NotesRpt_FavsOn = 0;}
 
   debounced_DMDash_HandleMsg('!DMDash --TOReport')   
   debounced_DMDash_HandleMsg('!DMNotes --Build')   
@@ -79,7 +88,6 @@ on('change:campaign:playerpageid', async () => {
   // log('DM Dashboard Event: change:campaign:turnorder');
   debounced_DMDash_HandleMsg('!DMNotes --Build')   
 });
-
 
 on('change:campaign:turnorder', async () => {
   // log('DM Dashboard Event: change:campaign:turnorder');
@@ -137,6 +145,40 @@ let gEndTime = 0;
 // ****************************
 // *** Global Functions     ***  
 // ****************************
+function startPeformanceCheck(){
+  gStartTime = new Date().getTime();
+  gEndTime = gStartTime;
+  if (state.DMDashboard.DebugLvl == 5){
+    log('Starting Performance Test:' + gStartTime);
+  }
+}
+function reportPerformance(msg){
+  let ts = new Date().getTime();
+  let stepTime = ts - gEndTime;
+  gEndTime = ts;
+  let runTime = gEndTime - gStartTime;
+  if (state.DMDashboard.DebugLvl == 5){
+    log(`${msg} execution time: ${runTime.toFixed(2)}ms. Step time: ${stepTime.toFixed(2)}ms  (Version: ${state.DMDashboard.version})`);
+  }
+}
+
+function myDebug(lvl,txt){
+  // giDebug: 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout (future)
+  // giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug, 5 - Performance logging
+
+  if ((state.DMDashboard.Debug == 1 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
+    log(txt);
+  }
+  if ((state.DMDashboard.Debug == 2 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
+    sendChat('Debug','/w gm '+txt);
+  }
+  if (state.DMDashboard.Debug == 4 && lvl >= state.DMDashboard.DebugLvl) {
+    // Add to Handout
+    addTextToHandout(`${txt} lvl(${lvl}`, "DM Debug Log", 3) 
+  }
+}
+
+
 function DMDash_HandleMsg(msg_content){
 
     // ============================================
@@ -519,21 +561,6 @@ function DMDash_HandleMsg(msg_content){
     }
     addTextToHandout(state.DMDashboard.DataLog, "DM Turnorder Log", 1);
     state.DMDashboard.DataLog = '';
-  }
-  function myDebug(lvl,txt){
-  // giDebug: 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout (future)
-  // giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
-
-    if ((state.DMDashboard.Debug == 1 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
-      log(txt);
-    }
-    if ((state.DMDashboard.Debug == 2 || state.DMDashboard.Debug == 3) && lvl >= state.DMDashboard.DebugLvl) {
-      sendChat('Debug','/w gm '+txt);
-    }
-    if (state.DMDashboard.Debug == 4 && lvl >= state.DMDashboard.DebugLvl) {
-      // Add to Handout
-      addTextToHandout(`${txt} lvl(${lvl}`, "DM Debug Log", 3) 
-    }
   }
   // Debug routines to dump out map and object contents
   function dumpMapObject(map) {
@@ -1789,15 +1816,6 @@ function DMDash_HandleMsg(msg_content){
   function addTooltip(tt, item) {
     let newItem = `<div style="display:inline;" title="${tt}">${item}</div>`
     return newItem;
-  }
-  function startPeformanceCheck(){
-    gStartTime = new Date().getTime();
-    // log('Starting Performance Test');
-  }
-  function reportPerformance(msg){
-    let gEndTime = new Date().getTime();
-    let runTime = gEndTime - gStartTime;
-    myDebug(3, `${msg} execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`);
   }
   function replaceDynamicSpanElement(source, spanId, item){
     const regexPattern = `(<span id=${spanId}>)(.*?)(</span>)`;
@@ -3540,6 +3558,9 @@ function DMDash_HandleMsg(msg_content){
     let fieldName1 = ''
     let fieldName2 = ''
 
+    let btnFav = ''
+    let btnFavsOn = ''
+    let btnClearFavs = ''
     let btnsTier1 = '';
     let btnsTokenTier2 = '';
     let btnsCharTier2 = '';
@@ -3549,7 +3570,7 @@ function DMDash_HandleMsg(msg_content){
     
     const hoNotesName = 'DM Notes';
     const hoNotes = getHandout(hoNotesName);
-    
+        
     let tId = '';
     let cId = '';
     let hoId = '';
@@ -3567,8 +3588,6 @@ function DMDash_HandleMsg(msg_content){
     const txtBreadCrumb = `${state.DMDashboard.NotesRpt_Tier1MenuSelected} -> ${state.DMDashboard.NotesRpt_Tier2MenuSelected} -> ${state.DMDashboard.NotesRpt_SelectedId}`    
     rptHeader = html.h2('DM Notes Handout')    
     
-
-
     //-----Header------------------------------------------------ ;rptHeader
     //--Tier 1 menu --------------------------------------------- ;menuT1
     //-----Tier 2 menu ------------------------------------------ ;menuT2
@@ -3587,10 +3606,18 @@ function DMDash_HandleMsg(msg_content){
     let btnTokens = makeMenuButton('Tokens', '!DMNotes --Tokens');  // Token Selected from Tier 1 menu
     let btnChars = makeMenuButton('Characters', '!DMNotes --Chars'); // Character Selected from tier 1 menu
     let btnHandouts = makeMenuButton('Handouts', '!DMNotes --Handouts');  // Handout Selected from Tier 1 menu
+    btnFavsOn = makeMenuButton('Favorites', '!DMNotes --FavsOn 1');  // Show All
+    if (state.DMDashboard.NotesRpt_FavsOn == 1) {
+      btnFavsOn = makeMenuButton('Favorites', '!DMNotes --FavsOn 0', 1);  // Favorites Selected
+    }
+    btnClearFavs = makeMenuButton('Clear', '!DMNotes --ClearFav');
+
     let btnFilter = makeButton(emojiFilter + ' Filter', '!DMNotes --Filter ?{Where "Name" contains?|} ');  // Filter Selected from Tier 1 menu - Find Filter Emoji 
+
     let txtFilter = '(' + state.DMDashboard.NotesRpt_Filter + ')'
     // Tier 2 Buttons
 
+    // Build the left list of objects
     switch(state.DMDashboard.NotesRpt_Tier1MenuSelected){
       case ('Tokens'):
         btnTokens = makeMenuButton('Tokens', '!DMNotes --Tokens', 1); 
@@ -3608,12 +3635,25 @@ function DMDash_HandleMsg(msg_content){
           if (tObj.get('layer') == 'objects' || tObj.get('layer') == 'gmlayer') {          
             if (state.DMDashboard.NotesRpt_Filter.length == 0 || (tObj.get('name') && tObj.get('name').toLowerCase().includes(state.DMDashboard.NotesRpt_Filter.toLowerCase()))) {
               if (tObj.get('name') != undefined && tObj.get('name').length != 0) {
-                btnFct = addTooltip("Ping Me - GM Only", makeButton(emojiPing, `!DMDash --PingToken-GM ${tObj.get('_id')}`));
-                btnItem = makeButton(tObj.get('name'), `!DMNotes --rowselected ${tObj.get('_id')}` )
-                if (state.DMDashboard.NotesRpt_SelectedId == tObj.get('_id')){
-                  tblList += html.tr(html.td(btnItem, {'Width': '90%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
+
+                // If this objects id is in the noteFavsMap, then it is a favorite and nees some love
+                bFilterRow = false;
+                if (state.DMDashboard.NotesRpt_FavsAry.includes(tObj.get('_id'))){
+                  btnFav = makeButton(emojiFav, `!DMNotes --togglefav ${tObj.get('_id')}`)
                 } else {
-                  tblList += html.tr(html.td(btnItem, {'Width': '90%'}) + html.td(btnFct, {'Width': '10%'}))
+                  btnFav = makeButton(emojiNotFav, `!DMNotes --togglefav ${tObj.get('_id')}`)
+                  if (state.DMDashboard.NotesRpt_FavsOn == 1) {
+                    bFilterRow = true;
+                  }
+                }
+                if (!bFilterRow){
+                  btnFct = addTooltip("Ping Me - GM Only", makeButton(emojiPing, `!DMDash --PingToken-GM ${tObj.get('_id')}`));
+                  btnItem = makeButton(tObj.get('name'), `!DMNotes --rowselected ${tObj.get('_id')}` )
+                  if (state.DMDashboard.NotesRpt_SelectedId == tObj.get('_id')){
+                    tblList += html.tr(html.td(btnFav, {'Width': '10%'}) +  html.td(btnItem, {'Width': '80%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
+                  } else {
+                    tblList += html.tr(html.td(btnFav, {'Width': '10%'}) +  html.td(btnItem, {'Width': '80%'}) + html.td(btnFct, {'Width': '10%'}))
+                  }
                 }
               }
             }
@@ -3633,12 +3673,26 @@ function DMDash_HandleMsg(msg_content){
           if (state.DMDashboard.NotesRpt_Filter.length == 0 || (cObj.get('name') && cObj.get('name').toLowerCase().includes(state.DMDashboard.NotesRpt_Filter.toLowerCase()))) {          
             btnFct = addTooltip("Open Character Sheet", makeButton(emojiDocument, `https://journal.roll20.net/character/${cObj.get('_id')}`));
             btnItem = makeButton(cObj.get('name'), `!DMNotes --rowselected ${cObj.get('_id')}`)
-            if (state.DMDashboard.NotesRpt_SelectedId == cObj.get('_id')){
-              myDebug(4, 'Selected Character:' + cObj.get('name'))
-              tblList += html.tr(html.td(btnItem, {'Width': '90%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
+
+            // If this objects id is in the noteFavsMap, then it is a favorite and nees some love
+            bFilterRow = false;
+            if (state.DMDashboard.NotesRpt_FavsAry.includes(cObj.get('_id'))){
+              btnFav = makeButton(emojiFav, `!DMNotes --togglefav ${cObj.get('_id')}`)
             } else {
-              tblList += html.tr(html.td(btnItem, {'Width': '90%'}) + html.td(btnFct, {'Width': '10%'}))
+              btnFav = makeButton(emojiNotFav, `!DMNotes --togglefav ${cObj.get('_id')}`)
+              if (state.DMDashboard.NotesRpt_FavsOn == 1) {
+                bFilterRow = true;
+              }
             }
+
+            if (!bFilterRow){
+              if (state.DMDashboard.NotesRpt_SelectedId == cObj.get('_id')){
+                myDebug(4, 'Selected Character:' + cObj.get('name'))
+                tblList += html.tr(html.td(btnFav, {'Width': '10%'}) +  html.td(btnItem, {'Width': '80%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
+              } else {
+                tblList += html.tr(html.td(btnFav, {'Width':'10%}'}) + html.td(btnItem, {'Width': '80%'}) + html.td(btnFct, {'Width': '10%'}))
+              }
+            } 
           }
         })
         tblList = html.table(tblList)
@@ -3652,14 +3706,29 @@ function DMDash_HandleMsg(msg_content){
 
         tblList = '';
         handouts.forEach(hoObj => {
-          if (state.DMDashboard.NotesRpt_Filter.length == 0 || (hoObj.get('name') && hoObj.get('name').toLowerCase().includes(state.DMDashboard.NotesRpt_Filter.toLowerCase()))) {
-            btnFct = addTooltip("Open Handout", makeButton(emojiDocument, `https://journal.roll20.net/handout/${hoObj.get('_id')}`));
-            btnItem = makeButton(hoObj.get('name'), `!DMNotes --rowselected ${hoObj.get('_id')}`)
-            if (state.DMDashboard.NotesRpt_SelectedId == hoObj.get('_id')){
-              myDebug(4, 'Selected Handout:' + hoObj.get('name'))
-              tblList += html.tr(html.td(btnItem, {'Width': '90%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
-            } else {
-              tblList += html.tr(html.td(btnItem, {'Width': '90%'}) + html.td(btnFct, {'Width': '10%'}))
+
+
+          // If this objects id is in the noteFavsMap, then it is a favorite and nees some love
+          bFilterRow = false;
+          if (state.DMDashboard.NotesRpt_FavsAry.includes(hoObj.get('_id'))){
+            btnFav = makeButton(emojiFav, `!DMNotes --togglefav ${hoObj.get('_id')}`)
+          } else {
+            btnFav = makeButton(emojiNotFav, `!DMNotes --togglefav ${hoObj.get('_id')}`)
+            if (state.DMDashboard.NotesRpt_FavsOn == 1) {
+              bFilterRow = true;
+            }
+          }
+
+          if (!bFilterRow){
+            if (state.DMDashboard.NotesRpt_Filter.length == 0 || (hoObj.get('name') && hoObj.get('name').toLowerCase().includes(state.DMDashboard.NotesRpt_Filter.toLowerCase()))) {
+              btnFct = addTooltip("Open Handout", makeButton(emojiDocument, `https://journal.roll20.net/handout/${hoObj.get('_id')}`));
+              btnItem = makeButton(hoObj.get('name'), `!DMNotes --rowselected ${hoObj.get('_id')}`)
+              if (state.DMDashboard.NotesRpt_SelectedId == hoObj.get('_id')){
+                myDebug(4, 'Selected Handout:' + hoObj.get('name'))
+                tblList += html.tr(html.td(btnFav, {'Width': '10%'}) +  html.td(btnItem, {'Width': '80%', 'background-color':'yellow'}) + html.td(btnFct, {'Width': '10%'}))
+              } else {
+                tblList += html.tr(html.td(btnFav, {'Width': '10%'}) +  html.td(btnItem, {'Width': '80%'}) + html.td(btnFct, {'Width': '10%'}))
+              }
             }
           }
         })
@@ -3667,11 +3736,9 @@ function DMDash_HandleMsg(msg_content){
         break;
     }
 
-    menuT1 = `${btnTokens} ${btnChars} ${btnHandouts} ${btnFilter} ${txtFilter}`
+    menuT1 = `${btnTokens} ${btnChars} ${btnHandouts}   |   ${btnFavsOn} ${btnClearFavs}   |   ${btnFilter} ${txtFilter}`
     menuT1 = html.div(menuT1, menuBoxCSS)
-
     tblList = openScrollBox + tblList + closeScrollBox;
-
     txtNote = 'Empty';
 
     if (state.DMDashboard.NotesRpt_SelectedId === '') {
@@ -3783,6 +3850,7 @@ function DMDash_HandleMsg(msg_content){
       })
     }
     myDebug(3, 'DM Notes Handout Build Ended');
+    reportPerformance();
   }
 
   startPeformanceCheck();
@@ -3845,7 +3913,9 @@ function DMDash_HandleMsg(msg_content){
   const emojiNeutral = '\u{1F4A9}' //💩
   const emojiPlus = '\u{2795}' // ➕
   const emojiMinus = '\u{2796}' // ➖
-  const emojiFilter = `\u{1F50E}`;  // 🔎  
+  const emojiFilter = `\u{1F50E}`;  // 🔎 
+  const emojiFav = '\u{2764}\u{FE0F}' // ❤️ 
+  const emojiNotFav = '\u{1F90D}' // 🤍
 
   let chatMsg = '';
 
@@ -4036,6 +4106,7 @@ function DMDash_HandleMsg(msg_content){
 
       case 'FLUSHDATALOG':
         flushDataLog();
+        state.DMDashboard.NotesRpt_FavsAry = [];
         break;
 
       case 'DATALOGGING':
@@ -4116,9 +4187,29 @@ function DMDash_HandleMsg(msg_content){
       case 'ROWSELECTED':
         myDebug(3, 'RowSelected: ' + commands[1]);
         state.DMDashboard.NotesRpt_SelectedId = commands[1];
-        buildDMNotesHandout();1
+        buildDMNotesHandout();
         break;
 
+      case 'TOGGLEFAV':
+        let ndx = state.DMDashboard.NotesRpt_FavsAry.indexOf(commands[1]);
+        if (ndx<0) {
+          state.DMDashboard.NotesRpt_FavsAry.push(commands[1]);
+        } else {
+          state.DMDashboard.NotesRpt_FavsAry.slice(ndx,1);
+        }
+        buildDMNotesHandout();1
+        break;
+      case 'CLEARFAV':
+        state.DMDashboard.NotesRpt_FavsAry = [];
+        state.DMDashboard.NotesRpt_FavsOn = 0;
+        buildDMNotesHandout();1
+        break;
+  
+      case 'FAVSON':
+        myDebug(4, 'FavsOn: ' + commands[1]);
+        state.DMDashboard.NotesRpt_FavsOn = commands[1];
+        buildDMNotesHandout();
+        break;
       case 'FILTER':
         if (!commands[1] || commands[1].lenght == 0) {
           state.DMDashboard.NotesRpt_Filter = '';
