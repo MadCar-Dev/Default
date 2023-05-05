@@ -4,8 +4,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.11
-// Last Updated: 4.3.2023
+// Version 0.6.14
+// Last Updated: 5.5.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
 //          in the game and user selections.  
@@ -31,6 +31,15 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 // To force the initial build of your DM Notes handout type: !dmnotes --build
 
 // Future Enhancements being cosidered
+//  * Add DM Jukebox interface
+//    * Establish favorites (similar to the DM Notes handout)
+//    * Organize into groups Ambiance vs. Sound Effects
+//    * Add ability to stop, loop play and adjust volume 
+//    * When adjusting volume, add a +/- 10 and +/-1 buttons
+//    * Add a refresh button, as I don't get feedback when playing 
+//    * Add a tabbed display (1 for all the tracks and 1 for the favorites)
+//    * Maybe have the ability to tag a track as one of 3 or 4 that can be played from the dashboard.
+//      * Hit, Miss, Arrow, Door, Oooohs, Ouch, Magic-Boom, Magic-Shoot, Magic-sparkles, footsteps
 //  * Leverage msgbox and html/css class in all my dialogs.
 //  * Add Adv/Dis/Normal and Whisper/Public flags? 
 //  * Toggle through auras (GM/Player)
@@ -41,7 +50,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.11';
+  const version = '0.6.14';
 
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
@@ -68,15 +77,19 @@ on('ready', () => {
           Debug: 0,
           DebugLvl: 4,
           DataLog: '',
+          LogChat: false,
           NotesRpt_Tier1MenuSelected: 'Tokens',   // Used to track selection of Notes Report Tier 1 menu
-          NotesRpt_Tier2MenuSelected: 'TokenNotes', // Used to track selection of Notes Report Tier 2 menu
           NotesRpt_SelectedId: 0,  // Used to hold the id of the selected Token/Character/HO in the notes reprot
           NotesRpt_Filter: '',
           NotesRpt_FavsAry: [],
-          NotesRpt_FavsOn: 0
+          NotesRpt_FavsOn: 0,
+          JB_Tier1MenuSelected: 'Favorites',
+          JB_AmbianceFavs: [],
+          JB_EffectsFavs: [],
+          JB_DashboardBtns: []
       };
   };
-
+ 
   state.DMDashboard.version = version;
 
   if (!state.DMDashboard.charBox_ScrollHeight){ state.DMDashboard.charBox_ScrollHeight = '200px'}
@@ -87,30 +100,49 @@ on('ready', () => {
   if (!state.DMDashboard.TurnNotification) { state.DMDashboard.TurnNotification = true;}
   if (!state.DMDashboard.Debug) { state.DMDashboard.Debug = 0;}
   if (!state.DMDashboard.DebugLvl) { state.DMDashboard.DebugLvl = 4;}
+  if (!state.DMDashboard.LogChat) { state.DMDashboard.LogChat = false;}
   if (!state.DMDashboard.DM_LastTurn) { state.DMDashboard.DM_LastTurn = 0;}
   if (!state.DMDashboard.NotesRpt_SelectedId) { state.DMDashboard.NotesRpt_SelectedId = 0;}
   if (!state.DMDashboard.NotesRpt_Tier1MenuSelected) { state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Tokens';}
-  if (!state.DMDashboard.NotesRpt_Tier2MenuSelected) { state.DMDashboard.NotesRpt_Tier2MenuSelected = 'TokenNotes';}
   if (!state.DMDashboard.NotesRpt_Filter) { state.DMDashboard.NotesRpt_Filter = '';}
   if (!state.DMDashboard.hasOwnProperty('NotesRpt_FavsAry')) { 
       state.DMDashboard.NotesRpt_FavsAry = [];
       // log('****** NotesRpt_FavsAry initialized ******');
   }
   if (!state.DMDashboard.NotesRpt_FavsOn) { state.DMDashboard.NotesRpt_FavsOn = 0;}
+  if (!state.DMDashboard.hasOwnProperty('JB_AmbianceFavs')) {  
+    state.DMDashboard.JB_AmbianceFavs = [];
+  }
+  if (!state.DMDashboard.hasOwnProperty('JB_EffectsFavs')) {    
+    state.DMDashboard.JB_EffectsFavs = [];
+  }
+  if (!state.DMDashboard.hasOwnProperty('JB_DashboardBtns')) {    
+    state.DMDashboard.JB_DashboardBtns = [];
+  }
 
+
+  startPeformanceCheck();
   debounced_DMDash_HandleMsg('!DMDash --TOReport')   
-  debounced_DMDash_HandleMsg('!DMNotes --Build')   
+  debounced_DMDash_HandleMsg('!DMNotes --Build')
+  debounced_DMDash_HandleMsg('!DMDash --Tracks')
+
+  reportPerformance('Finished On Ready Event');
   
 });
 
 on('change:campaign:playerpageid', async () => {
   // log('DM Dashboard Event: change:campaign:turnorder');
-  debounced_DMDash_HandleMsg('!DMNotes --Build')   
+  reportPerformance('Start On Change:Campaign:PlayerPagiId event');   
+  debounced_DMDash_HandleMsg('!DMNotes --Build')
+  reportPerformance('Finished On Change:Campaign:PlayerPagiId event');   
 });
 
 on('change:campaign:turnorder', async () => {
   // log('DM Dashboard Event: change:campaign:turnorder');
+  reportPerformance('Start change:campaign:turnorder');   
   debounced_DMDash_HandleMsg('!DMDash --TOReport')   
+  reportPerformance('Finished change:campaign:turnorder');   
+
 });
 
 on('change:campaign:initiativepage', async () => {
@@ -140,19 +172,48 @@ on('change:graphic:bar3_value', async () => {
 
 on('chat:message', async (msg_orig) => {
   let msg = _.clone(msg_orig);
+
+  
+  LogChat(msg)
   if (!/^!DMDash/i.test(msg.content) && !/^!DMNotes/i.test(msg.content)) {
     return;
   }
 
   // log('HO Event: chat:message');
+  reportPerformance(`Start chat:message msg: ${msg.content}`);      
   debounced_DMDash_HandleMsg(msg.content);
+  reportPerformance(`End chat:message msg: ${msg.content}`);   
+
 });
+
+function LogChat(msg){
+  // Add text to Handout
+  if (msg.type != 'api') {
+
+    let logMsg = '';
+    if (state.DMDashboard.LogChat == false) {
+      return;
+    }
+    if (msg.type != 'api' && msg.content.length < 1000) {
+      logMsg = `${msg.type}: ${msg.who} -> ${msg.target}: ${msg.content}`;
+      if (msg.type == 'whisper') {
+        logMsg = `<b>${logMsg}</b>`
+      }
+    } else {
+      logMsg = `${msg.type}: ${msg.who} Length: ${msg.content.length}`;
+      if (msg.type == 'whisper') {
+        logMsg = `<b>${logMsg}</b>`
+      }
+    }      
+    addTextToHandout(logMsg, 'DM Chat Log', 2)
+  }
+}
 
 // The debounce function helps to optimize performance and prevent excessive or 
 // unnecessary function calls, reducing unnecessary processing, improving reponsiveness,
 // and avoid potential performance bottlenecks associated with rapid or frequent
 // function invocations.
-const debounced_DMDash_HandleMsg = _.debounce(DMDash_HandleMsg,500)
+const debounced_DMDash_HandleMsg = _.debounce(DMDash_HandleMsg,250)
 
 // Globals - Need to look into which of these I need to move to state 
 let charMap = new Map();
@@ -171,6 +232,7 @@ function startPeformanceCheck(){
     log('Starting Performance Test:' + gStartTime);
   }
 }
+
 function reportPerformance(msg){
   let ts = new Date().getTime();
   let stepTime = ts - gEndTime;
@@ -181,6 +243,60 @@ function reportPerformance(msg){
   }
 }
 
+function addTextToHandout(noteTxt, handoutName, mode){
+  // mode - Determines how txt will be added to the handout
+  //  0: Complete replacement
+  //  1: Append to bottom
+  //  2: Push to the top
+  //  3: Append to the bottom and include a timestamp
+  //myDebug(4, `addTextToHandout(${handoutName}, mode:${mode}, len:(${noteTxt.length})`)
+
+  const ho = getHandout(handoutName);
+  let newText = '';
+
+  // Add the text to the note 
+  ho.get("notes", function(notes) {
+    switch(mode){
+    case 0:
+    case '0':
+      newText = noteTxt;
+      //myDebug(4, `addTextToHandout: Mode 0 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
+      break;
+    case 1:
+    case '1':
+      newText = `${notes}<br>${noteTxt}`
+      //myDebug(4, `addTextToHandout: Mode 1 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
+      break;
+    case 2:
+    case '2':
+      //myDebug(4, `addTextToHandout: Mode 2 (${handoutName}, mode:${mode}, len:(${newText.length})`)
+      newText = `${noteTxt}<br>${notes}`
+      break;
+    case 3:
+    case '3':
+      //myDebug(4, `addTextToHandout: Mode 3 (${handoutName}, mode:${mode}, len:(${newText.length})`)
+      let sysDate = GetSystemUTCDate();
+      newText = `${notes}<br>${sysDate}: ${noteTxt}`
+      break;
+    }
+    //myDebug(4, `addTextToHandout: set (${handoutName}, mode:${mode}, len:(${newText.length})`)
+    setTimeout(()=>ho.set("notes", newText),0);
+  });
+}
+function getHandout(handoutName) {
+  let handout = findObjs({
+      _type: 'handout',
+      name: handoutName
+  })[0];
+
+  if (!handout) {
+      handout = createObj('handout', {
+          name: handoutName,
+          archived: false
+      });
+  }
+  return handout;
+}
 
 function DMDash_HandleMsg(msg_content){
 
@@ -499,8 +615,7 @@ function DMDash_HandleMsg(msg_content){
           html.tr(html.td(`TurnNotification:`) + html.td(`${state.DMDashboard.TurnNotification}`)) +
           html.tr(html.td(`DataLogging:`) + html.td(`${state.DMDashboard.DataLogging}`)) +
           html.tr(html.td(`Debug:`) + html.td(`${state.DMDashboard.Debug}`)) +
-          html.tr(html.td(`DebugLvl:`) + html.td(`${state.DMDashboard.DebugLvl}`)) 
-        ),
+          html.tr(html.td(`DebugLvl:`) + html.td(`${state.DMDashboard.DebugLvl}`))), 
         headercss: { 'background-color': defaultThemeColor1 },
         title: `DMDash State Variables`,
         whisperto: `GM`
@@ -510,24 +625,31 @@ function DMDash_HandleMsg(msg_content){
     msgbox({
       msg: html.h2(`INTRODUCTION`) +
           html.p(`DMDash is a DM/GM tool to that provides a heads-up display in for managing combat.`) +
-          html.h2(`Basic Commands`) +
+          html.h2(`Basic Commands:`) +
+          html.h3(`DM Dash: !DMDash [cmd]`) +
           html.table(
               html.tr(html.th(`ARG`, { 'text-align': 'left', 'min-width':'70px' }) + html.th(`EXPLANATION`, { 'text-align': 'left' })) +
-              html.tr(html.td(`--debug output level`) + html.td(`Turns on debug messaging.`)) +
-              html.tr(html.td(`--notifications (0/1)`) + html.td(`Turns on/off turn notifications. `)) +
-              html.tr(html.td(`--dataloggin (0/1)`) + html.td(`Turs on/off data logging`)) +
+              html.tr(html.td(`--debug output level`) + html.td(`Turns on debug messaging. <b>Output:</b> 0:Off 1:API/Log 2:Chat 3:Chat & Log 4:Handout  <b>Level</b> 0:All 1:Low Info 2: High Info 3: Basic Debug 4:New Code Debug 5: Performance`)) +
+              html.tr(html.td(`--notifications (0/1)`) + html.td(`Turns on/off turn player turn notifications.`)) +
+              html.tr(html.td(`--dataloggin (0/1)`) + html.td(`Turns on/off data logging`)) +
               html.tr(html.td(`--hpbar (1/2/3)`) + html.td(`Sets the token bar (1, 2, or 3) to be used for HP display.`)) +
               html.tr(html.td(`--sbheight (CB Height) (TO Height)`) + html.td(`Sets the height of the Character Detail and Turnorder areas of the dashboard.`)) +
               html.tr(html.td(`--playerstats`) + html.td(`Report player time statistics.`)) +
-              html.tr(html.td(`--clearcache`) + html.td(`Report player time statistics.`))
+              html.tr(html.td(`--clearcache`) + html.td(`Clear memory cache, forcing character details to refresh.`)) 
           ) +
-          html.h2(`EXAMPLES`) +
+          html.h4(`DM Notes: !DMNotes [cmd]`) +
+          html.table(
+              html.tr(html.th(`ARG`, { 'text-align': 'left', 'min-width':'70px' }) + html.th(`EXPLANATION`, { 'text-align': 'left' })) +
+              html.tr(html.td(`--build`) + html.td(`Forces a new DM Note to be created`)) 
+          ) +
+          html.h3(`EXAMPLES`) +
           html.table(
               html.tr(html.td2(`!DMDash --hpbar 3`, { 'font-weight': 'bold' })) +
               html.tr(html.td(`&nbsp;`) + html.td(`> Tells DM Dashboard to use bar3_value for tracking HP`, { 'font-style': 'italic' })) +
               html.tr(html.td2(`!DMDash --dataloggin 1`, { 'font-weight': 'bold' })) +
-              html.tr(html.td(`&nbsp;`) + html.td(`> Turns on data logging to DM Turnorder Log handout`, { 'font-style': 'italic' })) 
-          ),
+              html.tr(html.td(`&nbsp;`) + html.td(`> Turns on data logging to DM Turnorder Log handout`, { 'font-style': 'italic' })) +
+              html.tr(html.td2(`!DMNotes --build`, { 'font-weight': 'bold' })) +
+              html.tr(html.td(`&nbsp;`) + html.td(`> Build a new DM Notes handout, or create a new one if it didn't previously exist.`, { 'font-style': 'italic' }))),
       headercss: { 'background-color': defaultThemeColor1 },
       title: `DMDash HELP`,
       whisperto: `GM`
@@ -612,46 +734,6 @@ function DMDash_HandleMsg(msg_content){
         return interpolatedValue;
       }
     }
-  }
-  function addTextToHandout(noteTxt, handoutName, mode){
-    // mode - Determines how txt will be added to the handout
-    //  0: Complete replacement
-    //  1: Append to bottom
-    //  2: Push to the top
-    //  3: Append to the bottom and include a timestamp
-    //myDebug(4, `addTextToHandout(${handoutName}, mode:${mode}, len:(${noteTxt.length})`)
-
-    const ho = getHandout(handoutName);
-    let newText = '';
-
-    // Add the text to the note 
-    ho.get("notes", function(notes) {
-      switch(mode){
-      case 0:
-      case '0':
-        newText = noteTxt;
-        //myDebug(4, `addTextToHandout: Mode 0 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
-        break;
-      case 1:
-      case '1':
-        newText = `${notes}<br>${noteTxt}`
-        //myDebug(4, `addTextToHandout: Mode 1 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
-        break;
-      case 2:
-      case '2':
-        //myDebug(4, `addTextToHandout: Mode 2 (${handoutName}, mode:${mode}, len:(${newText.length})`)
-        newText = `${noteTxt}<br>${notes}`
-        break;
-      case 3:
-      case '3':
-        //myDebug(4, `addTextToHandout: Mode 3 (${handoutName}, mode:${mode}, len:(${newText.length})`)
-        let sysDate = GetSystemUTCDate();
-        newText = `${notes}<br>${sysDate}: ${noteTxt}`
-        break;
-      }
-      //myDebug(4, `addTextToHandout: set (${handoutName}, mode:${mode}, len:(${newText.length})`)
-      setTimeout(()=>ho.set("notes", newText),0);
-    });
   }
   function createNoteLog() {
     const noteLog = createObj('handout',{
@@ -1275,7 +1357,7 @@ function DMDash_HandleMsg(msg_content){
             msgSendToPlayers = `\nSend Image to Players:`
             artwork = String(artwork)
             let imgCnt = (artwork.split(",").length);
-            for (let ndx = 0;  ndx < imgCnt; ndx++) {
+            for (ndx = 0;  ndx < imgCnt; ndx++) {
               msgSendToPlayers += `\nImage ${ndx+1} [w/ Title](!DMDash --SHOWIMAGE ${toId} ${ndx} 1 0) [w/o Title](!DMDash --SHOWIMAGE ${toId} ${ndx} 0 0)`
             }
           }
@@ -1735,20 +1817,7 @@ function DMDash_HandleMsg(msg_content){
     }
     return v;
   }
-  function getHandout(handoutName) {
-    let handout = findObjs({
-        _type: 'handout',
-        name: handoutName
-    })[0];
 
-    if (!handout) {
-        handout = createObj('handout', {
-            name: handoutName,
-            archived: false
-        });
-    }
-    return handout;
-  }
   const getAttrCountByChar = () => findObjs({ // #### Not Used - Could be moved to my Library of functions ###
     type: 'attribute'
     })
@@ -1785,9 +1854,9 @@ function DMDash_HandleMsg(msg_content){
 
     //Reset Player Stats
     // Look for every Attribute named to_secs, to_count or to_avg and set their current value equal to their max value
-    resetAttributeValue('to_secs', 3000);
-    resetAttributeValue('to_count', 50);
-    resetAttributeValue('to_avg', 60);
+    resetAttributeValue('to_secs', 0);
+    resetAttributeValue('to_count', 0);
+    resetAttributeValue('to_avg', 0);
 
     //Reset DM/State Stats
     state.DMDashboard.DM_Secs = 0;
@@ -1971,6 +2040,7 @@ function DMDash_HandleMsg(msg_content){
     // As described in: https://www.dndbeyond.com/sources/dmg/creating-adventures#CreatingaCombatEncounter
 
     let mapXPThresholdsByCharLevel = new Map();
+    mapXPThresholdsByCharLevel.set(0, {level: 0, easy:0, medium:0, hard:0, deadly:0})
     mapXPThresholdsByCharLevel.set(1, {level: 1, easy:25, medium:50, hard:75, deadly:100})
     mapXPThresholdsByCharLevel.set(2, {level: 2, easy:50, medium:100, hard:150, deadly:200})
     mapXPThresholdsByCharLevel.set(3, {level: 3, easy:75, medium:150, hard:225, deadly:400})
@@ -1992,11 +2062,21 @@ function DMDash_HandleMsg(msg_content){
     mapXPThresholdsByCharLevel.set(19, {level: 19, easy:2400, medium:4500, hard:7300, deadly:10900})
     mapXPThresholdsByCharLevel.set(20, {level: 20, easy:2800, medium:5700, hard:8500, deadly:12700})
     return mapXPThresholdsByCharLevel;
-
-  
   
   }
 
+  function makeDBPlayButton(name){
+    let btn = ''
+    let dbItem = [];
+    
+    dbItem = state.DMDashboard.JB_DashboardBtns.find(dbTrack => dbTrack.item === name);
+    if (dbItem) {
+      btn = addTooltip('Play sound', makeButton(name, `!DMDash --playtrack ${dbItem.id}`));
+    } else {
+      btn = addTooltip('Track not set!',name)
+    }
+    return btn;
+  }
 
   // ****************************
   // *** Refresh Reports Function ***  
@@ -2068,11 +2148,11 @@ function DMDash_HandleMsg(msg_content){
     let tdnpc = td1;
 
     let tdbase = tdpc;
-    let td_health100 = ' style="background-color:#24CE10;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
-    let td_health75 = ' style="background-color:#FFFE00;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
-    let td_health50 = ' style="background-color:#FFAC00;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
-    let td_health25 = ' style="background-color:#FF5A00;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';
-    let td_healthDead = ' style="background-color:#FF0000;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:left;vertical-align:top;word-break:normal"';    
+    let td_health100 = ' style="background-color:#24CE10;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:center;vertical-align:top;word-break:normal"';
+    let td_health75 = ' style="background-color:#FFFE00;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:center;vertical-align:top;word-break:normal"';
+    let td_health50 = ' style="background-color:#FFAC00;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:center;vertical-align:top;word-break:normal"';
+    let td_health25 = ' style="background-color:#FF5A00;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:center;vertical-align:top;word-break:normal"';
+    let td_healthDead = ' style="background-color:#FF0000;border-color:#93a1a1;border-style:solid;border-width:1px;color:#002b36;font-family:Arial, sans-serif;font-size:12px;font-weight:bold;overflow:hidden;padding:1px 1px;text-align:center;vertical-align:top;word-break:normal"';    
 
     let tr = '';
     let td_hp = '';
@@ -2287,8 +2367,30 @@ function DMDash_HandleMsg(msg_content){
       // Build the Detailed NPC or Character section if expanded 
       // *************************************************************
 
+      //let dashOptions = 'Hit|Miss|Arrow|Door|Trap|Ouch|Boom|Pew|Magic|Steps|Amb1|Amb2'
+
+
+      let btnHit = makeDBPlayButton('Hit');
+      let btnMiss = makeDBPlayButton('Miss');
+      let btnArrow = makeDBPlayButton('Arrow');
+      let btnDoor = makeDBPlayButton('Door');
+      let btnTrap = makeDBPlayButton('Trap');
+      let btnOuch = makeDBPlayButton('Ouch');
+      let btnBoom = makeDBPlayButton('Boom');
+      let btnPew = makeDBPlayButton('Pew');
+      let btnMagic = makeDBPlayButton('Magic');
+      let btnSteps = makeDBPlayButton('Steps');
+      let btnAmb1 = makeDBPlayButton('Amb1');
+      let btnAmb2 = makeDBPlayButton('Amb2');
+
+      let trackTbl = ''
+      trackTbl = html.table(html.tr(html.td(btnHit,{'vertical-align':'middle', 'border':'0'}) + html.td(btnTrap,{'vertical-align':'middle', 'border':'0'})+ html.td(btnMagic,{'vertical-align':'middle', 'border':'0'}))+
+                        html.tr(html.td(btnMiss,{'vertical-align':'middle', 'border':'0'}) + html.td(btnOuch,{'vertical-align':'middle', 'border':'0'}) + html.td(btnSteps,{'vertical-align':'middle', 'border':'0'}))+
+                        html.tr(html.td(btnArrow,{'vertical-align':'middle', 'border':'0'}) + html.td(btnBoom,{'vertical-align':'middle', 'border':'0'}) + html.td(btnAmb1,{'vertical-align':'middle', 'border':'0'}))+
+                        html.tr(html.td(btnDoor,{'vertical-align':'middle', 'border':'0'}) + html.td(btnPew,{'vertical-align':'middle', 'border':'0'}) + html.td(btnAmb2,{'vertical-align':'middle', 'border':'0'}))
+                  , {'border':'0', 'background-color': '#EFEBD6', 'color': 'black'})
+      
       charDetail = '';
-  
       tType = getTokenType(toObj[0].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
 
       switch (tType) {
@@ -2297,7 +2399,14 @@ function DMDash_HandleMsg(msg_content){
           toToken = getObj("graphic", toObj[0].id);                
           tknImg = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
           tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!DMDash --PingToken-GM ${toToken.get('_id')}`));
+          charHeader 
           charHeader = `<table style='font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;'><tr><td>${tknImg} ${toToken.get('name')} - Graphic Token (Not associated with Character/NPC)</td> <td>Turnorder: (${toObj[0].pr}) <span id=EncDiff>1</span></td></tr></table>`;
+          charHeader =html.table(
+                        html.tr(
+                          html.td(`${tknImg} ${toToken.get('name')} - Graphic Token (Not associated with Character/NPC)`) + 
+                          html.td(trackTbl, {'vertical-align':'middle', 'border':'1'})+
+                          html.td(`<span id=EncDiff>1</span>`)), {'background-color': '#404040', 'color': '#fff'})
+
           charHeader_CSPage = charHeader;
           charDetail = '';
           
@@ -2307,6 +2416,11 @@ function DMDash_HandleMsg(msg_content){
           charHeader +=   `<tr><td style='vertical-align: middle; text-align: center; padding: 0; border:0'>Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}]</td>`
           charHeader +=       `<td style='vertical-align: middle; text-align: left; padding: 0; border:0'><table style='font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px;'><span id=EncDiff>1</span></td>`
           charHeader +=   `</tr></table>`;
+          charHeader = html.table(
+                        html.tr(
+                          html.td(`Custom Turnorder: ${toObj[0].custom} (${toObj[0].pr}) [Formula: ${toObj[0].formula}]`) + 
+                          html.td(trackTbl, {'vertical-align':'middle', 'border':'1'})+
+                          html.td(`<span id=EncDiff>1</span>`)), {'background-color': '#404040', 'color': '#fff'})
 
           charHeader_CSPage = charHeader;
           charDetail = '';
@@ -2331,14 +2445,15 @@ function DMDash_HandleMsg(msg_content){
           tknImg = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
           tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!DMDash --PingToken-GM ${toToken.get('_id')}`));
 
-          charHeader = `<table style='border: 0; border-collapse: collapse; margin: 0 auto; color:#fff; background-color:#404040; padding: 0; margin: 0 auto;'>`
-          charHeader +=   `<tr><td style='vertical-align: middle; text-align: center; padding: 0; border:0'>`
-          charHeader +=       `<table style='border: 0; border-collapse: collapse; font-weight:normal; color:#fff; background-color: #404040; padding: 0; margin: 0 auto;'>`
-          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0;'>${tknImg} <b>${toToken.get('name')}</b>  <i>(${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i></td></tr>`
-          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0;'></td></tr>`
-          charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0; background-color: #404040'><i>Avg Turn: ${TO_Avg}secs Total Secs: ${TO_Secs} Turns: ${TO_Count}</i></td></tr>`
-          charHeader +=       `</table></td>` 
-          charHeader +=   `<td style='vertical-align: bottom; text-align: left; padding: 0; border:0'><span id=EncDiff>1</span></td></tr></table>`
+          charHeader = html.table(
+                          html.tr(
+                            html.td(`${tknImg}`, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) +
+                            html.td(html.table( 
+                                html.tr(html.td(`<b>${toToken.get('name')}</b>`, {'border':'0'})) +
+                                html.tr(html.td(`<i>(${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>`, {'border':'0'})) +
+                                html.tr(html.td(`<i>Avg Turn: ${TO_Avg}secs Total Secs: ${TO_Secs} Turns: ${TO_Count}</i>`, {'border':'0'})), {'border': '0'}), {'vertical-align':'middle', 'border':'0'}) +
+                            html.td(trackTbl, {'vertical-align':'middle', 'border':'1'})+
+                            html.td(`<span id=EncDiff>1</span>`, {'vertical-align':'middle', 'border':'0'})), {'background-color': '#404040' , 'color': '#fff'});
 
           charHeader_CSPage = `<table style='border:0px; border-collapse:collapse; font-weight:normal; color:#fff; background-color:#404040; margin-right:0px; padding:0px;'>`
           charHeader_CSPage += `<tr><td style='width: 100%; vertical-align: middle; text-align: left; padding: 0; border:0'>${tknImg} ${toToken.get('name')}   <i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>)</td></tr>`
@@ -2682,6 +2797,27 @@ function DMDash_HandleMsg(msg_content){
           charHeader +=           `<tr><td style='text-align: center; padding: 0; border:0;'><i>Avg Turn: ${state.DMDashboard.DM_Avg}secs Total Secs: ${state.DMDashboard.DM_Secs} Turns: ${state.DMDashboard.DM_Count}</i></td></tr>`
           charHeader +=       `</table></td>` 
           charHeader +=   `<td style='vertical-align: bottom; text-align: left; padding: 0; border:0'><span id=EncDiff>1</span></td></tr></table>`
+
+          charHeader = html.table(
+            html.tr(
+              html.td(`${tknImg}`, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) + 
+              html.td(html.table( 
+                  html.tr(html.td(`<b>${toToken.get('name')}</b>`, {'border':'0'})) +
+                  html.tr(html.td(`<i>(${getAttrByName(toChar.get('_id'),'npc_type','current')})</i>`, {'border':'0'})) +
+                  html.tr(html.td(`<i>Avg Turn: ${TO_Avg}secs Total Secs: ${TO_Secs} Turns: ${TO_Count}</i>`, {'border':'0'})), {'border':'0'}), {'vertical-align':'middle', 'border':'0'}) +
+              html.td(trackTbl, {'vertical-align':'middle', 'border':'1'})+
+              html.td(`<span id=EncDiff>1</span>`,{'vertical-align':'middle', 'border':'0'} )), {'background-color': '#404040', 'color': '#fff'});
+
+              /* 
+              charHeader = html.table(
+                html.tr(
+                  html.td(`${tknImg}`, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) + html.td(
+                    html.table( 
+                      html.tr(html.td(`<b>${toToken.get('name')}</b>`, {'border':'0'})) +
+                      html.tr(html.td(`<i>(${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>`, {'border':'0'})) +
+                      html.tr(html.td(`<i>Avg Turn: ${TO_Avg}secs Total Secs: ${TO_Secs} Turns: ${TO_Count}</i>`, {'border':'0'})), {'border': '0'}), {'vertical-align':'middle', 'border':'0'}) +
+                  html.td(`<span id=EncDiff>1</span>`, {'vertical-align':'middle', 'border':'0'})), {'background-color': '#404040' , 'color': '#fff'});
+              */
 
 
           charHeader_CSPage = `<table style='border-collapse:collapse; font-weight:bold; color:#fff; background-color:#404040; margin-right:2px; padding:2px; margin: 0 auto;'>`
@@ -3031,7 +3167,7 @@ function DMDash_HandleMsg(msg_content){
 
             // Button to enable adjusting Hit Points
             btnAdjHP = makeButton(hp + ' / ' + hpmax,`!DMDash --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
-            toList += '<td ' + td_hp + '>'+ btnAdjHP + ' (' + hp_pct + '%)</td>';
+            toList += '<td ' + td_hp + '><c>'+ btnAdjHP + ' (' + hp_pct + '%)</c></td>';
             
             // COL 5 Status Markers (Span 5 (5-9))
             sm = toToken.get('statusmarkers');
@@ -3175,7 +3311,16 @@ function DMDash_HandleMsg(msg_content){
           }
 
           // Col 1 (Turn/PR)
-          toList += '<td ' + tdbase + '><b>' + toObj[i].pr + '</b></td>';
+          toList += '<td ' + tdbase + '>'
+          if (foeItem.State == 'FRIEND') {
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Friend) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiFriend, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+          } else if (foeItem.State == 'FOE') {
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Foe) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiFoe, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+          } else {
+            toList += '<span style="font-size: 16px">'+ addTooltip(`(Neutral) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiNeutral, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
+          }
+          toList += '&nbsp;<b>' + toObj[i].pr + '</b></td>';
+
 
           // Col 2 (Name)
           tknImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
@@ -3227,18 +3372,6 @@ function DMDash_HandleMsg(msg_content){
           }
           toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiAvatar, '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
           toList += '<span style="font-size: 16px">'+ addTooltip("Show Images", makeButton(emojiImages, '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
-
-          // myDebug(4, `foe-Buttons: ${foeItem.State}`)
-          // dumpMapObject(foeMap);
-
-          if (foeItem.State == 'FRIEND') {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Friend) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiFriend, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
-          } else if (foeItem.State == 'FOE') {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Foe) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiFoe, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
-          } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip(`(Neutral) ${foeItem.Type}/${foeItem.Level}/${foeItem.Exp}`, makeButton(emojiNeutral, '!DMDash --ToggleFriend ' + toToken.get('_id'))) + '</span>';
-          }
-
           toList += '</td>';
 
           // Col 4 (Health)
@@ -3255,7 +3388,7 @@ function DMDash_HandleMsg(msg_content){
           if (hp_pct <= 0) {td_hp=td_healthDead;} // Dead
 
           btnAdjHP = makeButton(hp + ' / ' + hpmax,`!DMDash --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
-          toList = toList + '<td ' + td_hp + '>'+ btnAdjHP + ' (' + hp_pct + '%)</td>';
+          toList = toList + '<td ' + td_hp + '><c>'+ btnAdjHP + ' (' + hp_pct + '%)</c></td>';
           
           // COL 5 Status Markers
           sm = toToken.get('statusmarkers');
@@ -3451,25 +3584,6 @@ function DMDash_HandleMsg(msg_content){
     htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edDiffMult}</td>`)
     htmlTbl.push(`<td style="padding: 0; border: 0; text-align: center">${edNPCExpTotal}</td></tr></table>`) //Σ NPC Exp: 
 
-    let edTbl = `<table style="border-collapse: collapse; padding: 0; border: 0; margin: 0 auto;">`
-    edTbl +=  `<tr><th style="background-color: ${edColor}; color: black;padding: 0px; border: 0px; text-align: center" colspan=8>Encounter ${edDifficulty} <i>(Total Encounter Experience: ${edEncounterExp})</i></th></tr>`
-    edTbl +=  `<tr><td style="padding: 0px; border: 0px; text-align: center">Easy</td>`
-    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Medium</td>`
-    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Hard</td>`
-    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Deadly</td>`
-    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Party #</td>`
-    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Foe #</td>`
-    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Mult</td>`
-    edTbl +=  `<td style="padding: 0px; border: 0px; text-align: center">Exp Total</td></tr>`
-    edTbl +=  `<tr><td style="padding: 0px; border: 0px; text-align: center">${edEasy}</td>`
-    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edMedium}</td>`
-    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edHard}</td>`    
-    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edDeadly}</td>`
-    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edPartyCount}</td>`
-    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edFoeCount} </td>`
-    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edDiffMult}</td>`
-    edTbl +=  `<td style="padding: 0; border: 0; text-align: center">${edNPCExpTotal}</td></tr></table>` //Σ NPC Exp: 
-
     edTbl = htmlTbl.join('');
 
     //replaceDynamicSpanElement(toList,"encdiff",edDifficulty);
@@ -3519,8 +3633,10 @@ function DMDash_HandleMsg(msg_content){
     toList = btns + openReport + toList + closeReport;
 
     // Footer links for the other handouts
-    toList += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'>" + makeButton('DM Dashboard Character Sheet', 'https://journal.roll20.net/handout/' + getHandout(toReportName).get('_id')) + '  |  ';
-    toList += makeButton('DM Notes Handount', 'https://journal.roll20.net/handout/' + getHandout('DM Notes').get('_id')) + '</div>';
+    toList += "<div style='font-style:italic; color:#fff; margin-right:3px; padding:3px; text-align:right;'> <b>Other DM Tools:</b> "
+    toList += makeButton('Character Sheet', 'https://journal.roll20.net/handout/' + getHandout(toReportName).get('_id')) + '  |  ';
+    toList += makeButton('Notes', 'https://journal.roll20.net/handout/' + getHandout('DM Notes').get('_id'))  + '  |  '
+    toList += makeButton('Jukebox', 'https://journal.roll20.net/handout/' + getHandout('DM Jukebox').get('_id')) + '</div>';
 
     reportPerformance('Complete Report Build');
 
@@ -3609,7 +3725,6 @@ function DMDash_HandleMsg(msg_content){
     
     //-----Header------------------------------------------------ ;rptHeader
     //--Tier 1 menu --------------------------------------------- ;menuT1
-    //-----Tier 2 menu ------------------------------------------ ;menuT2
     //----------------------------------------------------------- ;blank line?
     //[                 |                                       ] ;tblMaster   2-Column Master table
     //[Item List | Fcts]|[         Notes                        | ;   2-Column List Table/Fct & 1 column Note Table 
@@ -3877,6 +3992,194 @@ function DMDash_HandleMsg(msg_content){
     reportPerformance();
   }
 
+  function listTracks() {
+    let track = [];
+    let tList = ''
+    let tFavs = ''
+    let rptText = ''; // This will be where the content of the new handout will be built
+    let rptHeader = '';
+    let rptFooter = '';
+    let btnFavs = ''
+    let btnAll = ''
+    let btnLoop =''
+    let btnDash = '';
+    let btnPlay = '';
+    let btnVol = ''
+    let btnEffect = '';
+    let btnAmbiance = '';
+
+    let menuT1 = '';
+
+    rptHeader = html.h2('DM Jukebox Tracks Management')    
+
+    // Tier 1 Buttons
+    if (state.DMDashboard.JB_Tier1MenuSelected == 'Jukebox') {
+      btnAll = makeMenuButton('Jukebox', '!DMDash --JBAll', 1);  // All tracks
+      btnFavs = makeMenuButton('Favorites', '!DMDash --JBFavs'); // Favorites 
+    } else {
+      btnAll = makeMenuButton('Jukebox', '!DMDash --JBAll');  // All tracks
+      btnFavs = makeMenuButton('Favorites', '!DMDash --JBFavs', 1); // Favorites 
+    }
+
+    menuT1 = `${btnFavs} ${btnAll}`
+    menuT1 = html.div(menuT1, menuBoxCSS)
+
+    let tracks = findObjs({
+      _type: 'jukeboxtrack'
+    }).sort((a, b) => (a.get("title") > b.get("title") ? 1 : -1));
+
+    if (tracks.length == 0) {
+      myDebug(4, "No Tracks Found")
+      return;
+    }
+
+    if (state.DMDashboard.JB_Tier1MenuSelected !== 'Jukebox') {
+      let tListEffects = html.tr(html.th('Play') + html.th('Loop') + html.th('Title') + html.th('Volume') )
+      let tListAmbiance = html.tr(html.th('Play') + html.th('Loop') + html.th('Title') + html.th('Volume') )
+
+      tracks.forEach(track => {
+        
+        let trackId = track.get('_id');
+        btnPlay = makeButton(emojiPlay, `!dmdash --PlayTrack ${trackId}`);
+        if (track.get('loop') == true) {
+          btnLoop = makeButton(emojiLoop, `!dmdash --LoopTrack ${trackId} 0`);
+        }else{
+          btnLoop = makeButton(emojiEmptyBox, `!dmdash --LoopTrack ${trackId} 1`);
+        }
+        btnVol = makeButton(emojiVolumeUp10, `!dmdash --SetVolume ${trackId} 10`) + makeButton(emojiVolumeUp1, `!dmdash --SetVolume ${trackId} 1`) + makeButton(emojiVolumeDown1, `!dmdash --SetVolume ${trackId} -1`)+makeButton(emojiVolumeDown10, `!dmdash --SetVolume ${trackId} -10`);
+
+        if (state.DMDashboard.JB_AmbianceFavs.includes(trackId)){
+          tListAmbiance += html.tr(html.td(btnPlay) + html.td(btnLoop) + html.td(track.get('title')) + html.td(btnVol + '[' + track.get('volume') + ']'))
+        }
+
+        if (state.DMDashboard.JB_EffectsFavs.includes(trackId)){
+          tListEffects += html.tr(html.td(btnPlay) + html.td(btnLoop) + html.td(track.get('title')) + html.td(btnVol + '[' + track.get('volume') + ']'))          
+        }
+
+      });
+
+      tListAmbiance = html.table(tListAmbiance)
+      tListEffects = html.table(tListEffects)
+      tList = html.table(html.tr(html.th('Effect') + html.th('Ambiance')) +
+              html.tr(html.td(tListEffects) + html.td(tListAmbiance)))
+
+    } else {
+
+      //tList = html.tr(html.th('Effect') + html.th('Ambiance') + html.th('Dash') + html.th('Play') + html.th('Title') + html.th('Playing') + html.th('Softstop') + html.th('Volume') + html.th('Loop'))
+      tList = html.tr(html.th('Effect') + html.th('Ambiance') + html.th('Dash') + html.th('Play') + html.th('Loop') + html.th('Title') + html.th('Volume') )
+
+      tracks.forEach(track => {
+
+        let trackId = track.get('_id');
+        btnPlay = makeButton(emojiPlay, `!dmdash --PlayTrack ${trackId}`);
+        let dashOptions = 'Hit|Miss|Arrow|Door|Trap|Ouch|Boom|Pew|Magic|Steps|Amb1|Amb2'
+
+        btnDash = makeButton(emojiEmptyBox, `!dmdash --SetDashTrack ${trackId} "?{Set Dashboard Track?|${dashOptions}}"`);
+        const dbtExists = state.DMDashboard.JB_DashboardBtns.some(dbTrack => dbTrack.id === trackId);
+        if (dbtExists == true) {
+          let dbItem = state.DMDashboard.JB_DashboardBtns.find(dbTrack => dbTrack.id === trackId);
+          if (dbItem) {
+            btnDash = makeButton(dbItem.item, `!dmdash --SetDashTrack ${trackId} "?{Set Dashboard Track?|${dashOptions}}"`);    
+          }
+        }
+        if (state.DMDashboard.JB_AmbianceFavs.includes(trackId)){
+          btnAmbiance = makeButton(emojiAmbiance, `!dmdash --ToggleAmbianceTrack ${trackId}`)
+        } else {
+          btnAmbiance = makeButton(emojiEmptyBox, `!dmdash --ToggleAmbianceTrack ${trackId}`)
+        }
+
+        if (state.DMDashboard.JB_EffectsFavs.includes(trackId)){
+          btnEffect = makeButton(emojiEffect, `!dmdash --ToggleEffectTrack ${trackId}`)
+        } else {
+          btnEffect = makeButton(emojiEmptyBox, `!dmdash --ToggleEffectTrack ${trackId}`)
+        }
+
+        if (track.get('loop') == true) {
+          btnLoop = makeButton(emojiLoop, `!dmdash --LoopTrack ${trackId} 0`);
+        }else{
+          btnLoop = makeButton(emojiEmptyBox, `!dmdash --LoopTrack ${trackId} 1`);
+        }
+        btnVol = makeButton(emojiVolumeUp10, `!dmdash --SetVolume ${trackId} 10`) + makeButton(emojiVolumeUp1, `!dmdash --SetVolume ${trackId} 1`) + makeButton(emojiVolumeDown1, `!dmdash --SetVolume ${trackId} -1`)+makeButton(emojiVolumeDown10, `!dmdash --SetVolume ${trackId} -10`);
+        tList += html.tr(html.td(btnEffect) + html.td(btnAmbiance) + html.td(btnDash) + html.td(btnPlay) + html.td(btnLoop) + html.td(track.get('title')) + html.td(btnVol + '[' + track.get('volume') + ']'))
+      });
+      tList = html.table(tList);
+    }
+    
+    rptText = openReport + rptHeader + menuT1 + tList + rptFooter + closeReport
+
+    addTextToHandout(rptText, "DM Jukebox",0)
+    
+  }
+
+  function setDashTrack(id, selected){
+    // First see if something is already assigned to the selected track
+    const SelectedTrackExists = state.DMDashboard.JB_DashboardBtns.some(track => track.item === selected);
+    // If it exists, then remove it
+    if (SelectedTrackExists == true) {
+      state.DMDashboard.JB_DashboardBtns = state.DMDashboard.JB_DashboardBtns.filter(track => track.item!==selected);
+    }
+    // Second see if something is already assigned to selected ID
+    const SelectedIdExists = state.DMDashboard.JB_DashboardBtns.some(track => track.id === id);
+    if (SelectedIdExists == true) {
+      state.DMDashboard.JB_DashboardBtns = state.DMDashboard.JB_DashboardBtns.filter(track => track.id!==id);
+    }
+
+    // Add the new track
+    state.DMDashboard.JB_DashboardBtns.push({
+      item: selected,
+      id: id
+    });
+    
+  }
+
+  function setLoopTrack(id, loop){
+    let track = getObj('jukeboxtrack', id);
+    if (!track) {
+      myDebug(4, `Loop Track ${id} not found`);
+      return;
+    }
+    if (loop == 0) {
+      track.set('loop', false);  
+    } else {
+      track.set('loop', true);
+    }
+    return;
+  }
+
+  function setVolume(id, volAdj){
+    let track = getObj('jukeboxtrack', id);
+    if (!track) {
+      myDebug(4, `SetVolume ${id} not found`);
+      return;
+    }
+    let currVolume = track.get('volume');
+    if (isNaN(currVolume)) {
+      currVolume = 30;
+    } else {
+      currVolume = eval(Number(currVolume) + Number(volAdj));
+    }
+    if (currVolume > 100) { currVolume = 100; }
+    if (currVolume < 0) { currVolume = 0; }
+    track.set('volume', currVolume);
+    return;
+  }
+
+  function playTrack(id){
+    let track = getObj('jukeboxtrack', id);
+    if (!track) {
+      myDebug(4, `Playtrack ${id} not found`);
+      return;
+    }
+    if (track.get('playing') == true) {
+      // track.set('softstop', true);
+      track.set('playing', false);
+    } else {
+      track.set('softstop', false);
+      track.set('playing', true);
+    }
+    return;
+  }
+
   startPeformanceCheck();
 
   // Load them at the start to improve performance in the 
@@ -3916,13 +4219,16 @@ function DMDash_HandleMsg(msg_content){
   const toReportName = 'DM Turnoder List'
   const CharSheetName = 'DM Character Sheet'
   const dmNotesReportName = 'DM Notes'
+  const dmJukeBoxName = 'DM Jukebox';
   const debugLogName = 'DM Debug Log'
   let Exp_ndx = '';
+  let ndx = '';
 
   const emojiClear = '\u{274C}' // ❌
   const emojiLink = '\u{1F517}' // 🔗
   const emojiHide = '\u{1F47B}' // 👻 🫥
-  const emojiShow = '\u{1F611}' // 😑
+  // const emojiShow = '\u{1F611}' // 😑
+  const emojiShow = '\u{D83D}\u{DE4B}\u{D83C}\u{DFFB}\u{200D}\u{2640}\u{FE0F}' // 🙋🏻‍♀️
   const emojiPing = '\u{1F3AF}' // 🎯
   const emojiDocument = '\u{1F4D1}' // 📑
   const emojiNote = '\u{1F4D3}' // 📓
@@ -3937,9 +4243,30 @@ function DMDash_HandleMsg(msg_content){
   const emojiNeutral = '\u{1F4A9}' //💩
   const emojiPlus = '\u{2795}' // ➕
   const emojiMinus = '\u{2796}' // ➖
-  const emojiFilter = `\u{1F50E}`;  // 🔎 
+  const emojiFilter = '\u{1F50E}';  // 🔎 
   const emojiFav = '\u{2764}\u{FE0F}' // ❤️ 
   const emojiNotFav = '\u{1F90D}' // 🤍
+  const emojiPlay =  '\u{25B6}\u{FE0F}' // ▶️ 
+  const emojiPause =  '\u{25B6}\u{FE0F}'; // ⏸️ 
+  const emojiPlayPause =  '\u{23EF}\u{FE0F}'; // ⏯️ 
+  const emojiRewind =  '\u{23EA}'; // ⏪ 
+  const emojiFastForward =  '\u{23E9}'; // ⏩ 
+  const emojiStop =  '\u{23F9}\u{FE0F}'; // ⏹️ 
+  const emojiPrevTrack =  '\u{23EE}\u{FE0F}'; // ⏮️ 
+  const emojiNextTrack =  '\u{23ED}\u{FE0F}'; // ⏭️ 
+  const emojiRewindLeft =  '\u{21A9}\u{FE0F}'; // ↩️ 
+  const emojiRewindRight =  '\u{21AA}\u{FE0F}'; // ↪️
+  const emojiVolumeUp1 ='\u{D83D}\u{DD3C}'  // 🔼
+  const emojiVolumeUp10 ='\u{23EB}' // ⏫
+  const emojiVolumeDown1 ='\u{D83D}\u{DD3D}' //🔽
+  const emojiVolumeDown10 ='\u{23EC}' //⏬
+
+  const emojiLoop = '\u{D83D}\u{DD01}'; // 🔁
+  const emojiEffect = '\u{D83D}\u{DCA5}'; //💥
+  const emojiAmbiance = '\u{D83C}\u{DFB6}'; // 🎶
+  const emojiEmptyBox = '\u{2B1C}\u{FE0F}'; // 
+
+
 
   let chatMsg = '';
 
@@ -4111,22 +4438,19 @@ function DMDash_HandleMsg(msg_content){
         refreshReports();
         break;
       case 'OPEN':
-        refreshReports();
+      case 'SHOW-HO-DIALOG':
         chatMsg = `<b>&nbsp;&nbsp;[DM Dashboard](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
-        chatMsg += `<br>&nbsp;&nbsp;[Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
-        chatMsg += `<br>&nbsp;&nbsp;[DM Notes](https://journal.roll20.net/handout/${getHandout('DM Notes').get('_id')})</b>`;      
-        chatMsg += `<br>&nbsp;&nbsp;[Turnorder Log](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})</b>`;      
+        chatMsg += `<br>&nbsp;&nbsp;[DM Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
+        chatMsg += `<br>&nbsp;&nbsp;[DM Notes](https://journal.roll20.net/handout/${getHandout('DM Notes').get('_id')})`;      
+        chatMsg += `<br>&nbsp;&nbsp;[DM Jukebox](https://journal.roll20.net/handout/${getHandout('DM Jukebox').get('_id')})`;      
+        chatMsg += `<br>&nbsp;&nbsp;[DM Turnorder Log](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})</b>`;      
+
         // sendChat("DM Dashboard", chatMsg);
         mySendChat(true, "DM Dashboard", chatMsg)
-        break;
-      case 'SHOW-HO-DIALOG':
         refreshReports();
-        chatMsg = `<b>&nbsp;&nbsp;[DM Dashboard](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
-        chatMsg += `<br>&nbsp;&nbsp;[Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
-        chatMsg += `<br>&nbsp;&nbsp;[DM Notes](https://journal.roll20.net/handout/${getHandout('DM Notes').get('_id')})</b>`;      
-        chatMsg += `<br>&nbsp;&nbsp;[Turnorder Log](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})</b>`;      
-        // sendChat("DM Dashboard", chatMsg);
-        mySendChat(true, "DM Dashboard Handouts", chatMsg)
+        listTracks();
+        buildDMNotesHandout();
+        break;
 
       case 'FLUSHDATALOG':
         flushDataLog();
@@ -4159,6 +4483,16 @@ function DMDash_HandleMsg(msg_content){
         refreshReports();
         break;
 
+      case 'LOGCHAT':
+        if (commands[1] == 0 || commands[1] == false || commands[1] == 'false' || commands[1] == 'off'){
+          state.DMDashboard.LogChat = false;
+          mySendChat(true, "DM Dashboard", `Logging Chat turned <b>OFF</b>.`);
+        } else {
+          state.DMDashboard.LogChat = true;
+          mySendChat(true, "DM Dashboard", `Logging Chat turned <b>ON</b>.`);
+        }
+
+        break;
       case 'DEBUG':
           // 0 - Off, 1 - API Log, 2 - Chat, 3 - Chat & Log, 4 - Handout(Currently has issue writing quickly to handout)
           // 4; //0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug
@@ -4181,6 +4515,66 @@ function DMDash_HandleMsg(msg_content){
       case 'PLAYERSTATS':
         showPlayerStats(commands[1]);
         break;
+
+      case 'TRACK':
+      case 'TRACKS':
+      case 'LISTTRACKS':        
+        listTracks();
+        break;
+
+      case 'JBALL':
+        state.DMDashboard.JB_Tier1MenuSelected = "Jukebox"
+        listTracks();
+        break;
+      case 'JBFAVS':
+        state.DMDashboard.JB_Tier1MenuSelected = "Favorites"        
+        listTracks();
+        break;
+
+      case 'PLAYTRACK':
+        playTrack(commands[1]);
+        listTracks();
+        break;
+  
+      case 'SETDASHTRACK':
+        setDashTrack(commands[1], commands[2]);
+        listTracks();
+        break;
+
+      case 'TOGGLEAMBIANCETRACK':
+        ndx = state.DMDashboard.JB_AmbianceFavs.indexOf(commands[1]);
+        if (ndx<0) {
+          state.DMDashboard.JB_AmbianceFavs.push(commands[1]);
+          myDebug(4, `AmbTrack On: ${commands[1]} count: ${state.DMDashboard.JB_AmbianceFavs.length}`);
+        } else {
+          state.DMDashboard.JB_AmbianceFavs.splice(ndx,1);
+          myDebug(4, `AmbTrackOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.JB_AmbianceFavs.length}`);
+        }
+        listTracks();        
+        break;
+
+      case 'TOGGLEEFFECTTRACK':
+        ndx = state.DMDashboard.JB_EffectsFavs.indexOf(commands[1]);
+        if (ndx<0) {
+          state.DMDashboard.JB_EffectsFavs.push(commands[1]);
+          myDebug(4, `AmbTrackOn: ${commands[1]} count: ${state.DMDashboard.JB_EffectsFavs.length}`);
+        } else {
+          state.DMDashboard.JB_EffectsFavs.splice(ndx,1);
+          myDebug(4, `AmbTrackOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.JB_EffectsFavs.length}`);
+        }
+        listTracks();        
+      break;
+
+      case 'LOOPTRACK':
+        setLoopTrack(commands[1], commands[2]);
+        listTracks();
+        break;
+
+      case 'SETVOLUME':
+        setVolume(commands[1], commands[2]);
+        listTracks();
+        break;
+
 
       default:
         mySendChat(true, "DM Dashboard", `Command ${commands[0]} not recognized.`)
@@ -4216,7 +4610,7 @@ function DMDash_HandleMsg(msg_content){
         break;
 
       case 'TOGGLEFAV':
-        let ndx = state.DMDashboard.NotesRpt_FavsAry.indexOf(commands[1]);
+        ndx = state.DMDashboard.NotesRpt_FavsAry.indexOf(commands[1]);
         if (ndx<0) {
           state.DMDashboard.NotesRpt_FavsAry.push(commands[1]);
           myDebug(3, `FavsOn: ${commands[1]} count: ${state.DMDashboard.NotesRpt_FavsAry.length}`);
@@ -4224,7 +4618,7 @@ function DMDash_HandleMsg(msg_content){
           state.DMDashboard.NotesRpt_FavsAry.splice(ndx,1);
           myDebug(3, `FavsOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.NotesRpt_FavsAry.length}`);
         }
-        buildDMNotesHandout();1
+        buildDMNotesHandout();
         break;
       case 'CLEARFAV':
         state.DMDashboard.NotesRpt_FavsAry = [];
