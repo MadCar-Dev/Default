@@ -117,7 +117,6 @@ on('ready', () => {
     state.DMDashboard.JB_DashboardBtns = [];
   }
 
-
   startPeformanceCheck();
   debounced_DMDash_HandleMsg('!DMDash --TOReport')   
   debounced_DMDash_HandleMsg('!DMNotes --Build')
@@ -4205,6 +4204,7 @@ function DMDash_HandleMsg(msg_content){
 
     let emojiAccess = '\u{2705}' //✅
     let emojiDenied = '\u{1F6AB}' //🚫
+    let btnFct  = '';
     let access = '';
     let rowAccessCnt = 0;
     let tblRow = '';
@@ -4248,7 +4248,8 @@ function DMDash_HandleMsg(msg_content){
     let handouts = findObjs({ type: "handout" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
     handouts.forEach(handout => {
       access = '';
-      let tblRow = html.td("&nbsp;&nbsp;" + handout.get("name"))  // Add link to handout later
+      btnFct = addTooltip("Open Handout", makeButton(emojiDocument, `https://journal.roll20.net/handout/${handout.get('_id')}`));
+      let tblRow = html.td("&nbsp;&nbsp;" + btnFct + handout.get("name"))  // Add link to handout later
       playerAry.forEach(player => {
         ipj = handout.get("inplayerjournals");
         if(ipj.includes(player.id) || ipj === "all"){
@@ -4280,7 +4281,9 @@ function DMDash_HandleMsg(msg_content){
     let characters = findObjs({ type: "character" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
     characters.forEach(character => {
       access = '';
-      tblRow = html.td("&nbsp;&nbsp;" + character.get("name") )  // Add link to handout later
+
+      btnFct = addTooltip("Open Character Sheet", makeButton(emojiDocument, `https://journal.roll20.net/character/${character.get('_id')}`));
+      tblRow = html.td("&nbsp;&nbsp;" + btnFct + character.get("name") )  // Add link to handout later
       playerAry.forEach(player => {
         ipj = character.get("inplayerjournals");
         if(ipj.includes(player.id) || ipj === "all"){
