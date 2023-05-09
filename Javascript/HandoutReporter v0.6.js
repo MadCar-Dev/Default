@@ -4,8 +4,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.14
-// Last Updated: 5.5.2023
+// Version 0.6.15
+// Last Updated: 5.9.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
 //          in the game and user selections.  
@@ -26,20 +26,17 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 //                          of a turn.  Information stored includes start time, end time, and 
 //                          details of the character/NPC the turn is associated with.  Plan
 //                          to add future trending and reporting against the data collected.
+//  * DM Player Access -    Contains table listing all the handouts, characters and tokens (by page)
+//                          a player has in his journal and/or can control. 
+
 
 // To get started, type !DMDash into the chat window to create your initial handouts
 // To force the initial build of your DM Notes handout type: !dmnotes --build
 
 // Future Enhancements being cosidered
 //  * Add DM Jukebox interface
-//    * Establish favorites (similar to the DM Notes handout)
+//    * Tighten up the Favorites area, maybe 3 columns with tight cells (no padding)
 //    * Organize into groups Ambiance vs. Sound Effects
-//    * Add ability to stop, loop play and adjust volume 
-//    * When adjusting volume, add a +/- 10 and +/-1 buttons
-//    * Add a refresh button, as I don't get feedback when playing 
-//    * Add a tabbed display (1 for all the tracks and 1 for the favorites)
-//    * Maybe have the ability to tag a track as one of 3 or 4 that can be played from the dashboard.
-//      * Hit, Miss, Arrow, Door, Oooohs, Ouch, Magic-Boom, Magic-Shoot, Magic-sparkles, footsteps
 //  * Leverage msgbox and html/css class in all my dialogs.
 //  * Add Adv/Dis/Normal and Whisper/Public flags? 
 //  * Toggle through auras (GM/Player)
@@ -50,7 +47,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.14';
+  const version = '0.6.15';
 
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
@@ -2213,6 +2210,7 @@ function DMDash_HandleMsg(msg_content){
     let btnCustom = makeButton('Custom', `!DMDash --TO-AddCustom ?{Custom turnorder position|10} "?{Custom turnorder Name|}"`);
     let btnResetStats = makeButton('Reset Stats', `!DMDash --ResetStats`);
     let btnPlayerStats = makeButton('Player Stats', `!DMDash --PlayerStats`);
+    let btnPlayerAccess = makeButton('Player Access', `!DMDash --PlayerAccess`);
     let btnAddNote = makeButton('GMNote', `!DMDash --AddGMNote "?{Session GM Note?|}"`)
 
     let btnD20 = makeButton('D20', `!${htmlCR}/roll d20 `) + makeButton('-w', `!${htmlCR}/gmroll d20 `);
@@ -2253,7 +2251,8 @@ function DMDash_HandleMsg(msg_content){
     btns += btnD12 + "  |  "  
     // btns += btnAddNote + " "
     btns += btnResetStats + " " 
-    btns += btnPlayerStats
+    btns += btnPlayerStats + " "
+    btns += btnPlayerAccess
     //btns = openBox + btns + closeBox
     btns = openMenuBox + btns + closeBox
     
@@ -4034,32 +4033,53 @@ function DMDash_HandleMsg(msg_content){
     }
 
     if (state.DMDashboard.JB_Tier1MenuSelected !== 'Jukebox') {
-      let tListEffects = html.tr(html.th('Play') + html.th('Loop') + html.th('Title') + html.th('Volume') )
-      let tListAmbiance = html.tr(html.th('Play') + html.th('Loop') + html.th('Title') + html.th('Volume') )
+      // let tListEffects = html.tr(html.th('Play') + html.th('Loop') + html.th('Title') + html.th('Volume') )
+      // let tListAmbiance = html.tr(html.th('Play') + html.th('Loop') + html.th('Title') + html.th('Volume') )
+
+      let tListAmbiance =''
+      let tListEffects =''
+      let tRowAmbiance = ''
+      let tRowEffects = ''
+      let effectCols = 4;
+      let ambCols = 2;
+      let effColCnt = 0
+      let ambColCnt = 0
+
+      // It may be quicker to let the JB_AmbianceFavs and JB_ Effects 
 
       tracks.forEach(track => {
         
         let trackId = track.get('_id');
-        btnPlay = makeButton(emojiPlay, `!dmdash --PlayTrack ${trackId}`);
-        if (track.get('loop') == true) {
-          btnLoop = makeButton(emojiLoop, `!dmdash --LoopTrack ${trackId} 0`);
-        }else{
-          btnLoop = makeButton(emojiEmptyBox, `!dmdash --LoopTrack ${trackId} 1`);
-        }
-        btnVol = makeButton(emojiVolumeUp10, `!dmdash --SetVolume ${trackId} 10`) + makeButton(emojiVolumeUp1, `!dmdash --SetVolume ${trackId} 1`) + makeButton(emojiVolumeDown1, `!dmdash --SetVolume ${trackId} -1`)+makeButton(emojiVolumeDown10, `!dmdash --SetVolume ${trackId} -10`);
-
+        btnPlay = makeButton(track.get('title'), `!dmdash --PlayTrack ${trackId}`);
         if (state.DMDashboard.JB_AmbianceFavs.includes(trackId)){
-          tListAmbiance += html.tr(html.td(btnPlay) + html.td(btnLoop) + html.td(track.get('title')) + html.td(btnVol + '[' + track.get('volume') + ']'))
+          ambColCnt++;
+          if (ambColCnt ==  ambCols){
+            ambColCnt = 0
+            tRowAmbiance += html.td(btnPlay)
+            tListAmbiance += html.tr(tRowAmbiance)
+            tRowAmbiance = ''
+          } else {
+            tRowAmbiance += html.td(btnPlay)
+          }
         }
 
         if (state.DMDashboard.JB_EffectsFavs.includes(trackId)){
-          tListEffects += html.tr(html.td(btnPlay) + html.td(btnLoop) + html.td(track.get('title')) + html.td(btnVol + '[' + track.get('volume') + ']'))          
+          effColCnt++;
+          if (effColCnt ==  effectCols){
+            effColCnt = 0
+            tRowEffects += html.td(btnPlay)
+            tListEffects += html.tr(tRowEffects)
+            tRowEffects = ''
+          } else {
+            tRowEffects += html.td(btnPlay)
+          }
         }
 
       });
-
-      tListAmbiance = html.table(tListAmbiance)
+      tListEffects += html.tr(tRowEffects)
       tListEffects = html.table(tListEffects)
+      tListAmbiance += html.tr(tRowAmbiance)
+      tListAmbiance = html.table(tListAmbiance)
       tList = html.table(html.tr(html.th('Effect') + html.th('Ambiance')) +
               html.tr(html.td(tListEffects) + html.td(tListAmbiance)))
 
@@ -4178,6 +4198,170 @@ function DMDash_HandleMsg(msg_content){
       track.set('playing', true);
     }
     return;
+  }
+
+  function getPlayerAccess() {
+    let playerAry = []
+
+    let emojiAccess = '\u{2705}' //✅
+    let emojiDenied = '\u{1F6AB}' //🚫
+    let access = '';
+    let rowAccessCnt = 0;
+    let tblRow = '';
+    let tblDebug = ''
+
+    // Initialize an empty string to store the information
+    let output = '';
+    let tblAccess = ''
+    let playerCount = 0;
+
+    let cb=''
+    let ipj=''
+
+    // Get all players
+    const players = findObjs({ type: "player" }).sort((a, b) => (a.get("_displayname") > b.get("_displayname") ? 1 : -1));
+  
+
+    // Add the player's name to the content string
+    output = html.h2(`Player Access Report`);
+    output += html.p(`<i>&nbsp;&nbsp;${emojiNote}=In Player's Journal     ${emojiAccess}=Controlled By</i>`);
+    tblAccess = html.th('Object Name')
+    tblDebug = html.th('PlayerIds')
+
+    // Iterate through all players
+    players.forEach(player => {
+      // Get the player's name
+      let playerName = player.get("displayname");
+      let playerId = player.get("_id");
+      if (!playerIsGM(playerId)) {
+        playerAry.push({name: playerName, id: playerId});
+        tblAccess += html.th(playerName)
+        tblDebug += html.td(playerId, {'font-size' : '9px'})
+        playerCount++;
+      }
+    })
+
+    access = '';
+    tblAccess = html.tr(tblAccess);
+    // tblAccess += html.tr(tblDebug);
+    tblAccess += html.tr(html.td("<h3>Handouts</h3>"))
+    let handouts = findObjs({ type: "handout" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+    handouts.forEach(handout => {
+      access = '';
+      let tblRow = html.td("&nbsp;&nbsp;" + handout.get("name"))  // Add link to handout later
+      playerAry.forEach(player => {
+        ipj = handout.get("inplayerjournals");
+        if(ipj.includes(player.id) || ipj === "all"){
+          access += emojiNote
+          rowAccessCnt++;
+        }
+        
+        cb = handout.get("controlledby");
+        if (cb.includes(player.id) || cb === "all") {
+          access += emojiAccess
+          rowAccessCnt++;
+        }
+        tblRow += html.td(access, {'text-align': 'center'})
+        access = '';
+      });
+      if (rowAccessCnt > 0) {
+        tblAccess += html.tr(tblRow);
+      }
+      rowAccessCnt = 0;
+    })
+
+    tblRow = html.td("<h3>Charactes</h3>")
+    playerAry.forEach(player => {
+      // Get the player's name
+        tblRow += html.td(`<b>${player.name} </b>`)  // Add link to handout later
+    });
+    tblAccess += html.tr(tblRow);
+
+    let characters = findObjs({ type: "character" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+    characters.forEach(character => {
+      access = '';
+      tblRow = html.td("&nbsp;&nbsp;" + character.get("name") )  // Add link to handout later
+      playerAry.forEach(player => {
+        ipj = character.get("inplayerjournals");
+        if(ipj.includes(player.id) || ipj === "all"){
+          access += emojiNote
+          rowAccessCnt++;
+        }
+        
+        cb = character.get("controlledby");
+        if (cb.includes(player.id) || cb === "all") {
+          access += emojiAccess
+          rowAccessCnt++;
+        }
+        tblRow += html.td(access, {'text-align': 'center'})
+        access = '';
+      });
+      if (rowAccessCnt > 0) {
+        tblAccess += html.tr(tblRow);
+      }
+      rowAccessCnt = 0;
+    })
+
+    tblRow = html.td("<h3>Tokens</h3>")
+    playerAry.forEach(player => {
+      // Get the player's name
+        tblRow += html.td(`<b>${player.name} </b>`)  // Add link to handout later
+    });
+    tblAccess += html.tr(tblRow);
+
+    let pages = findObjs({ type: "page" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+    pages.forEach(page => {
+      let graphics = findObjs({type: "graphic", _pageid: page.get("_id")}).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+      graphics.forEach(graphic => {
+        tblRow = html.td("&nbsp;&nbsp;" + page.get("name") + ": " + graphic.get("name"))  // Add link to handout later
+
+        if (graphic.get("represents")!== undefined && graphic.get("represents").length > 0){
+          character = getObj("character", graphic.get("represents"));
+          if (character) {
+            cb = character.get("controlledby");
+          } else {
+            cb = 'N/A'
+          }
+        } else {
+          cb = graphic.get("controlledby");
+        }
+
+        playerAry.forEach(player => {
+          if (cb.includes(player.id) || cb === "all") {
+            access += emojiAccess
+            rowAccessCnt++;
+          }
+          tblRow += html.td(access, {'text-align': 'center'})
+          access = '';
+        });
+        if (rowAccessCnt > 0) {
+          tblAccess += html.tr(tblRow);
+        }
+        rowAccessCnt = 0;        
+      });
+    });
+
+    tblAccess = html.table(tblAccess);
+
+    output += tblAccess + html.p('<i><b>Note: </b>Objects not listed in the table above are only "controlled by" and "in the journal" of the GM.</i>');
+    output = openReport + output + closeReport;
+  
+    // Check if a "Player Access" handout exists, or create one
+    let playerAccessHandout = findObjs({ type: "handout", name: "DM Player Access" })[0];
+    if (!playerAccessHandout) {
+      playerAccessHandout = createObj("handout", { name: "DM Player Access" });
+    }
+  
+    // Update the "Player Access" handout content
+    playerAccessHandout.set("notes", output);
+  
+    // Notify the GM
+    let chatMsg = `Player Access Handout has been updated.  Click the link bellow to view:`;      
+    chatMsg += `<br>&nbsp;<b>[DM Player Access](https://journal.roll20.net/handout/${getHandout('DM Player Access').get('_id')})</b>`;      
+
+    // sendChat("DM Dashboard", chatMsg);
+    mySendChat(true, "Player Access", chatMsg)
+
   }
 
   startPeformanceCheck();
@@ -4516,6 +4700,9 @@ function DMDash_HandleMsg(msg_content){
         showPlayerStats(commands[1]);
         break;
 
+      case 'PLAYERACCESS':
+        getPlayerAccess();
+        break;
       case 'TRACK':
       case 'TRACKS':
       case 'LISTTRACKS':        
