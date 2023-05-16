@@ -4,8 +4,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.15
-// Last Updated: 5.9.2023
+// Version 0.6.16
+// Last Updated: 5.10.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
 //          in the game and user selections.  
@@ -34,9 +34,36 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 // To force the initial build of your DM Notes handout type: !dmnotes --build
 
 // Future Enhancements being cosidered
-//  * Add DM Jukebox interface
-//    * Tighten up the Favorites area, maybe 3 columns with tight cells (no padding)
-//    * Organize into groups Ambiance vs. Sound Effects
+//  * DB Checker
+//    * Check for orphaned objects (characters/, attributes, )
+//      * graphic.pageid, graphic.cardid, graphic.represents, graphic.controlledby, graphic.bar#_link
+//      * character.inplayersjournal, character.controlledby 
+//      * attribute.characterid
+//      * ability.characterid
+//      * handout.inplayersjournal, handout.controlledby 
+//      * Build an array of ids for each object type, then do a simple search of the id 
+
+//    * Check for duplicate objects (Characters, Attributes (same char), Handouts, Page)
+//    * Check for Tokens off screen 
+//    * Check for objects with no Name (Pages, Handouts, Characters)
+//    * Provide options to correct the issue 
+//
+//  * Build a page centric Token Lister modeled after the DM Turnorder Report
+//    * Putting on hold right now - may be too big for one report
+//    * Default to the current page, but allow user to change the referened page
+//    * Model like the TurnOrder report (Detail on the top, with a list of page icons on the bottom)
+//    * Include indicators whether they are in the turn-order
+//    * Features:
+//      * Everything from the turnorder report
+//      * Apply selected token as the default
+//      * Group NPCs in some way (Wave 1, Wave 2, or Room 1, Room 2 ...)
+//      * add ability to recalc HP similar to my scriptcards HP calculator
+//      * duplicate or delete a token from the page currentlyu selected
+//      * Add functionality to the Token Renumber/Rename feature
+//      * Dynamic Lighting Setup
+//      * GM Notes
+
+
 //  * Leverage msgbox and html/css class in all my dialogs.
 //  * Add Adv/Dis/Normal and Whisper/Public flags? 
 //  * Toggle through auras (GM/Player)
@@ -47,7 +74,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.15';
+  const version = '0.6.16';
 
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
@@ -70,6 +97,7 @@ on('ready', () => {
           charBox_ScrollHeight: '200px',
           toBox_ScrollHeight: '40vh',
           TurnNotification: true,
+          AutoRefreshDashboard: true,
           DataLogging: false,
           Debug: 0,
           DebugLvl: 4,
@@ -83,7 +111,10 @@ on('ready', () => {
           JB_Tier1MenuSelected: 'Favorites',
           JB_AmbianceFavs: [],
           JB_EffectsFavs: [],
-          JB_DashboardBtns: []
+          JB_DashboardBtns: [], // Used to retain the users sounds for the hard coded sound effects on the dashboard
+          TokenRpt_SelectedPageId: '',
+          TokenRpt_Tier1MenuSelected: 'ALL',
+          TokenRpt_Filter: '',
       };
   };
  
@@ -95,16 +126,20 @@ on('ready', () => {
   if (!state.DMDashboard.DataLog){ state.DMDashboard.DataLog = '';}
   if (!state.DMDashboard.DataLogging) { state.DMDashboard.DataLogging = false;}
   if (!state.DMDashboard.TurnNotification) { state.DMDashboard.TurnNotification = true;}
+  if (!state.DMDashboard.AutoRefreshDashboard) { state.DMDashboard.AutoRefreshDashboard = true;}
   if (!state.DMDashboard.Debug) { state.DMDashboard.Debug = 0;}
   if (!state.DMDashboard.DebugLvl) { state.DMDashboard.DebugLvl = 4;}
   if (!state.DMDashboard.LogChat) { state.DMDashboard.LogChat = false;}
   if (!state.DMDashboard.DM_LastTurn) { state.DMDashboard.DM_LastTurn = 0;}
-  if (!state.DMDashboard.NotesRpt_SelectedId) { state.DMDashboard.NotesRpt_SelectedId = 0;}
+  if (!state.DMDashboard.NotesRpt_SelectedId) { state.DMDashboard.NotesRpt_SelectedId = '';}
   if (!state.DMDashboard.NotesRpt_Tier1MenuSelected) { state.DMDashboard.NotesRpt_Tier1MenuSelected = 'Tokens';}
+  if (!state.DMDashboard.TokenRpt_SelectedPageId) { state.DMDashboard.TokenRpt_SelectedPageId = '';}
+  if (!state.DMDashboard.TokenRpt_Tier1MenuSelected) { state.DMDashboard.TokenRpt_Tier1MenuSelected = 'ALL';}
   if (!state.DMDashboard.NotesRpt_Filter) { state.DMDashboard.NotesRpt_Filter = '';}
+  if (!state.DMDashboard.TokenRpt_Filter) { state.DMDashboard.TokenRpt_Filter = '';}
   if (!state.DMDashboard.hasOwnProperty('NotesRpt_FavsAry')) { 
       state.DMDashboard.NotesRpt_FavsAry = [];
-      // log('****** NotesRpt_FavsAry initialized ******');
+      sendChat('Debug', '****** NotesRpt_FavsAry initialized ******');
   }
   if (!state.DMDashboard.NotesRpt_FavsOn) { state.DMDashboard.NotesRpt_FavsOn = 0;}
   if (!state.DMDashboard.hasOwnProperty('JB_AmbianceFavs')) {  
@@ -121,7 +156,6 @@ on('ready', () => {
   debounced_DMDash_HandleMsg('!DMDash --TOReport')   
   debounced_DMDash_HandleMsg('!DMNotes --Build')
   debounced_DMDash_HandleMsg('!DMDash --Tracks')
-
   reportPerformance('Finished On Ready Event');
   
 });
@@ -168,10 +202,9 @@ on('change:graphic:bar3_value', async () => {
 
 on('chat:message', async (msg_orig) => {
   let msg = _.clone(msg_orig);
-
   
   LogChat(msg)
-  if (!/^!DMDash/i.test(msg.content) && !/^!DMNotes/i.test(msg.content)) {
+  if (!/^!DMDash/i.test(msg.content) && !/^!DMNotes/i.test(msg.content) && !/^!DMToken/i.test(msg.content)) {
     return;
   }
 
@@ -392,7 +425,7 @@ function DMDash_HandleMsg(msg_content){
       'width' : '100%',
       'margin' : '0 auto',
       "border-collapse": 'collapse',
-      "font-size": '12px',
+      "font-size": '11px',
   };
   const defaultimgCSS = {};
   const defaultpCSS = {};
@@ -412,7 +445,7 @@ function DMDash_HandleMsg(msg_content){
   };
   const defaulttrCSS = {};
   const defaulttdCSS = {
-      'padding' : '4px',
+      'padding' : '2px',
       'min-width': '10px'
   };
   const defaultcodeCSS = {};
@@ -609,6 +642,7 @@ function DMDash_HandleMsg(msg_content){
           html.tr(html.td(`charBox_ScrollHeight:`) + html.td(`${state.DMDashboard.charBox_ScrollHeight}`)) +
           html.tr(html.td(`toBox_ScrollHeight:`) + html.td(`${state.DMDashboard.toBox_ScrollHeight}`)) +
           html.tr(html.td(`TurnNotification:`) + html.td(`${state.DMDashboard.TurnNotification}`)) +
+          html.tr(html.td(`AutoRefreshDashboard:`) + html.td(`${state.DMDashboard.AutoRefreshDashboard}`)) +
           html.tr(html.td(`DataLogging:`) + html.td(`${state.DMDashboard.DataLogging}`)) +
           html.tr(html.td(`Debug:`) + html.td(`${state.DMDashboard.Debug}`)) +
           html.tr(html.td(`DebugLvl:`) + html.td(`${state.DMDashboard.DebugLvl}`))), 
@@ -627,6 +661,7 @@ function DMDash_HandleMsg(msg_content){
               html.tr(html.th(`ARG`, { 'text-align': 'left', 'min-width':'70px' }) + html.th(`EXPLANATION`, { 'text-align': 'left' })) +
               html.tr(html.td(`--debug output level`) + html.td(`Turns on debug messaging. <b>Output:</b> 0:Off 1:API/Log 2:Chat 3:Chat & Log 4:Handout  <b>Level</b> 0:All 1:Low Info 2: High Info 3: Basic Debug 4:New Code Debug 5: Performance`)) +
               html.tr(html.td(`--notifications (0/1)`) + html.td(`Turns on/off turn player turn notifications.`)) +
+              html.tr(html.td(`--autorefreshdashboard (0/1)`) + html.td(`Turns on/off dashboard refreshes when turnorder changes via turnorder dialog.`)) +
               html.tr(html.td(`--dataloggin (0/1)`) + html.td(`Turns on/off data logging`)) +
               html.tr(html.td(`--hpbar (1/2/3)`) + html.td(`Sets the token bar (1, 2, or 3) to be used for HP display.`)) +
               html.tr(html.td(`--sbheight (CB Height) (TO Height)`) + html.td(`Sets the height of the Character Detail and Turnorder areas of the dashboard.`)) +
@@ -707,11 +742,14 @@ function DMDash_HandleMsg(msg_content){
     }
   }
   function dumpObject(obj){
+    let output = ''
     for (let key in obj) {
       if (obj.hasOwnProperty(key)) {
         myDebug(3,`  Field Name: ${key} => ${obj[key]}`);
+        output+= `Field Name: ${key} => ${obj[key]}<br>`
       }
     }
+    return output;
   }
   function interpolate(x, dataset) {
     if (x <= dataset[0][0]) {
@@ -748,9 +786,22 @@ function DMDash_HandleMsg(msg_content){
     } 
     return createNoteLog();
   };
+ 
   function updateTurnOrderStartTime(){
     state.DMDashboard.LastDT1 = getSystemTimeInSecs();
     state.DMDashboard.LastUTCDate = GetSystemUTCDate();
+  }
+  function getObjectValue(objType, objId, fieldName) {
+
+    try {
+      let obj = getObj(objType, objId);
+      let val = obj.get(fieldName);
+      return val
+    } catch (err) {
+      myDebug(4, `getObjectValue: ${err.message} for ObjType: ${objType} and ObjId: ${objId} and FieldName: ${fieldName}`);
+      return ('Error')
+    }
+
   }
   function myGetAttrByName(character_id,
                            attribute_name,
@@ -781,25 +832,25 @@ function DMDash_HandleMsg(msg_content){
           return attribute.get('current');
       }
   }
-  function DidTOAdvance(){
+  function didTOAdvance(){
     let cmd_advance = 0; //Boolean value where next_cmd = 1 means TO changed as a result of advancing the TO
-
     let prev_to = state.DMDashboard.PrevTO;
     let curr_to = Campaign().get('turnorder');
-
-    // log(`DidTOAdvance: Prev:${prev_to} Curr:${curr_to}`)
-    state.DMDashboard.PrevTO = curr_to;
+    // log(`didTOAdvance: Prev:${prev_to} Curr:${curr_to}`)
 
     if (prev_to.length = 0) {
+      myDebug(4, `didTOAdvance: PrevTO is empty`);
       return 0;
     }
     
     if (!prev_to || !curr_to){
+      myDebug(4, `didTOAdvance: PrevTO or CurrTO is not defined 1`);
       return 0;
     }
 
     if (!prev_to || !curr_to || prev_to == '' || curr_to == '') {
         // log('TO Change: Exit-Empty TurnOrder');
+        myDebug(4, `didTOAdvance: PrevTO or CurrTO is not defined 2`);
         return 0;
     }
 
@@ -809,6 +860,7 @@ function DMDash_HandleMsg(msg_content){
     // log('TO Change: Test Lengths(curr vs. prev): ' + curr_to_json.length + ' / ' + prev_to_json.length);
 
     if (prev_to_json.length == 0 || curr_to_json.length == 0){
+      myDebug(4, `didTOAdvance: prev_to or curr_to JSON is empty`);
       return 0;  
     }
     
@@ -825,33 +877,20 @@ function DMDash_HandleMsg(msg_content){
       if (JSON.stringify(prev_to_json) == curr_to) {
         // If they are equivalent, then the only change was because the turn changed
         // log('TO Change: TOs are equal: ');
+        myDebug(4, `didTOAdvance: they are equivalent`);
         cmd_advance = 1;
         AddToTurnorderLog();
       } else {
+        myDebug(4, `didTOAdvance: the arenot equivalent prev:${JSON.stringify(prev_to_json)} curr:${curr_to}`);
         // log('TO Change: TOs are not equal:');
         // log('Prev_To:' + JSON.stringify(prev_to_json));
         // log('Curr_To:' + curr_to);
       }
+    } else {
+      myDebug(4, `didTOAdvance: prev_to and curr_to are different lengths`);
     }
-    // log('DidTOAdvance: ' + cmd_advance);
+    // log('didTOAdvance: ' + cmd_advance);
     return cmd_advance;  
-  };
-  function createNoteLog() {
-    const noteLog = createObj('handout',{
-      name: 'DM Turnorder Log'
-    });
-    noteLog.set('notes', '<h3>Turnorder Log</h3>');
-    return noteLog;
-  };
-  function getNoteLog() {
-    const noteLog = filterObjs(function(o){
-      return ( 'handout' === o.get('type') && 'DM Turnorder Log' === o.get('name') && false === o.get('archived'));
-    })[0];
-
-    if(noteLog) {
-      return noteLog;
-    } 
-    return createNoteLog();
   };
   function GetSystemUTCDate() {
     let d = new Date();
@@ -1633,11 +1672,11 @@ function DMDash_HandleMsg(msg_content){
   function makeMenuButton(name, link, selected, minwidth) {
     // let buttonStyle = `background-color: red; color:yellow !important; font-weight:normal; border-radius: 1px; padding: 1px; margin: 1px 1px 1px 0px; display: inline-block`;  
     // let buttonStyle = `display: flex; flex-direction: column; align-items: center; padding: 6px 14px; font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif; border-radius: 6px; border: none; background: #6E6D70; box-shadow: 0px 0.5px 1px rgba(0, 0, 0, 0.1), inset 0px 0.5px 0.5px rgba(255, 255, 255, 0.5), 0px 0px 0px 0.5px rgba(0, 0, 0, 0.12); color: #DFDEDF; user-select: none; -webkit-user-select: none; touch-action: manipulation;`
-    let buttonStyle = `background-color: #521E10; border: 1px; color: white; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
+    let buttonStyle = `background-color: #521E10; border: 1px; color: white; text-align: center; display: inline-block; font-size: 11px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
 
     if (selected == true || selected == 1){
       myDebug(3, `Button ${name} selected`);
-      buttonStyle = `background-color: #FFAD00; border: 1px; color: black; text-align: center; display: inline-block; font-size: 14px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
+      buttonStyle = `background-color: #FFAD00; border: 1px; color: black; text-align: center; display: inline-block; font-size: 11px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
     }
 
     if (minwidth === "f") {
@@ -2074,10 +2113,134 @@ function DMDash_HandleMsg(msg_content){
     return btn;
   }
 
-  // ****************************
-  // *** Refresh Reports Function ***  
-  // ****************************
-  function refreshReports() {
+  function trackPlayerStats(){
+    let dtDiff = 0;
+    let dt2 = 0;
+    let dt1 = 0;
+    let toObj = [];
+    let TO_Secs = 0
+    let TO_Count = 0;
+    let TO_Avg = 0;
+    let tType = '';
+
+    if(Campaign().get("turnorder")=="") {
+      turnorder = [];
+    } else {
+      toObj = JSON.parse(Campaign().get("turnorder"));
+    }
+    
+    // Is there at least a couple entries in the turn order, and we are responding to an 
+    // event that advances the turnorder?
+    if (toObj.length >0) { 
+
+      let cmd_advance = didTOAdvance();
+
+      // *************************************************************
+      // This section of code calculates the time a player or DM takes
+      // on a turn.
+      // *************************************************************
+
+      // Turnorder Time Report
+      let dt1 = state.DMDashboard.LastDT1;
+
+      // log(`Debug TOAdv 1: cmd_advance:${cmd_advance} dt1:${dt1}`)
+      if(isNaN(dt1))
+      {
+        state.DMDashboard.LastDT1 = getSystemTimeInSecs();
+        state.DMDashboard.LastUTCDate = GetSystemUTCDate();
+      } else {
+        dt2 = getSystemTimeInSecs();
+        state.DMDashboard.LastDT1 = dt2;
+        state.DMDashboard.LastUTCDate = GetSystemUTCDate();
+        dt_diff = Math.floor(Math.abs(Number(dt2) - Number(dt1)));
+
+        // log(`Debug TOAdv 2: dt_diff:${dt_diff} dt2:${dt2}`)
+        // We ignore advancements that span a multiple hours of time
+        if (dt_diff > 10000  || cmd_advance == 0){
+          dt_diff=0;
+        } else {
+
+          // If we got here, then we know that a Next Item event was fired from the TO dialog or
+          // through the API
+
+          // Get Previous Turn Id and see if it was a character and we have seconds to apply
+          if ((dt_diff >= 0) && toObj[toObj.length-1].id != -1) {
+
+            // Yes, Lets see if it's a PC or NPC
+            tType = getTokenType(toObj[toObj.length-1].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
+            // log(`Debug TOAdv 3: tType:${tType}`)
+
+            switch (tType) {
+
+              case 'CHAR':
+                let toPrevToken = getObj("graphic", toObj[toObj.length-1].id);
+                let toPrevChar = getObj("character", toPrevToken.get('represents'));
+
+                TO_Secs = getAttrByName(toPrevChar.get('_id'),'to_secs','current');
+                if (!TO_Secs){TO_Secs=0}
+
+                TO_Count = getAttrByName(toPrevChar.get('_id'),'to_count','current');
+                if (!TO_Count){TO_Count=0}
+
+                TO_Avg = getAttrByName(toPrevChar.get('_id'),'to_avg','current');
+                if (!TO_Avg){TO_Avg=0}
+
+                if (TO_Count >= 50){
+                  TO_Count = 50;
+                  TO_Secs = Number(TO_Secs) - Number(TO_Avg) + Number(dt_diff);
+                } else {
+                  TO_Secs = Number(dt_diff) + Number(TO_Secs);
+                  TO_Count = Number(TO_Count) + 1;
+                }
+                TO_Avg = Math.floor(TO_Secs / TO_Count);
+                changeAttributeValue(toPrevChar.get('_id'), 'to_secs', TO_Secs, 3000)
+                changeAttributeValue(toPrevChar.get('_id'), 'to_count', TO_Count, 50)
+                changeAttributeValue(toPrevChar.get('_id'), 'to_avg', TO_Avg, 60)
+                changeAttributeValue(toPrevChar.get('_id'), 'to_lastturn', dt_diff)
+                break;
+              case 'NPC':  
+              case 'NPC-CHARSHEET':
+                // Store NPC turnorder stats in State Memory
+                TO_Count = state.DMDashboard.DM_Count;
+                TO_Secs = state.DMDashboard.DM_Secs;
+                TO_Avg = state.DMDashboard.DM_Avg;
+
+                if (TO_Count >= 50){
+                  TO_Count = 50;
+                  TO_Secs = TO_Secs - TO_Avg + dt_diff;
+                } else {
+                  TO_Secs += dt_diff;
+                  TO_Count += 1;
+                }
+
+                TO_Avg = Math.floor(TO_Secs / TO_Count);
+                state.DMDashboard.DM_Secs = TO_Secs;
+                state.DMDashboard.DM_Count = TO_Count;
+                state.DMDashboard.DM_Avg = TO_Avg;
+                state.DMDashboard.DM_LastTurn = dt_diff;
+                break;
+            }
+          }
+        }
+      }
+    }
+      reportPerformance('Complete Stats Calcs');
+  }
+
+  // *************************************************************
+  // *** Refresh Reports Function to build Turn Order dashboard***  
+  // *************************************************************
+
+  function buildTODashBoard(manualRefresh) {
+
+    if (manualRefresh || state.DMDashboard.AutoRefreshDashboard) {
+      myDebug(4, `Inititiating build of Turnorder Dashboard - Manual Refresh:${manualRefresh}, Auto Refresh:${state.DMDashboard.AutoRefreshDashboard}`);
+    } else {
+      myDebug(4, `Automatic Refresh of Turnorder Dashboard turned off - Manual Refresh:${manualRefresh}, Auto Refresh:${state.DMDashboard.AutoRefreshDashboard}`);
+      return; // Nothing to do here.  
+    }
+
+
     // **** Variable Declarations  ****
     let lines = '';
     let rows = [];
@@ -2186,7 +2349,7 @@ function DMDash_HandleMsg(msg_content){
     }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
 
     // Did we advance the turn order?
-    let cmd_advance = DidTOAdvance();
+    let cmd_advance = didTOAdvance();
 
     //***************************************************************************************
     //  Build Menu Buttons
@@ -2194,7 +2357,7 @@ function DMDash_HandleMsg(msg_content){
 
     // PR, TokenName/Custom, HP/HPMax, AC, PP, Attributes, Speed, Senses, Tooltip, Status
     let cmdRefresh = '&#13;!DMDash --TOReport';
-    let btnRefresh = makeMenuButton('REFRESH!', '!DMDash --TOReport');
+    let btnRefresh = makeMenuButton('REFRESH!', '!DMDash --ManualRefreshDB');
     let btnExp = '   ' + makeButton(emojiPlus + 'Expand Current Character Details', '!DMDash --TOReport expand');
     let btnCps = '   ' + makeButton(emojiMinus + 'Collapse Current Character Details', '!DMDash --TOReport collapse');
 
@@ -2266,108 +2429,8 @@ function DMDash_HandleMsg(msg_content){
     if (toObj.length >0) { 
 
       // *************************************************************
-      // This section of code calculates the time a player or DM takes
-      // on a turn.
-      // *************************************************************
-
-      // Turnorder Time Report
-      let dt1 = state.DMDashboard.LastDT1;
-
-      // log(`Debug TOAdv 1: cmd_advance:${cmd_advance} dt1:${dt1}`)
-      if(isNaN(dt1))
-      {
-        state.DMDashboard.LastDT1 = getSystemTimeInSecs();
-        state.DMDashboard.LastUTCDate = GetSystemUTCDate();
-      } else {
-        dt2 = getSystemTimeInSecs();
-        state.DMDashboard.LastDT1 = dt2;
-        state.DMDashboard.LastUTCDate = GetSystemUTCDate();
-        dt_diff = Math.floor(Math.abs(Number(dt2) - Number(dt1)));
-
-        // log(`Debug TOAdv 2: dt_diff:${dt_diff} dt2:${dt2}`)
-        if (dt_diff > 10000  || cmd_advance == 0){
-          dt_diff=0;
-        } else {
-
-          // If we got here, then we know that a Next Item event was fired from the TO dialog or
-          // through the API
-
-          // Get Previous Turn Id and see if it was a character and we have seconds to apply
-          if ((dt_diff >= 0) && toObj[toObj.length-1].id != -1) {
-
-            // Yes, Lets see if it's a PC or NPC
-            tType = getTokenType(toObj[toObj.length-1].id); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
-            // log(`Debug TOAdv 3: tType:${tType}`)
-
-            switch (tType) {
-
-              case 'CHAR':
-                let toPrevToken = getObj("graphic", toObj[toObj.length-1].id);
-                let toPrevChar = getObj("character", toPrevToken.get('represents'));
-
-                TO_Secs = getAttrByName(toPrevChar.get('_id'),'to_secs','current');
-                if (!TO_Secs){TO_Secs=0}
-
-                TO_Count = getAttrByName(toPrevChar.get('_id'),'to_count','current');
-                if (!TO_Count){TO_Count=0}
-
-                TO_Avg = getAttrByName(toPrevChar.get('_id'),'to_avg','current');
-                if (!TO_Avg){TO_Avg=0}
-
-                y=TO_Secs;
-
-                if (TO_Count >= 50){
-                  TO_Count = 50;
-                  TO_Secs = Number(TO_Secs) - Number(TO_Avg) + Number(dt_diff);
-                } else {
-                  TO_Secs = Number(dt_diff) + Number(TO_Secs);
-                  TO_Count = Number(TO_Count) + 1;
-                }
-                // log(`TO_Metrics: Cnt(${TO_Count}) OldSecs(${y}) NewSecs(${TO_Secs}) Avg(${TO_Avg}) dt_diff(${dt_diff})`)
-
-                TO_Avg = Math.floor(TO_Secs / TO_Count);
-                changeAttributeValue(toPrevChar.get('_id'), 'to_secs', TO_Secs, 3000)
-                changeAttributeValue(toPrevChar.get('_id'), 'to_count', TO_Count, 50)
-                changeAttributeValue(toPrevChar.get('_id'), 'to_avg', TO_Avg, 60)
-                changeAttributeValue(toPrevChar.get('_id'), 'to_lastturn', dt_diff)
-                break;
-
-              case 'NPC':  
-              case 'NPC-CHARSHEET':
-
-                // Store NPC turnorder stats in State Memory
-                TO_Count = state.DMDashboard.DM_Count;
-                TO_Secs = state.DMDashboard.DM_Secs;
-                TO_Avg = state.DMDashboard.DM_Avg;
-
-                if (TO_Count >= 50){
-                  TO_Count = 50;
-                  TO_Secs = TO_Secs - TO_Avg + dt_diff;
-                } else {
-                  TO_Secs += dt_diff;
-                  TO_Count += 1;
-                }
-
-                TO_Avg = Math.floor(TO_Secs / TO_Count);
-                state.DMDashboard.DM_Secs = TO_Secs;
-                state.DMDashboard.DM_Count = TO_Count;
-                state.DMDashboard.DM_Avg = TO_Avg;
-                state.DMDashboard.DM_LastTurn = dt_diff;
-                break;
-            }
-          }
-        }
-      }
-
-      reportPerformance('Complete Stats Calcs');
-
-      // *************************************************************
       // Build the Detailed NPC or Character section if expanded 
       // *************************************************************
-
-      //let dashOptions = 'Hit|Miss|Arrow|Door|Trap|Ouch|Boom|Pew|Magic|Steps|Amb1|Amb2'
-
-
       let btnHit = makeDBPlayButton('Hit');
       let btnMiss = makeDBPlayButton('Miss');
       let btnArrow = makeDBPlayButton('Arrow');
@@ -2490,9 +2553,11 @@ function DMDash_HandleMsg(msg_content){
 
           // Send a "Next Turn" message to the game chat, if this is being refreshed for that purpose
           // log('Advance? ' + cmd_advance);
+          // myDebug(4, `Advance? ${cmd_advance}`);
           if (cmd_advance == 1 && state.DMDashboard.TurnNotification == true){
-            // sendChat('Turn Order', `${openChat}<table><tr><td>${tknImg}</td><td><b>${toToken.get('name')} is up!</b><br> ATPT: ${TO_Avg} Secs / Last turn: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')})</td></tr></table> ${closeChat}`);
-            mySendChat(false, 'Turn Order', `${tknImg}<b>${toToken.get('name')} is up!</b>  <i>ATPT: ${TO_Avg} Secs / Last turn: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`)
+            let tknImgChat = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;            
+            let msg = html.table(html.tr(html.td(tknImgChat, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) + html.td(`<b>${toToken.get('name')} is up!</b><br>&nbsp;&nbsp;<i>ATPT: ${TO_Avg} Secs / Last: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`)), {'border':'0', 'padding': '0', 'border-collapse': 'collapse'});
+            // mySendChat(false, 'Turn Order', msg)
           }
 
           //Row2 - Column 1: Basic Info
@@ -3158,17 +3223,25 @@ function DMDash_HandleMsg(msg_content){
             hp_pct = hp_pct.toFixed(0);
 
             td_hp = td_health100;
-            if (hp_pct < 75) {td_hp=td_health75;} // Yellow
-            if (hp_pct < 50) {td_hp=td_health50;} // Orange
-            if (hp_pct < 25) {td_hp=td_health25;} // Red 
-            if (hp_pct <= 0) {td_hp=td_healthDead;} // Dead
+            if (hp_pct < 75) {
+              td_hp=td_health75;
+            } // Yellow
+            if (hp_pct < 50) {
+              td_hp=td_health50;
+            } // Orange
+            if (hp_pct < 25) {
+              td_hp=td_health25;
+            } // Red 
+            if (hp_pct <= 0) {
+              td_hp=td_healthDead;
+            } // Dead
 
             // Button to enable adjusting Hit Points
             btnAdjHP = makeButton(hp + ' / ' + hpmax,`!DMDash --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
             toList += '<td ' + td_hp + '><c>'+ btnAdjHP + ' (' + hp_pct + '%)</c></td>';
-            
+
             // COL 5 Status Markers (Span 5 (5-9))
-            sm = toToken.get('statusmarkers');
+            //sm = toToken.get('statusmarkers');
             sm_Images = getSMImages(toToken.get('statusmarkers'));
             toList += '<td ' + tdbase + ' colspan=5>' + sm_Images + '</td>'; //StatusMarkers
 
@@ -3380,10 +3453,23 @@ function DMDash_HandleMsg(msg_content){
           hp_pct = hp_pct.toFixed(0);
 
           td_hp = td_health100;
-          if (hp_pct < 75) {td_hp=td_health75;} // Yellow
-          if (hp_pct < 50) {td_hp=td_health50;} // Orange
-          if (hp_pct < 25) {td_hp=td_health25;} // Red 
-          if (hp_pct <= 0) {td_hp=td_healthDead;} // Dead
+          let bg_color = '#24CE10';
+          if (hp_pct < 75) {
+            td_hp=td_health75;
+            bg_color = '#FFFE00';
+          } // Yellow
+          if (hp_pct < 50) {
+            td_hp=td_health50;
+            bg_color = '#FFAC00';
+          } // Orange
+          if (hp_pct < 25) {
+            td_hp=td_health25;
+            bg_color = '#FF5A00';
+          } // Red 
+          if (hp_pct <= 0) {
+            td_hp=td_healthDead;
+            bg_color = '#FF0000';
+          } // Dead
 
           btnAdjHP = makeButton(hp + ' / ' + hpmax,`!DMDash --TokenAdjustHP  ${toToken.get('_id')} ?{Adjust HP?|}`);
           toList = toList + '<td ' + td_hp + '><c>'+ btnAdjHP + ' (' + hp_pct + '%)</c></td>';
@@ -3393,6 +3479,13 @@ function DMDash_HandleMsg(msg_content){
           sm_Images = getSMImages(toToken.get('statusmarkers'));
 
           toList += '<td ' + tdbase + '>' + sm_Images + '</td>'; //StatusMarkers
+
+          //myDebug(3, `Notification for ${toToken.get('name')}: i = ${i} cmd_advance = ${cmd_advance}`);
+          if (!isnpc && i == 0 && cmd_advance == 1 && state.DMDashboard.TurnNotification == true){
+            let tknImgChat = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;            
+            let msg = html.table(html.tr(html.td(tknImgChat, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) + html.td(`<b>${toToken.get('name')} is up!</b><br>&nbsp;&nbsp;<i>ATPT: ${TO_Avg} Secs / Last: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`) + html.td(sm_Images)), {'background-color' : bg_color, 'border':'0', 'padding': '0', 'border-collapse': 'collapse'});
+            mySendChat(false, 'Turn Order', msg)
+          }
 
           // Col 6 (AC)
           if (isnpc) {
@@ -3745,7 +3838,6 @@ function DMDash_HandleMsg(msg_content){
     btnClearFavs = makeMenuButton('Clear', '!DMNotes --ClearFav');
 
     let btnFilter = makeButton(emojiFilter + ' Filter', '!DMNotes --Filter ?{Where "Name" contains?|} ');  // Filter Selected from Tier 1 menu - Find Filter Emoji 
-
     let txtFilter = '(' + state.DMDashboard.NotesRpt_Filter + ')'
     // Tier 2 Buttons
 
@@ -3754,6 +3846,7 @@ function DMDash_HandleMsg(msg_content){
       case ('Tokens'):
         btnTokens = makeMenuButton('Tokens', '!DMNotes --Tokens', 1); 
         // Build list of tokens (Filtered at some point)
+
         tokens = findObjs({
           _type: 'graphic',
           _subtype: 'token',
@@ -3990,7 +4083,7 @@ function DMDash_HandleMsg(msg_content){
     reportPerformance();
   }
 
-  function listTracks() {
+  function buildJukebox() {
     let track = [];
     let tList = ''
     let tFavs = ''
@@ -4199,7 +4292,260 @@ function DMDash_HandleMsg(msg_content){
     return;
   }
 
-  function getPlayerAccess() {
+  function buildDBHealthCheckReport(){
+    //  * DB Checker
+    //    * Check for orphaned objects (characters/, attributes, )
+    //      * graphic.pageid, graphic.cardid, graphic.represents, graphic.controlledby, graphic.bar#_link
+    //      * attribute.characterid
+    //      * ability.characterid
+    //      * handout.inplayersjournal, handout.controlledby 
+    //      * Build an array of ids for each object type, then do a simple search of the id 
+
+    //    * Check for duplicate objects (Characters, Attributes (same char), Handouts, Page)
+    //    * Check for Tokens off screen 
+    //    * Check for objects with no Name (Pages, Handouts, Characters)
+    //    * Provide options to correct the issue 
+
+    let output = ''
+    let objs = []; //general use object array
+    let charIds = []; // array of character ids
+    let pageIds = []; // array of page ids
+    let playerIds = []; // array of player ids
+    let attIds = []
+    let n = 0;
+    let cnt = 0;
+    let prevName = '';
+    let aryIPJ = []; // array of characterids
+    let aryCB = [];
+    
+    output = html.h2(`Campaign Database Health Report`);
+ 
+    // Build the base list of master table ids (Player, Character, Pages)
+    const players = findObjs({ type: "player" });
+    players.forEach(player => {
+      playerIds.push(player.get("_id"))
+    });
+
+    const characters = findObjs({ type: "character" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+    characters.forEach(character => {
+      charIds.push(character.get("_id"))
+    });
+
+    const pages = findObjs({ type: "page" });
+    pages.forEach(page => {
+      pageIds.push(page.get("_id"))
+    });
+    
+    const attributes = findObjs({ type: "attribute" });
+    attributes.forEach(attribute => {
+      attIds.push(attribute.get("_id"))
+    });
+
+    // Handouts: Do any reference players no longer in the game?
+    output +=html.h3('Reviewing Handouts')
+    objs = findObjs({ type: "handout" });
+    cnt = 0;
+    objs.forEach(handout => {
+      aryIPJ = [];
+      aryCB = [];
+      if (handout.get("inplayerjournals")) {
+        aryIPJ = handout.get("inplayerjournals").split(',');
+      }
+      if (handout.get("controlledby")){
+        aryCB = handout.get("controlledby").split(',');
+      }
+      if (aryIPJ.length > 0) {
+        if (aryIPJ[0] != 'all') {
+          let diff = aryIPJ.filter(x => !playerIds.includes(x));
+          if (diff.length > 0) {
+            output += `Handout ${handout.get("name")} (inplayerjournals) references characters that no longer exist.<br>`
+          }
+        }
+      }
+      if (aryCB.length > 0) {
+        if (aryCB[0] != 'all') {
+          let diff = aryCB.filter(x => !playerIds.includes(x));
+          if (diff.length > 0) {
+            output += `Handout ${handout.get("name")} (controlledby) references characters that no longer exist.<br>`
+          }
+        }
+      }
+    });
+
+    prevName = '';
+    cnt = 0;
+    objs.forEach(handout => {
+      
+      if (prevName === handout.get("name")){
+        cnt++;
+      } else {
+        if (cnt > 0) {
+          output += `${cnt} duplicate(s) Handouts found: <b>${prevName}</b><br>`
+        }
+        cnt = 0;
+        prevName = handout.get("name");
+      }
+    });
+    if (cnt > 0) { // Last handout in list
+      output += `${cnt} duplicate(s) Handouts found: <b>${prevName}</b><br>`
+    }
+
+    // Characters: Look for duplicates
+    output +=html.h3('Reviewing Characters')
+    prevName = '';
+    characters.forEach(char => {
+      
+      if (prevName === char.get("name")){
+        cnt++;
+      } else {
+        if (cnt > 0) {
+          output += `${cnt} duplicate(s) Characters sheets found: <b>${prevName}</b><br>`
+        }
+        cnt = 0;
+        prevName = char.get("name");
+      }
+    });
+    if (cnt > 0) { // Test last Character in list
+      output += `${cnt} duplicate(s) found for character: <b>${prevName}</b><br>`
+    }
+
+    // Attributes: Look for attributers orphaned from a character
+    output +=html.h3('Reviewing Attributes')
+    objs = findObjs({ type: "attribute" });
+    cnt = 0;
+    objs.forEach(att => {
+      n = charIds.indexOf(att.get("_characterid"))
+      if (n < 0){
+        output += `Orphaned Attrribute:<b>${att.get("name")}</b><br>`
+        cnt++;
+      }
+    });
+    //output += `<b>${cnt} orphanned attributes found.</b><br><br>`
+
+    // Attributes: Look for attributers orphaned from a character
+    output +=html.h3('Reviewing Abilities')
+    objs = findObjs({ type: "ability" });
+    cnt = 0;
+    objs.forEach(ab => {
+      n = charIds.indexOf(ab.get("_characterid"))
+      if (n < 0){
+        output += `Orphaned Ability: <b>${ab.get("name")}</b><br>`
+        cnt++;
+      }
+    });
+    //output += `<b>${cnt} orphanned abilities found.</b><br><br>`
+
+    output +=html.h3('Reviewing Tokens')
+    objs = findObjs({ type: "graphic", _subtype: "token"});
+    cnt = 0;
+    objs.forEach(token => {
+      n = pageIds.indexOf(token.get("_pageid"))
+      if (n < 0){
+        output += `Token <b>${token.get("name")}</b> orphoned from Pages.<br>`
+        cnt++;
+      }
+    });
+    //output += `<b>${cnt} orphanned tokens from pages found.</b><br><br>`
+
+    objs.forEach(token => {
+      if (token.get("represents")){
+        n = charIds.indexOf(token.get("represents"))
+        if (n < 0){
+          let btnMoveTkn = addTooltip("Move token to Top Left cell (0,0)", makeButton('Move', `!DMDash --FixTokenPosition ${token.get("_id")}`)) 
+          let btnDeleteTkn = addTooltip("Delete Token", makeButton('Delete', `!DMDash --DeleteToken ${token.get("_id")}`)) 
+          output += `Orphaned Tokens from character sheets: ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} on page ${getObjectValue("page", token.get("_pageid"), "name")} ${btnMoveTkn} ${btnDeleteTkn}<br>`
+          cnt++;
+        }
+      }
+    });
+    //output += `<b>${cnt} orphanned token from characters found.</b><br><br>`
+
+    cnt=0;
+    objs.forEach(token => {
+      if (token.get("bar1_link")){
+        n = attIds.indexOf(token.get("bar1_link"))
+        if (n < 0){
+          output += `Orphaned Tokens bar1_link from attributes: ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} on page <b><i>${getObjectValue("page", token.get("_pageid"), "name")}</b></i><br>`
+          cnt++;
+        }
+      }
+    });
+    //output += `<b>${cnt} orphanned token bar1_links from attributes found.</b><br><br>`
+
+    cnt=0;
+    objs.forEach(token => {
+      if (token.get("bar2_link")){
+        n = attIds.indexOf(token.get("bar2_link"))
+        if (n < 0){
+          output += `Orphaned Tokens bar2_link from attributes: ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} on page <b><i>${getObjectValue("page", token.get("_pageid"), "name")}</b></i><br>`
+          cnt++;
+        }
+      }
+    });
+    //output += `<b>${cnt} orphanned token bar2_links from attributes found.</b><br><br>`
+
+    cnt=0;
+    objs.forEach(token => {
+      if (token.get("bar3_link")){
+        n = attIds.indexOf(token.get("bar3_link"))
+        if (n < 0){
+          output += `Orphaned Tokens bar3_link from attributes: ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} on page <b><i>${getObjectValue("page", token.get("_pageid"), "name")}</b></i><br>`
+          cnt++;
+        }
+      }
+    });
+    //output += `<b>${cnt} orphanned token bar3_links from attributes found.</b><br><br>`
+
+    objs.forEach(token => {
+
+      let pageWidth = getObjectValue("page", token.get("_pageid"), "width") * 70.0
+      let pageHeight = getObjectValue("page", token.get("_pageid"), "height") * 70.0
+
+      if (token.get("left") > pageWidth || token.get("top") > pageHeight){
+        let btnMoveTkn = addTooltip("Move token to Top Left cell (0,0)", makeButton('Move', `!DMDash --FixTokenPosition ${token.get("_id")}`)) 
+        let btnDeleteTkn = addTooltip("Delete Token", makeButton('Delete', `!DMDash --DeleteToken ${token.get("_id")}`)) 
+        output += `Token ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} (${token.get("left")}, ${token.get("top")}) is off the viewing are of page ${getObjectValue("page", token.get("_pageid"), "name")} (${pageWidth}, ${pageHeight}) ${btnMoveTkn} ${btnDeleteTkn}<br>`
+        cnt++;
+      }
+    });
+
+    output = openReport + output + closeReport;
+  
+    // Check if a "Player Access" handout exists, or create one
+    let dbReport = findObjs({ type: "handout", name: "DM Database Health" })[0];
+    if (!dbReport) {
+      dbReport = createObj("handout", { name: "DM Database Health" });
+    }
+
+    // Update the "Player Access" handout content
+    dbReport.set("notes", output);
+  
+    // Notify the GM
+    let chatMsg = `Campaign Database Health Report has been updated.  Click the link below to view:`;      
+    chatMsg += `<br>&nbsp;<b>[DM Database Health](https://journal.roll20.net/handout/${getHandout('DM Database Health').get('_id')})</b>`;      
+
+    // sendChat("DM Dashboard", chatMsg);
+    mySendChat(true, "Campaign Database Health", chatMsg)
+
+  }
+  function moveToken(tId, posLeft, posTop){
+    let t = getObj("graphic", tId);
+    if (t) {
+      if (posLeft !== undefined && posLeft !== null && posLeft !== "" && !isNaN(posLeft)){posLeft = 0}
+      if (posTop !== undefined && posTop !== null && posTop !== "" && !isNaN(posTop)){posTop = 0}
+      t.set("left", posLeft);
+      t.set("top", posTop)
+    }
+  }
+
+  function deleteObject(objType, objId){
+    let obj = getObj(objType, objId);
+    if (obj) {
+      obj.remove()
+    }
+  }
+
+  function buildPlayerAccessReport() {
     let playerAry = []
 
     let emojiAccess = '\u{2705}' //✅
@@ -4359,12 +4705,275 @@ function DMDash_HandleMsg(msg_content){
     playerAccessHandout.set("notes", output);
   
     // Notify the GM
-    let chatMsg = `Player Access Handout has been updated.  Click the link bellow to view:`;      
+    let chatMsg = `Player Access Handout has been updated.  Click the link below to view:`;      
     chatMsg += `<br>&nbsp;<b>[DM Player Access](https://journal.roll20.net/handout/${getHandout('DM Player Access').get('_id')})</b>`;      
 
     // sendChat("DM Dashboard", chatMsg);
     mySendChat(true, "Player Access", chatMsg)
 
+  }
+
+  function buildTokenReport(){
+    // Build top menu (Token Layer)
+      // All | Object | GMLayer | Map | Lighting
+
+    // Build list of Pages, Include All at the top and place in a single column table
+
+    // Add logic to allow for the selection of All or an individual page.
+      // Look at my Notes Report for technique
+
+    // Add a name filter for token names (like the notes report does)
+
+    // Based on the two selected filters (Page / Layer), locate all the tokens
+    // that meet that criteria and present in Alpha order with the following groups of info in a table
+    // similar to the DM Turnorder Dashboard
+      // Token Image / Name / Plate Visible / Layer
+      // Functions (Ping / Rename / Set Default / Toggle Auras / Set DL Option (Torch, night vision, ...) / Token Side?
+      // Bar Info (Bar#_Value / Bar#_Max / Bar#_Link Bar#_Permissions)
+      // Bar Configuration options
+      // Aura Info
+      // Dynamic Lighting Info 
+      // Tooltips 
+
+    let output = ''; // This will be where the content of the new handout will be built
+    let rptHeader = '';
+    let rptFooter = '';
+    let tblTokens = ''; // HTML containing Master table for Item List and associcated note
+    let tblPages = ''; // HTML table containg list of items and functions
+    let tblMaster = ''
+    let menuT1 = ''
+    let tblRows = ''
+    let tType = ''
+    let tImg = ''
+    let btnItem = ''
+    let txtHeaderInfo = '';
+    let btn = '';
+    let selLayer = '';
+    let selPageId = '';
+    let tokenFilter = '';
+    let t = ''
+
+    let pages = [];
+    let tokens = [];
+    let tokensF =[];
+
+    // Tier 1 Buttons
+    let btnAllLayers = makeMenuButton('All Layers', '!DMToken --AllLayers');  // 
+    let btnObjectLayer = makeMenuButton('Object', '!DMToken --ObjectLayer');  // 
+    let btnGMLayer = makeMenuButton('GMLayer', '!DMToken --GMLayer'); // 
+    let btnMapLayer = makeMenuButton('Map', '!DMToken --MapLayer');  // 
+    let btnDLLayer = makeMenuButton('Lighting/Walls', '!DMToken --DLLayer');  // 
+    let btnFilter = makeButton(emojiFilter + ' Filter', '!DMToken --Filter ?{Where "Name" contains?|} ');  // Filter Selected from Tier 1 menu - Find Filter Emoji 
+    let txtFilter = '(' + state.DMDashboard.TokenRpt_Filter + ')'
+
+    switch (state.DMDashboard.TokenRpt_SelectedLayer){
+      case 'ALL':
+        btnAllLayers = makeMenuButton('All Layers', '!DMToken --AllLayers',1);  // 
+        txtHeaderInfo += ' (All Layers / '
+        break;
+      case 'objects':
+        btnObjectLayer = makeMenuButton('Object', '!DMToken --ObjectLayer',1);  // 
+        txtHeaderInfo += ' (Objects layer / '        
+        break;
+      case 'gmlayer':
+        btnGMLayer = makeMenuButton('GMLayer', '!DMToken --GMLayer',1); // 
+        txtHeaderInfo += ' (GM Layer / '                
+        break;
+      case 'map':
+        btnMapLayer = makeMenuButton('Map', '!DMToken --MapLayer',1);  // 
+        txtHeaderInfo += ' (Map layer / '                
+        break;
+      case 'walls':
+        btnDLLayer = makeMenuButton('Lighting/Walls', '!DMToken --DLLayer',1);  // 
+        txtHeaderInfo += ' (Walls layer / '                
+        break;
+    }
+
+    menuT1 = `${btnAllLayers} ${btnObjectLayer} ${btnGMLayer} ${btnMapLayer} ${btnDLLayer}  |  ${btnFilter} ${txtFilter}`;
+    menuT1 = html.div(menuT1, menuBoxCSS);
+
+    pages = findObjs({
+      _type: 'page'
+    }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+
+    tblRows = html.tr(html.th('Pages'))
+
+    btnItem = makeButton('ALL', `!DMToken --rowselected ALL` )
+    myDebug(4, `Build Token Report: PageId: ${state.DMDashboard.TokenRpt_SelectedPageId}`)
+    if (state.DMDashboard.TokenRpt_SelectedPageId == 'ALL'){
+      tblRows += html.tr(html.td(btnItem, {'background-color':'yellow'}))
+      txtHeaderInfo += ' All Layers)'
+    } else {
+      tblRows += html.tr(html.td(btnItem))
+      //txtHeaderInfo += ` ${getObjectValue('page', state.DMDashboard.TokenRpt_SelectedPageId, 'name')})`
+    }
+    rptHeader = html.h2('DM Token Report' + txtHeaderInfo)
+
+    pages.forEach(page => {
+
+      btnItem = makeButton(page.get('name'), `!DMToken --rowselected ${page.get('_id')}` )
+      if (state.DMDashboard.TokenRpt_SelectedPageId == page.get('_id')){
+        tblRows += html.tr(html.td(btnItem, {'background-color':'yellow'}))
+      } else {
+        tblRows += html.tr(html.td(btnItem))
+      }
+    });
+    tblPages = html.table(tblRows);
+
+    // Build the Tokens Table
+
+    myDebug(4, `Build Token Table: PageId: ${state.DMDashboard.TokenRpt_SelectedPageId}, Layer: ${state.DMDashboard.TokenRpt_SelectedLayer}`);
+    if (state.DMDashboard.TokenRpt_SelectedPageId === 'ALL' || state.DMDashboard.TokenRpt_SelectedPageId === '') {
+      if (state.DMDashboard.TokenRpt_SelectedLayer === 'ALL'){
+        // Get All Tokens (across all pages and layers)
+        tokensF = findObjs({
+          _type: 'graphic',
+          _subtype: 'token'
+        }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+        myDebug(4, `Build Token Table ALL: Count: ${tokensF.length}`);
+
+      } else {
+        // Get Fitlered Tokens (across all pages for a specific layer)
+        tokensF = findObjs({
+          _type: 'graphic',
+          _subtype: 'token',
+          layer: state.DMDashboard.TokenRpt_SelectedLayer
+        }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+        myDebug(4, `Build Token Table All Pages/Specific Layer: Count: ${tokensF.length}`);
+      }
+    } else { 
+      if (state.DMDashboard.TokenRpt_SelectedLayer === 'ALL'){
+        // Get Filtered Tokens (across a specific page but for all layers)
+        tokensF = findObjs({
+          _type: 'graphic',
+          _subtype: 'token',
+          pageid: state.DMDashboard.TokenRpt_SelectedPageId
+        }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+        myDebug(4, `Build Token Table Specific Page/All Layers: Count: ${tokensF.length}`);
+
+      } else {
+        // Get Filtered Tokens (across a specific page and layer)
+        tokensF = findObjs({
+          _type: 'graphic',
+          _subtype: 'token',
+          layer: state.DMDashboard.TokenRpt_SelectedLayer,
+          pageid: state.DMDashboard.TokenRpt_SelectedPageId          
+        }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+        myDebug(4, `Build Token Table Specific Page/Specific Layer: Count: ${tokensF.length}`);
+      }
+    }
+    myDebug(4, `Build Token Table: Tokens.length: ${tokensF.length} Filter: ${state.DMDashboard.TokenRpt_Filter}`)
+    //tokens = tokensF.filter(token => token.name.includes(state.DMDashboard.TokenRpt_Filter))
+    let rx = new RegExp(state.DMDashboard.TokenRpt_Filter, 'i');
+    tokens = tokensF.filter(t => rx.test(t.get('name')))
+
+    tblTokens = html.tr(html.th('Token Name') + html.th('Functions') + html.th('Bar Info') + html.th('Geography') + html.th('Markers') + html.th('Tooltip'))
+    tblRows = '';
+
+    // Loop through each of the tokens building the token detail table
+    tokens.forEach(token => {
+      tId = token.get("_id");
+
+      tType = getTokenType(tId); // Returns NPC, CHAR, CUSTOM, UTILITY or OTHER
+      
+      // Column 1 : Token Image/Name 
+      tImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${token.get('imgsrc')}'</img>`;
+      tImg = addTooltip("Ping Me", makeButton(tImg, `!DMDash --PingToken-GM ${tId}`, 40)) 
+      tblRows = html.td(`${tImg} ${token.get("name")} (${getObjectValue('page', token.get('pageid'), 'name')})`)
+
+      // Column 2 : Functions
+
+      switch (token.get('layer')){
+        case 'objects':
+          btn = addTooltip("Objects layer: Move to GMLayer", makeButton(emojiObjectsLayer, '!DMToken --ToggleLayer gmlayer ' + tId))
+          break;
+        case 'gmlayer':
+          btn = addTooltip("GM layer: Move to Walls layer", makeButton(emojiGMLayer, '!DMToken --ToggleLayer walls ' + tId))
+          break;
+        case 'walls':
+          btn = addTooltip("Walls layer: Move to Map layer", makeButton(emojiWallsLayer, '!DMToken --ToggleLayer map ' + tId))
+          break;
+        case 'map':
+          btn = addTooltip("Maps layer: Move to Objects layer", makeButton(emojiMapLayer, '!DMToken --ToggleLayer object ' + tId))
+          break;
+      }
+
+      if (token.get('represents')){
+        btn += addTooltip("Open Character Sheet", makeButton(emojiDocument, 'https://journal.roll20.net/character/' + token.get('represents')))
+        btn += addTooltip("Set as Default", makeButton(emojiSetDefaultToken, '!DMToken --SetDefault ' + tId)); 
+      }
+
+      if(token.get('lockMovement')){
+        btn += addTooltip("Unlock token Movement", makeButton(emojiLock, '!DMToken --ToggleLock ' + tId));
+      } else {
+        btn += addTooltip("Lock token Movement", makeButton(emojiUnlock, '!DMDash --ToggleLock ' + tId)); 
+      }
+      tblRows+= html.td(btn)
+      
+      // Column 3 : Bar Info 
+      let cssTD = {'vertical-align':'middle', 'border':'0'}
+      let cssTable = {'border':'0', 'margin':'0', 'padding':'0'}
+      let barLink = ''
+      barLink = '<i>empty</i>'
+      if (token.get('bar1_link')) {
+        barLink = getObjectValue('attribute', token.get('bar1_link'), 'name')
+      }
+      t = html.tr(html.td('1: ' + token.get('bar1_value')+'/' + token.get('bar1_max'), combineCSS(cssTD, {'width':'30%'})) + html.td(barLink, combineCSS(cssTD,{'width':'70%'})))
+      barLink = '<i>empty</i>'
+      if (token.get('bar2_link')) {
+        barLink = getObjectValue('attribute', token.get('bar2_link'), 'name')
+      }
+      t += html.tr(html.td('2: ' + token.get('bar2_value')+'/' + token.get('bar2_max'), combineCSS(cssTD, {'width':'30%'})) + html.td(barLink, combineCSS(cssTD,{'width':'70%'})))
+
+      barLink = '<i>empty</i>'
+      if (token.get('bar3_link')) {
+        barLink = getObjectValue('attribute', token.get('bar3_link'), 'name')
+      }
+      t += html.tr(html.td('3: ' + token.get('bar3_value')+'/' + token.get('bar3_max'), combineCSS(cssTD, {'width':'30%'})) + html.td(barLink, combineCSS(cssTD,{'width':'70%'})))
+      t = html.table(t, cssTable)
+      tblRows += html.td(t)
+
+      // Column 4 : Geography (left, top, width, height, rotation, isDrawing, flipv, fliph)
+      t = html.tr(html.td('Left:' + token.get('left').toFixed(0), cssTD)  + html.td('width:' + token.get('width').toFixed(0), cssTD) + html.td('flipv:' + token.get('flipv'), cssTD))  
+      t+= html.tr(html.td('top:' + token.get('top').toFixed(0), cssTD)  + html.td('height:' + token.get('height').toFixed(0), cssTD) + html.td('fliph:' + token.get('fliph'), cssTD))  
+      t+= html.tr(html.td('rotation:' + token.get('rotation').toFixed(0), cssTD)  + html.td('isDrawing:' + token.get('isdrawing'), cssTD) + html.td(''), cssTD)  
+      t = html.table(t, cssTable)
+      tblRows += html.td(t)
+
+      // Status Markers
+      //sm = token.get('statusmarkers');
+      tblRows += html.td(getSMImages(token.get('statusmarkers')))
+
+      // Column ? Tooltips
+      t = addTooltip("Edit Tooltip", makeButton(emojiEdit, `!DMToken --TokenSetTooltip ${token.get('_id')} "?{Edit Tooltip|${token.get('tooltip')}"`))
+      if(token.get('show_tooltip')){
+        t += addTooltip("Hide Tooltip", makeButton(emojiShow, '!DMToken --TokenToggleTooltip ' + token.get('_id')))
+        t += `<b> ${token.get('tooltip')} </b>`; 
+      } else {
+        t += addTooltip("Show Tooltip", makeButton(emojiHide, '!DMToken --TokenToggleTooltip ' + token.get('_id')))
+        t += `<i> ${token.get('tooltip')} </i>`;         
+      }
+      tblRows += html.td(t)
+      tblTokens += html.tr(tblRows) 
+
+    })
+    tblTokens = html.table(tblTokens)
+
+    tblPages = openScrollTOBox + tblPages + closeScrollBox;
+    tblTokens = openScrollTOBox + tblTokens + closeScrollBox;
+    tblMaster = html.table(html.tr(html.td(tblPages, {'width': '15%'}) + html.td(tblTokens, {'width': '85%'})))
+ 
+    // Now find the handout name "DM Token Report" (or create it if it doesn't exist)
+    output = openReport + rptHeader + menuT1 + tblMaster + rptFooter + closeReport;
+  
+    // Check if a "Player Access" handout exists, or create one
+    let tokenHO = findObjs({ type: "handout", name: "DM Token Report" })[0];
+    if (!tokenHO) {
+      tokenHO = createObj("handout", { name: "DM Token Report" });
+    }
+  
+    // Update the "Player Access" handout content
+    tokenHO.set("notes", output);
   }
 
   startPeformanceCheck();
@@ -4393,7 +5002,7 @@ function DMDash_HandleMsg(msg_content){
   const tdButtonAreaStyle = `padding: 8px ; min-width: 10px ; background-color: #ffebd6; text-align: right ; margin: 4px 4px 8px;`
 
   const openBox = "<div style='margin-top: 40px;color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
-  const openMenuBox = "<div style='position:fixed; top:0px left:0px; height:30px; color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 2px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";    
+  const openMenuBox = "<div style='position:fixed; top:0px left:0px; height:30px; color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 2px #000; display: block; text-align: left; font-size: 11px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";    
   const closeBox = '</div>';
   const openScrollBox = `<div style='height:80vh; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
   const openScrollCharBox = `<div style='height:${state.DMDashboard.charBox_ScrollHeight}; overflow-y: scroll; border: 1px solid black; padding 5px; display: block;'>`
@@ -4452,7 +5061,11 @@ function DMDash_HandleMsg(msg_content){
   const emojiEffect = '\u{D83D}\u{DCA5}'; //💥
   const emojiAmbiance = '\u{D83C}\u{DFB6}'; // 🎶
   const emojiEmptyBox = '\u{2B1C}\u{FE0F}'; // 
-
+  const emojiObjectsLayer = '\u{1F9CA}' // 🧊
+  const emojiGMLayer = '\u{1F47B}' // 👻
+  const emojiMapLayer = '\u{1F4CD}' // 📍
+  const emojiWallsLayer = '\u{1F9F1}' // 🧱
+  const emojiSetDefaultToken = '\u{23F9}' // ⏺️
 
 
   let chatMsg = '';
@@ -4487,58 +5100,69 @@ function DMDash_HandleMsg(msg_content){
       case 'TO-CLEAR':
         to_Clear();
         updateTurnOrderStartTime();
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-NEXT':
         to_MoveNext();
-        refreshReports();
+        trackPlayerStats();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-PREV':
         to_MovePrev();
         updateTurnOrderStartTime();
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-SORT':
         to_Sort();
         updateTurnOrderStartTime();
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-SORTWRAPPED':
         to_SortWrapped();
         updateTurnOrderStartTime();
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-ADDCUSTOM': // Position, Name
         to_AddCustom(commands[2], commands[1])
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-ADDROUND': //No Parameters
         // log(`TO-AddRound`)
         to_AddCustom('>>>Round<<<', 1, '+1')
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-ADDCOUNTDOWN': // Direction, Starting Pos, Name
         // log(`TO-AddCustom: Cmd1:${commands[1]} Cmd2:${commands[2]} Cmd3:${commands[3]} Cmd4:${commands[4]}`)
         to_AddCustom(commands[3], commands[2], commands[1])
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-REMOVE':
         to_Remove(commands[1]); // Assumes that the next the command is "!DMDash --to-Remove tid"
         updateTurnOrderStartTime();
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TO-REMOVECUSTOM':
         to_RemoveCustom(commands[1]); // Assumes that the next the command is "!DMDash --to-RemoveCustom ndx"
         updateTurnOrderStartTime();
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'ADDCHARGMNOTE': // charId, Name
         addTextToCharGMNote(commands[1], commands[2])
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'ADDTOKENGMNOTE': // tokenId, Name
         addTextToTokenGMNote(commands[1], commands[2])
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'ADDGMNOTE': // Add note to GMNote are of the Turnorder List
         addTextToGMNote(commands[1])
@@ -4548,43 +5172,44 @@ function DMDash_HandleMsg(msg_content){
         break;
       case 'INITIATIVE':
         addInitiative(commands[1]);
-        refreshReports();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
       case 'TOKENTOGGLEVISABITY':
         tokenToggleVisibility(commands[1])
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'TOKENTOGGLELOCK':
         tokenToggleLock(commands[1])
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'TOKENCLEARTOOLTIP':
         tokenClearTooltip(commands[1])
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'TOKENTOGGLETOOLTIP':
         tokenToggleTooltip(commands[1])
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'TOKENCLEARTOOLTIP':
         tokenClearTooltip(commands[1])
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'TOKENSETTOOLTIP':
         tokenSetTooltip(commands[1], commands[2])
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'TOKENTOGGLENAMEPLATE':
         tokenToggleNameplate(commands[1]);
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'TOGGLEFRIEND':
         toggleFriendFoe(commands[1]); 
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'TOKENADJUSTHP':
         tokenAdjHP(commands[1], commands[2]);
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'PINGTOKEN-GM':
         pingToken(commands[1],0);
@@ -4604,7 +5229,8 @@ function DMDash_HandleMsg(msg_content){
         myDebug(3, `ShowGMNote - Got to msghandler: ${commands[1]}`)
         showGMNote(commands[1], 0); //tknId, Flag 0-NPC: Token.GMNote PC: Char.GMNote, 1-Token.GMNote, 2-Char.GMNote
         break;
-      case 'TOREPORT':
+      case 'TOREPORT':  //Generaly only called by system events like turnorder changes
+
         // *** Process subcommands like 'expand' and 'collapse' ***
         Exp_ndx = msg_content.indexOf('expand');
         if(Exp_ndx>0){
@@ -4614,15 +5240,32 @@ function DMDash_HandleMsg(msg_content){
         if(Exp_ndx>0){
           state.DMDashboard.DetailExpand = 0;
         }
-        refreshReports();
+        trackPlayerStats();
+        buildTODashBoard(false);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
         break;
+      case 'MANUALREFRESHDB':
+          // *** Process subcommands like 'expand' and 'collapse' ***
+          Exp_ndx = msg_content.indexOf('expand');
+          if(Exp_ndx>0){
+            state.DMDashboard.DetailExpand = 1;
+          }
+          Exp_ndx = msg_content.indexOf('collapse');
+          if(Exp_ndx>0){
+            state.DMDashboard.DetailExpand = 0;
+          }
+          trackPlayerStats();
+          buildTODashBoard(true);
+          state.DMDashboard.PrevTO = Campaign().get('turnorder');
+          break;
+  
       case 'HPBAR':
         setHPBar(commands[1]);
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'SBHEIGHT':
         setSBHeights(commands[1], commands[2]);  // Character Box Height, Turnorder Box Height
-        refreshReports();
+        buildTODashBoard(true);
         break;
       case 'OPEN':
       case 'SHOW-HO-DIALOG':
@@ -4634,8 +5277,9 @@ function DMDash_HandleMsg(msg_content){
 
         // sendChat("DM Dashboard", chatMsg);
         mySendChat(true, "DM Dashboard", chatMsg)
-        refreshReports();
-        listTracks();
+        buildTODashBoard(true);
+        state.DMDashboard.PrevTO = Campaign().get('turnorder');
+        buildJukebox();
         buildDMNotesHandout();
         break;
 
@@ -4664,10 +5308,21 @@ function DMDash_HandleMsg(msg_content){
         }
         break;  
 
-      case 'CLEARCACHE':
+        case 'AUTOREFRESHDASHBOARD':
+          if (commands[1] == 0 || commands[1] == false || commands[1] == 'false' || commands[1] == 'off'){
+            state.DMDashboard.AutoRefreshDashboard = false;
+            mySendChat(true, "DM Dashboard", `Automatic refresh of dashboard turned off`);
+          } else {
+            state.DMDashboard.AutoRefreshDashboard = true;
+            mySendChat(true, "DM Dashboard", `Automatic refresh of dashboard turned on`);
+          }
+          break;  
+  
+
+        case 'CLEARCACHE':
         charMap.clear();
         mySendChat(true, "DM Dashboard", `Cache cleared`);
-        refreshReports();
+        buildTODashBoard(true);
         break;
 
       case 'LOGCHAT':
@@ -4704,31 +5359,37 @@ function DMDash_HandleMsg(msg_content){
         break;
 
       case 'PLAYERACCESS':
-        getPlayerAccess();
+        buildPlayerAccessReport();
         break;
+      case 'DBHEALTHCHECK':
+        buildDBHealthCheckReport();
+        break;
+  
+
       case 'TRACK':
       case 'TRACKS':
+      case 'JUKEBOX':
       case 'LISTTRACKS':        
-        listTracks();
+        buildJukebox();
         break;
 
       case 'JBALL':
         state.DMDashboard.JB_Tier1MenuSelected = "Jukebox"
-        listTracks();
+        buildJukebox();
         break;
       case 'JBFAVS':
         state.DMDashboard.JB_Tier1MenuSelected = "Favorites"        
-        listTracks();
+        buildJukebox();
         break;
 
       case 'PLAYTRACK':
         playTrack(commands[1]);
-        listTracks();
+        buildJukebox();
         break;
   
       case 'SETDASHTRACK':
         setDashTrack(commands[1], commands[2]);
-        listTracks();
+        buildJukebox();
         break;
 
       case 'TOGGLEAMBIANCETRACK':
@@ -4740,7 +5401,7 @@ function DMDash_HandleMsg(msg_content){
           state.DMDashboard.JB_AmbianceFavs.splice(ndx,1);
           myDebug(4, `AmbTrackOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.JB_AmbianceFavs.length}`);
         }
-        listTracks();        
+        buildJukebox();        
         break;
 
       case 'TOGGLEEFFECTTRACK':
@@ -4752,22 +5413,77 @@ function DMDash_HandleMsg(msg_content){
           state.DMDashboard.JB_EffectsFavs.splice(ndx,1);
           myDebug(4, `AmbTrackOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.JB_EffectsFavs.length}`);
         }
-        listTracks();        
+        buildJukebox();        
       break;
 
       case 'LOOPTRACK':
         setLoopTrack(commands[1], commands[2]);
-        listTracks();
+        buildJukebox();
         break;
 
       case 'SETVOLUME':
         setVolume(commands[1], commands[2]);
-        listTracks();
+        buildJukebox();
         break;
-
+      case 'FIXTOKENPOSITION':
+        moveToken(commands[1], 0,0);
+        break;
+      case 'DELETETOKEN':
+        deleteObject('graphic', commands[1]);
+        break;
 
       default:
         mySendChat(true, "DM Dashboard", `Command ${commands[0]} not recognized.`)
+    }
+  } else if (masterCmd == '!DMTOKEN') {
+
+    myDebug(1, `Got into the master !DMTOKEN command processing area: ${commands[0]}`);
+    switch (commands[0]) {
+      case 'BUILD':
+      case 'OPEN':
+        buildTokenReport();
+        let chatMsg = `Player Access Handout has been updated.  Click the link bellow to view:`;      
+        chatMsg += `<br>&nbsp;<b>[DM Token Report](https://journal.roll20.net/handout/${getHandout('DM Token Report').get('_id')})</b>`;      
+    
+        // sendChat("DM Dashboard", chatMsg);
+        mySendChat(true, "DM Dashboard", chatMsg)
+    
+        break;
+      case 'ALLLAYERS':
+        state.DMDashboard.TokenRpt_SelectedLayer = "ALL"
+        buildTokenReport();
+        break;
+      case 'OBJECTLAYER':
+        state.DMDashboard.TokenRpt_SelectedLayer = "objects"
+        buildTokenReport();
+      break;
+      case 'GMLAYER':
+        state.DMDashboard.TokenRpt_SelectedLayer = "gmlayer"
+        buildTokenReport();
+        break;
+      case 'MAPLAYER':
+        state.DMDashboard.TokenRpt_SelectedLayer = "map"
+        buildTokenReport();
+        break;
+      case 'DLLAYER':
+        state.DMDashboard.TokenRpt_SelectedLayer = "walls"
+        buildTokenReport();
+        break;
+      case 'ROWSELECTED':
+        myDebug(3, 'RowSelected: ' + commands[1]);
+        state.DMDashboard.TokenRpt_SelectedPageId = commands[1];
+        myDebug(4, `Selected: ${commands[1]}`);
+        buildTokenReport();
+        break;
+      case 'FILTER':
+        if (!commands[1] || commands[1].lenght == 0) {
+          state.DMDashboard.TokenRpt_Filter = '';
+        } else {
+          state.DMDashboard.TokenRpt_Filter = commands[1];
+        }
+        buildTokenReport();
+        break;
+ 
     }
   } else if (masterCmd == '!DMNOTES') {
 
