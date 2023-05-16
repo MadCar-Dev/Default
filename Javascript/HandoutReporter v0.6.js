@@ -4,7 +4,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.16
+// Version 0.6.17
 // Last Updated: 5.10.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
@@ -33,21 +33,6 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 // To get started, type !DMDash into the chat window to create your initial handouts
 // To force the initial build of your DM Notes handout type: !dmnotes --build
 
-// Future Enhancements being cosidered
-//  * DB Checker
-//    * Check for orphaned objects (characters/, attributes, )
-//      * graphic.pageid, graphic.cardid, graphic.represents, graphic.controlledby, graphic.bar#_link
-//      * character.inplayersjournal, character.controlledby 
-//      * attribute.characterid
-//      * ability.characterid
-//      * handout.inplayersjournal, handout.controlledby 
-//      * Build an array of ids for each object type, then do a simple search of the id 
-
-//    * Check for duplicate objects (Characters, Attributes (same char), Handouts, Page)
-//    * Check for Tokens off screen 
-//    * Check for objects with no Name (Pages, Handouts, Characters)
-//    * Provide options to correct the issue 
-//
 //  * Build a page centric Token Lister modeled after the DM Turnorder Report
 //    * Putting on hold right now - may be too big for one report
 //    * Default to the current page, but allow user to change the referened page
@@ -69,6 +54,14 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 //  * Toggle through auras (GM/Player)
 //  * Dynamic Lighting Setup
 //  * Integrate with !Reporter app to dump predefined reports
+
+
+// Globals - Need to look into which of these I need to move to state 
+let charMap = new Map();
+let charMapItem = [];
+let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
+let gStartTime = 0;
+let gEndTime = 0;
 
 /******************************
 ***     Event Management    ***  
@@ -152,180 +145,169 @@ on('ready', () => {
     state.DMDashboard.JB_DashboardBtns = [];
   }
 
+// The debounce function helps to optimize performance and prevent excessive or 
+// unnecessary function calls, reducing unnecessary processing, improving reponsiveness,
+// and avoid potential performance bottlenecks associated with rapid or frequent
+// function invocations.
+
+  const debounced_DMDash_HandleMsg = _.debounce(DMDash_HandleMsg,250)
+
   startPeformanceCheck();
   debounced_DMDash_HandleMsg('!DMDash --TOReport')   
   debounced_DMDash_HandleMsg('!DMNotes --Build')
   debounced_DMDash_HandleMsg('!DMDash --Tracks')
   reportPerformance('Finished On Ready Event');
   
-});
+  on('change:campaign:playerpageid', async () => {
+    // log('DM Dashboard Event: change:campaign:turnorder');
+    reportPerformance('Start On Change:Campaign:PlayerPagiId event');   
+    debounced_DMDash_HandleMsg('!DMNotes --Build')
+    reportPerformance('Finished On Change:Campaign:PlayerPagiId event');   
+  });
 
-on('change:campaign:playerpageid', async () => {
-  // log('DM Dashboard Event: change:campaign:turnorder');
-  reportPerformance('Start On Change:Campaign:PlayerPagiId event');   
-  debounced_DMDash_HandleMsg('!DMNotes --Build')
-  reportPerformance('Finished On Change:Campaign:PlayerPagiId event');   
-});
+  on('change:campaign:turnorder', async () => {
+    // log('DM Dashboard Event: change:campaign:turnorder');
+    reportPerformance('Start change:campaign:turnorder');   
+    debounced_DMDash_HandleMsg('!DMDash --TOReport')   
+    reportPerformance('Finished change:campaign:turnorder');   
 
-on('change:campaign:turnorder', async () => {
-  // log('DM Dashboard Event: change:campaign:turnorder');
-  reportPerformance('Start change:campaign:turnorder');   
-  debounced_DMDash_HandleMsg('!DMDash --TOReport')   
-  reportPerformance('Finished change:campaign:turnorder');   
+  });
 
-});
+  on('change:campaign:initiativepage', async () => {
+    // log('DM Dashboard Event: change:campaign:initiativepage ' + Campaign().get('initiativepage'));
+    if (Campaign().get('initiativepage'))  {
+      debounced_DMDash_HandleMsg('!DMDash --SHOW-HO-DIALOG')
+    } else {
+      debounced_DMDash_HandleMsg('!DMDash --FLUSHDATALOG')
+    }
 
-on('change:campaign:initiativepage', async () => {
-  // log('DM Dashboard Event: change:campaign:initiativepage ' + Campaign().get('initiativepage'));
-  if (Campaign().get('initiativepage'))  {
-    debounced_DMDash_HandleMsg('!DMDash --SHOW-HO-DIALOG')
-  } else {
-    debounced_DMDash_HandleMsg('!DMDash --FLUSHDATALOG')
-  }
+  });
 
-});
+  on('change:graphic:bar1_value', async () => {
+    // log('DM Dashboard Event: change:graphic:bar1_value');
+    debounced_DMDash_HandleMsg('!DMDash --TOReport')   
+  });
 
-on('change:graphic:bar1_value', async () => {
-  // log('DM Dashboard Event: change:graphic:bar1_value');
-  debounced_DMDash_HandleMsg('!DMDash --TOReport')   
-});
+  on('change:graphic:bar2_value', async () => {
+    // log('DM Dashboard Event: change:graphic:bar2_value');
+    debounced_DMDash_HandleMsg('!DMDash --TOReport')   
+  });
 
-on('change:graphic:bar2_value', async () => {
-  // log('DM Dashboard Event: change:graphic:bar2_value');
-  debounced_DMDash_HandleMsg('!DMDash --TOReport')   
-});
+  on('change:graphic:bar3_value', async () => {
+    // log('DM Dashboard Event: change:graphic:bar3_value');
+    debounced_DMDash_HandleMsg('!DMDash --TOReport')   
+  });
 
-on('change:graphic:bar3_value', async () => {
-  // log('DM Dashboard Event: change:graphic:bar3_value');
-  debounced_DMDash_HandleMsg('!DMDash --TOReport')   
-});
-
-on('chat:message', async (msg_orig) => {
-  let msg = _.clone(msg_orig);
-  
-  LogChat(msg)
-  if (!/^!DMDash/i.test(msg.content) && !/^!DMNotes/i.test(msg.content) && !/^!DMToken/i.test(msg.content)) {
-    return;
-  }
-
-  // log('HO Event: chat:message');
-  reportPerformance(`Start chat:message msg: ${msg.content}`);      
-  debounced_DMDash_HandleMsg(msg.content);
-  reportPerformance(`End chat:message msg: ${msg.content}`);   
-
-});
-
-function LogChat(msg){
-  // Add text to Handout
-  if (msg.type != 'api') {
-
-    let logMsg = '';
-    if (state.DMDashboard.LogChat == false) {
+  on('chat:message', async (msg_orig) => {
+    let msg = _.clone(msg_orig);
+    
+    LogChat(msg)
+    if (!/^!DMDash/i.test(msg.content) && !/^!DMNotes/i.test(msg.content) && !/^!DMToken/i.test(msg.content)) {
       return;
     }
-    if (msg.type != 'api' && msg.content.length < 1000) {
-      logMsg = `${msg.type}: ${msg.who} -> ${msg.target}: ${msg.content}`;
-      if (msg.type == 'whisper') {
-        logMsg = `<b>${logMsg}</b>`
-      }
-    } else {
-      logMsg = `${msg.type}: ${msg.who} Length: ${msg.content.length}`;
-      if (msg.type == 'whisper') {
-        logMsg = `<b>${logMsg}</b>`
-      }
-    }      
-    addTextToHandout(logMsg, 'DM Chat Log', 2)
-  }
-}
 
-// The debounce function helps to optimize performance and prevent excessive or 
-// unnecessary function calls, reducing unnecessary processing, improving reponsiveness,
-// and avoid potential performance bottlenecks associated with rapid or frequent
-// function invocations.
-const debounced_DMDash_HandleMsg = _.debounce(DMDash_HandleMsg,250)
+    // log('HO Event: chat:message');
+    reportPerformance(`Start chat:message msg: ${msg.content}`);      
+    debounced_DMDash_HandleMsg(msg.content);
+    reportPerformance(`End chat:message msg: ${msg.content}`);   
 
-// Globals - Need to look into which of these I need to move to state 
-let charMap = new Map();
-let charMapItem = [];
-let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
-let gStartTime = 0;
-let gEndTime = 0;
-
-// ****************************
-// *** Global Functions     ***  
-// ****************************
-function startPeformanceCheck(){
-  gStartTime = new Date().getTime();
-  gEndTime = gStartTime;
-  if (state.DMDashboard.DebugLvl == 5){
-    log('Starting Performance Test:' + gStartTime);
-  }
-}
-
-function reportPerformance(msg){
-  let ts = new Date().getTime();
-  let stepTime = ts - gEndTime;
-  gEndTime = ts;
-  let runTime = gEndTime - gStartTime;
-  if (state.DMDashboard.DebugLvl == 5){
-    log(`${msg} execution time: ${runTime.toFixed(2)}ms. Step time: ${stepTime.toFixed(2)}ms  (Version: ${state.DMDashboard.version})`);
-  }
-}
-
-function addTextToHandout(noteTxt, handoutName, mode){
-  // mode - Determines how txt will be added to the handout
-  //  0: Complete replacement
-  //  1: Append to bottom
-  //  2: Push to the top
-  //  3: Append to the bottom and include a timestamp
-  //myDebug(4, `addTextToHandout(${handoutName}, mode:${mode}, len:(${noteTxt.length})`)
-
-  const ho = getHandout(handoutName);
-  let newText = '';
-
-  // Add the text to the note 
-  ho.get("notes", function(notes) {
-    switch(mode){
-    case 0:
-    case '0':
-      newText = noteTxt;
-      //myDebug(4, `addTextToHandout: Mode 0 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
-      break;
-    case 1:
-    case '1':
-      newText = `${notes}<br>${noteTxt}`
-      //myDebug(4, `addTextToHandout: Mode 1 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
-      break;
-    case 2:
-    case '2':
-      //myDebug(4, `addTextToHandout: Mode 2 (${handoutName}, mode:${mode}, len:(${newText.length})`)
-      newText = `${noteTxt}<br>${notes}`
-      break;
-    case 3:
-    case '3':
-      //myDebug(4, `addTextToHandout: Mode 3 (${handoutName}, mode:${mode}, len:(${newText.length})`)
-      let sysDate = GetSystemUTCDate();
-      newText = `${notes}<br>${sysDate}: ${noteTxt}`
-      break;
-    }
-    //myDebug(4, `addTextToHandout: set (${handoutName}, mode:${mode}, len:(${newText.length})`)
-    setTimeout(()=>ho.set("notes", newText),0);
   });
-}
-function getHandout(handoutName) {
-  let handout = findObjs({
-      _type: 'handout',
-      name: handoutName
-  })[0];
 
-  if (!handout) {
-      handout = createObj('handout', {
-          name: handoutName,
-          archived: false
-      });
+  function LogChat(msg){
+    // Add text to Handout
+    if (msg.type != 'api') {
+
+      let logMsg = '';
+      if (state.DMDashboard.LogChat == false) {
+        return;
+      }
+      if (msg.type != 'api' && msg.content.length < 1000) {
+        logMsg = `${msg.type}: ${msg.who} -> ${msg.target}: ${msg.content}`;
+        if (msg.type == 'whisper') {
+          logMsg = `<b>${logMsg}</b>`
+        }
+      } else {
+        logMsg = `${msg.type}: ${msg.who} Length: ${msg.content.length}`;
+        if (msg.type == 'whisper') {
+          logMsg = `<b>${logMsg}</b>`
+        }
+      }      
+      addTextToHandout(logMsg, 'DM Chat Log', 2)
+    }
   }
-  return handout;
-}
+
+  function startPeformanceCheck(){
+    gStartTime = new Date().getTime();
+    gEndTime = gStartTime;
+    if (state.DMDashboard.DebugLvl == 5){
+      log('Starting Performance Test:' + gStartTime);
+    }
+  }
+
+  function reportPerformance(msg){
+    let ts = new Date().getTime();
+    let stepTime = ts - gEndTime;
+    gEndTime = ts;
+    let runTime = gEndTime - gStartTime;
+    if (state.DMDashboard.DebugLvl == 5){
+      log(`${msg} execution time: ${runTime.toFixed(2)}ms. Step time: ${stepTime.toFixed(2)}ms  (Version: ${state.DMDashboard.version})`);
+    }
+  }
+
+  function addTextToHandout(noteTxt, handoutName, mode){
+    // mode - Determines how txt will be added to the handout
+    //  0: Complete replacement
+    //  1: Append to bottom
+    //  2: Push to the top
+    //  3: Append to the bottom and include a timestamp
+    //myDebug(4, `addTextToHandout(${handoutName}, mode:${mode}, len:(${noteTxt.length})`)
+
+    const ho = getHandout(handoutName);
+    let newText = '';
+
+    // Add the text to the note 
+    ho.get("notes", function(notes) {
+      switch(mode){
+      case 0:
+      case '0':
+        newText = noteTxt;
+        //myDebug(4, `addTextToHandout: Mode 0 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
+        break;
+      case 1:
+      case '1':
+        newText = `${notes}<br>${noteTxt}`
+        //myDebug(4, `addTextToHandout: Mode 1 (${handoutName}, mode:${mode}, len:(${newText.length})`)        
+        break;
+      case 2:
+      case '2':
+        //myDebug(4, `addTextToHandout: Mode 2 (${handoutName}, mode:${mode}, len:(${newText.length})`)
+        newText = `${noteTxt}<br>${notes}`
+        break;
+      case 3:
+      case '3':
+        //myDebug(4, `addTextToHandout: Mode 3 (${handoutName}, mode:${mode}, len:(${newText.length})`)
+        let sysDate = GetSystemUTCDate();
+        newText = `${notes}<br>${sysDate}: ${noteTxt}`
+        break;
+      }
+      //myDebug(4, `addTextToHandout: set (${handoutName}, mode:${mode}, len:(${newText.length})`)
+      setTimeout(()=>ho.set("notes", newText),0);
+    });
+  }
+  function getHandout(handoutName) {
+    let handout = findObjs({
+        _type: 'handout',
+        name: handoutName
+    })[0];
+
+    if (!handout) {
+        handout = createObj('handout', {
+            name: handoutName,
+            archived: false
+        });
+    }
+    return handout;
+  }
 
 function DMDash_HandleMsg(msg_content){
 
@@ -751,6 +733,15 @@ function DMDash_HandleMsg(msg_content){
     }
     return output;
   }
+
+  const getCleanImgsrc = (imgsrc) => {
+		let parts = (imgsrc||'').match(/(.*\/images\/.*)(thumb|med|original|max)([^?]*)(\?[^?]+)?$/);
+		if(parts) {
+			return parts[1]+'thumb'+parts[3]+(parts[4]?parts[4]:`?${Math.round(Math.random()*9999999)}`);
+		}
+		return;
+	};  
+
   function interpolate(x, dataset) {
     if (x <= dataset[0][0]) {
       return dataset[0][1];
@@ -2372,7 +2363,7 @@ function DMDash_HandleMsg(msg_content){
     let btnCustom = makeButton('Custom', `!DMDash --TO-AddCustom ?{Custom turnorder position|10} "?{Custom turnorder Name|}"`);
     let btnResetStats = makeButton('Reset Stats', `!DMDash --ResetStats`);
     let btnPlayerStats = makeButton('Player Stats', `!DMDash --PlayerStats`);
-    let btnPlayerAccess = makeButton('Player Access', `!DMDash --PlayerAccess`);
+    // let btnPlayerAccess = makeButton('Player Access', `!DMDash --PlayerAccess`);
     let btnAddNote = makeButton('GMNote', `!DMDash --AddGMNote "?{Session GM Note?|}"`)
 
     let btnD20 = makeButton('D20', `!${htmlCR}/roll d20 `) + makeButton('-w', `!${htmlCR}/gmroll d20 `);
@@ -2414,7 +2405,7 @@ function DMDash_HandleMsg(msg_content){
     // btns += btnAddNote + " "
     btns += btnResetStats + " " 
     btns += btnPlayerStats + " "
-    btns += btnPlayerAccess
+    // btns += btnPlayerAccess
     //btns = openBox + btns + closeBox
     btns = openMenuBox + btns + closeBox
     
@@ -4291,243 +4282,7 @@ function DMDash_HandleMsg(msg_content){
     }
     return;
   }
-
-  function buildDBHealthCheckReport(){
-    //  * DB Checker
-    //    * Check for orphaned objects (characters/, attributes, )
-    //      * graphic.pageid, graphic.cardid, graphic.represents, graphic.controlledby, graphic.bar#_link
-    //      * attribute.characterid
-    //      * ability.characterid
-    //      * handout.inplayersjournal, handout.controlledby 
-    //      * Build an array of ids for each object type, then do a simple search of the id 
-
-    //    * Check for duplicate objects (Characters, Attributes (same char), Handouts, Page)
-    //    * Check for Tokens off screen 
-    //    * Check for objects with no Name (Pages, Handouts, Characters)
-    //    * Provide options to correct the issue 
-
-    let output = ''
-    let objs = []; //general use object array
-    let charIds = []; // array of character ids
-    let pageIds = []; // array of page ids
-    let playerIds = []; // array of player ids
-    let attIds = []
-    let n = 0;
-    let cnt = 0;
-    let prevName = '';
-    let aryIPJ = []; // array of characterids
-    let aryCB = [];
-    
-    output = html.h2(`Campaign Database Health Report`);
- 
-    // Build the base list of master table ids (Player, Character, Pages)
-    const players = findObjs({ type: "player" });
-    players.forEach(player => {
-      playerIds.push(player.get("_id"))
-    });
-
-    const characters = findObjs({ type: "character" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
-    characters.forEach(character => {
-      charIds.push(character.get("_id"))
-    });
-
-    const pages = findObjs({ type: "page" });
-    pages.forEach(page => {
-      pageIds.push(page.get("_id"))
-    });
-    
-    const attributes = findObjs({ type: "attribute" });
-    attributes.forEach(attribute => {
-      attIds.push(attribute.get("_id"))
-    });
-
-    // Handouts: Do any reference players no longer in the game?
-    output +=html.h3('Reviewing Handouts')
-    objs = findObjs({ type: "handout" });
-    cnt = 0;
-    objs.forEach(handout => {
-      aryIPJ = [];
-      aryCB = [];
-      if (handout.get("inplayerjournals")) {
-        aryIPJ = handout.get("inplayerjournals").split(',');
-      }
-      if (handout.get("controlledby")){
-        aryCB = handout.get("controlledby").split(',');
-      }
-      if (aryIPJ.length > 0) {
-        if (aryIPJ[0] != 'all') {
-          let diff = aryIPJ.filter(x => !playerIds.includes(x));
-          if (diff.length > 0) {
-            output += `Handout ${handout.get("name")} (inplayerjournals) references characters that no longer exist.<br>`
-          }
-        }
-      }
-      if (aryCB.length > 0) {
-        if (aryCB[0] != 'all') {
-          let diff = aryCB.filter(x => !playerIds.includes(x));
-          if (diff.length > 0) {
-            output += `Handout ${handout.get("name")} (controlledby) references characters that no longer exist.<br>`
-          }
-        }
-      }
-    });
-
-    prevName = '';
-    cnt = 0;
-    objs.forEach(handout => {
-      
-      if (prevName === handout.get("name")){
-        cnt++;
-      } else {
-        if (cnt > 0) {
-          output += `${cnt} duplicate(s) Handouts found: <b>${prevName}</b><br>`
-        }
-        cnt = 0;
-        prevName = handout.get("name");
-      }
-    });
-    if (cnt > 0) { // Last handout in list
-      output += `${cnt} duplicate(s) Handouts found: <b>${prevName}</b><br>`
-    }
-
-    // Characters: Look for duplicates
-    output +=html.h3('Reviewing Characters')
-    prevName = '';
-    characters.forEach(char => {
-      
-      if (prevName === char.get("name")){
-        cnt++;
-      } else {
-        if (cnt > 0) {
-          output += `${cnt} duplicate(s) Characters sheets found: <b>${prevName}</b><br>`
-        }
-        cnt = 0;
-        prevName = char.get("name");
-      }
-    });
-    if (cnt > 0) { // Test last Character in list
-      output += `${cnt} duplicate(s) found for character: <b>${prevName}</b><br>`
-    }
-
-    // Attributes: Look for attributers orphaned from a character
-    output +=html.h3('Reviewing Attributes')
-    objs = findObjs({ type: "attribute" });
-    cnt = 0;
-    objs.forEach(att => {
-      n = charIds.indexOf(att.get("_characterid"))
-      if (n < 0){
-        output += `Orphaned Attrribute:<b>${att.get("name")}</b><br>`
-        cnt++;
-      }
-    });
-    //output += `<b>${cnt} orphanned attributes found.</b><br><br>`
-
-    // Attributes: Look for attributers orphaned from a character
-    output +=html.h3('Reviewing Abilities')
-    objs = findObjs({ type: "ability" });
-    cnt = 0;
-    objs.forEach(ab => {
-      n = charIds.indexOf(ab.get("_characterid"))
-      if (n < 0){
-        output += `Orphaned Ability: <b>${ab.get("name")}</b><br>`
-        cnt++;
-      }
-    });
-    //output += `<b>${cnt} orphanned abilities found.</b><br><br>`
-
-    output +=html.h3('Reviewing Tokens')
-    objs = findObjs({ type: "graphic", _subtype: "token"});
-    cnt = 0;
-    objs.forEach(token => {
-      n = pageIds.indexOf(token.get("_pageid"))
-      if (n < 0){
-        output += `Token <b>${token.get("name")}</b> orphoned from Pages.<br>`
-        cnt++;
-      }
-    });
-    //output += `<b>${cnt} orphanned tokens from pages found.</b><br><br>`
-
-    objs.forEach(token => {
-      if (token.get("represents")){
-        n = charIds.indexOf(token.get("represents"))
-        if (n < 0){
-          let btnMoveTkn = addTooltip("Move token to Top Left cell (0,0)", makeButton('Move', `!DMDash --FixTokenPosition ${token.get("_id")}`)) 
-          let btnDeleteTkn = addTooltip("Delete Token", makeButton('Delete', `!DMDash --DeleteToken ${token.get("_id")}`)) 
-          output += `Orphaned Tokens from character sheets: ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} on page ${getObjectValue("page", token.get("_pageid"), "name")} ${btnMoveTkn} ${btnDeleteTkn}<br>`
-          cnt++;
-        }
-      }
-    });
-    //output += `<b>${cnt} orphanned token from characters found.</b><br><br>`
-
-    cnt=0;
-    objs.forEach(token => {
-      if (token.get("bar1_link")){
-        n = attIds.indexOf(token.get("bar1_link"))
-        if (n < 0){
-          output += `Orphaned Tokens bar1_link from attributes: ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} on page <b><i>${getObjectValue("page", token.get("_pageid"), "name")}</b></i><br>`
-          cnt++;
-        }
-      }
-    });
-    //output += `<b>${cnt} orphanned token bar1_links from attributes found.</b><br><br>`
-
-    cnt=0;
-    objs.forEach(token => {
-      if (token.get("bar2_link")){
-        n = attIds.indexOf(token.get("bar2_link"))
-        if (n < 0){
-          output += `Orphaned Tokens bar2_link from attributes: ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} on page <b><i>${getObjectValue("page", token.get("_pageid"), "name")}</b></i><br>`
-          cnt++;
-        }
-      }
-    });
-    //output += `<b>${cnt} orphanned token bar2_links from attributes found.</b><br><br>`
-
-    cnt=0;
-    objs.forEach(token => {
-      if (token.get("bar3_link")){
-        n = attIds.indexOf(token.get("bar3_link"))
-        if (n < 0){
-          output += `Orphaned Tokens bar3_link from attributes: ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} on page <b><i>${getObjectValue("page", token.get("_pageid"), "name")}</b></i><br>`
-          cnt++;
-        }
-      }
-    });
-    //output += `<b>${cnt} orphanned token bar3_links from attributes found.</b><br><br>`
-
-    objs.forEach(token => {
-
-      let pageWidth = getObjectValue("page", token.get("_pageid"), "width") * 70.0
-      let pageHeight = getObjectValue("page", token.get("_pageid"), "height") * 70.0
-
-      if (token.get("left") > pageWidth || token.get("top") > pageHeight){
-        let btnMoveTkn = addTooltip("Move token to Top Left cell (0,0)", makeButton('Move', `!DMDash --FixTokenPosition ${token.get("_id")}`)) 
-        let btnDeleteTkn = addTooltip("Delete Token", makeButton('Delete', `!DMDash --DeleteToken ${token.get("_id")}`)) 
-        output += `Token ${addTooltip("Ping Me", makeButton(token.get("name"), `!DMDash --PingToken-GM ${token.get("_id")}`))} (${token.get("left")}, ${token.get("top")}) is off the viewing are of page ${getObjectValue("page", token.get("_pageid"), "name")} (${pageWidth}, ${pageHeight}) ${btnMoveTkn} ${btnDeleteTkn}<br>`
-        cnt++;
-      }
-    });
-
-    output = openReport + output + closeReport;
   
-    // Check if a "Player Access" handout exists, or create one
-    let dbReport = findObjs({ type: "handout", name: "DM Database Health" })[0];
-    if (!dbReport) {
-      dbReport = createObj("handout", { name: "DM Database Health" });
-    }
-
-    // Update the "Player Access" handout content
-    dbReport.set("notes", output);
-  
-    // Notify the GM
-    let chatMsg = `Campaign Database Health Report has been updated.  Click the link below to view:`;      
-    chatMsg += `<br>&nbsp;<b>[DM Database Health](https://journal.roll20.net/handout/${getHandout('DM Database Health').get('_id')})</b>`;      
-
-    // sendChat("DM Dashboard", chatMsg);
-    mySendChat(true, "Campaign Database Health", chatMsg)
-
-  }
   function moveToken(tId, posLeft, posTop){
     let t = getObj("graphic", tId);
     if (t) {
@@ -4544,175 +4299,7 @@ function DMDash_HandleMsg(msg_content){
       obj.remove()
     }
   }
-
-  function buildPlayerAccessReport() {
-    let playerAry = []
-
-    let emojiAccess = '\u{2705}' //✅
-    let emojiDenied = '\u{1F6AB}' //🚫
-    let btnFct  = '';
-    let access = '';
-    let rowAccessCnt = 0;
-    let tblRow = '';
-    let tblDebug = ''
-
-    // Initialize an empty string to store the information
-    let output = '';
-    let tblAccess = ''
-    let playerCount = 0;
-
-    let cb=''
-    let ipj=''
-
-    // Get all players
-    const players = findObjs({ type: "player" }).sort((a, b) => (a.get("_displayname") > b.get("_displayname") ? 1 : -1));
   
-
-    // Add the player's name to the content string
-    output = html.h2(`Player Access Report`);
-    output += html.p(`<i>&nbsp;&nbsp;${emojiNote}=In Player's Journal     ${emojiAccess}=Controlled By</i>`);
-    tblAccess = html.th('Object Name')
-    tblDebug = html.th('PlayerIds')
-
-    // Iterate through all players
-    players.forEach(player => {
-      // Get the player's name
-      let playerName = player.get("displayname");
-      let playerId = player.get("_id");
-      if (!playerIsGM(playerId)) {
-        playerAry.push({name: playerName, id: playerId});
-        tblAccess += html.th(playerName)
-        tblDebug += html.td(playerId, {'font-size' : '9px'})
-        playerCount++;
-      }
-    })
-
-    access = '';
-    tblAccess = html.tr(tblAccess);
-    // tblAccess += html.tr(tblDebug);
-    tblAccess += html.tr(html.td("<h3>Handouts</h3>"))
-    let handouts = findObjs({ type: "handout" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
-    handouts.forEach(handout => {
-      access = '';
-      btnFct = addTooltip("Open Handout", makeButton(emojiDocument, `https://journal.roll20.net/handout/${handout.get('_id')}`));
-      let tblRow = html.td("&nbsp;&nbsp;" + btnFct + handout.get("name"))  // Add link to handout later
-      playerAry.forEach(player => {
-        ipj = handout.get("inplayerjournals");
-        if(ipj.includes(player.id) || ipj === "all"){
-          access += emojiNote
-          rowAccessCnt++;
-        }
-        
-        cb = handout.get("controlledby");
-        if (cb.includes(player.id) || cb === "all") {
-          access += emojiAccess
-          rowAccessCnt++;
-        }
-        tblRow += html.td(access, {'text-align': 'center'})
-        access = '';
-      });
-      if (rowAccessCnt > 0) {
-        tblAccess += html.tr(tblRow);
-      }
-      rowAccessCnt = 0;
-    })
-
-    tblRow = html.td("<h3>Charactes</h3>")
-    playerAry.forEach(player => {
-      // Get the player's name
-        tblRow += html.td(`<b>${player.name} </b>`)  // Add link to handout later
-    });
-    tblAccess += html.tr(tblRow);
-
-    let characters = findObjs({ type: "character" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
-    characters.forEach(character => {
-      access = '';
-
-      btnFct = addTooltip("Open Character Sheet", makeButton(emojiDocument, `https://journal.roll20.net/character/${character.get('_id')}`));
-      tblRow = html.td("&nbsp;&nbsp;" + btnFct + character.get("name") )  // Add link to handout later
-      playerAry.forEach(player => {
-        ipj = character.get("inplayerjournals");
-        if(ipj.includes(player.id) || ipj === "all"){
-          access += emojiNote
-          rowAccessCnt++;
-        }
-        
-        cb = character.get("controlledby");
-        if (cb.includes(player.id) || cb === "all") {
-          access += emojiAccess
-          rowAccessCnt++;
-        }
-        tblRow += html.td(access, {'text-align': 'center'})
-        access = '';
-      });
-      if (rowAccessCnt > 0) {
-        tblAccess += html.tr(tblRow);
-      }
-      rowAccessCnt = 0;
-    })
-
-    tblRow = html.td("<h3>Tokens</h3>")
-    playerAry.forEach(player => {
-      // Get the player's name
-        tblRow += html.td(`<b>${player.name} </b>`)  // Add link to handout later
-    });
-    tblAccess += html.tr(tblRow);
-
-    let pages = findObjs({ type: "page" }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
-    pages.forEach(page => {
-      let graphics = findObjs({type: "graphic", _pageid: page.get("_id")}).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
-      graphics.forEach(graphic => {
-        tblRow = html.td("&nbsp;&nbsp;" + page.get("name") + ": " + graphic.get("name"))  // Add link to handout later
-
-        if (graphic.get("represents")!== undefined && graphic.get("represents").length > 0){
-          character = getObj("character", graphic.get("represents"));
-          if (character) {
-            cb = character.get("controlledby");
-          } else {
-            cb = 'N/A'
-          }
-        } else {
-          cb = graphic.get("controlledby");
-        }
-
-        playerAry.forEach(player => {
-          if (cb.includes(player.id) || cb === "all") {
-            access += emojiAccess
-            rowAccessCnt++;
-          }
-          tblRow += html.td(access, {'text-align': 'center'})
-          access = '';
-        });
-        if (rowAccessCnt > 0) {
-          tblAccess += html.tr(tblRow);
-        }
-        rowAccessCnt = 0;        
-      });
-    });
-
-    tblAccess = html.table(tblAccess);
-
-    output += tblAccess + html.p('<i><b>Note: </b>Objects not listed in the table above are only "controlled by" and "in the journal" of the GM.</i>');
-    output = openReport + output + closeReport;
-  
-    // Check if a "Player Access" handout exists, or create one
-    let playerAccessHandout = findObjs({ type: "handout", name: "DM Player Access" })[0];
-    if (!playerAccessHandout) {
-      playerAccessHandout = createObj("handout", { name: "DM Player Access" });
-    }
-  
-    // Update the "Player Access" handout content
-    playerAccessHandout.set("notes", output);
-  
-    // Notify the GM
-    let chatMsg = `Player Access Handout has been updated.  Click the link below to view:`;      
-    chatMsg += `<br>&nbsp;<b>[DM Player Access](https://journal.roll20.net/handout/${getHandout('DM Player Access').get('_id')})</b>`;      
-
-    // sendChat("DM Dashboard", chatMsg);
-    mySendChat(true, "Player Access", chatMsg)
-
-  }
-
   function buildTokenReport(){
     // Build top menu (Token Layer)
       // All | Object | GMLayer | Map | Lighting
@@ -5358,14 +4945,12 @@ function DMDash_HandleMsg(msg_content){
         showPlayerStats(commands[1]);
         break;
 
-      case 'PLAYERACCESS':
-        buildPlayerAccessReport();
-        break;
-      case 'DBHEALTHCHECK':
-        buildDBHealthCheckReport();
-        break;
-  
-
+      //case 'PLAYERACCESS':
+      //  buildPlayerAccessReport();
+      //  break;
+      //case 'DBHEALTHCHECK':
+      //  buildDBHealthCheckReport();
+      //  break;
       case 'TRACK':
       case 'TRACKS':
       case 'JUKEBOX':
@@ -5548,11 +5133,10 @@ function DMDash_HandleMsg(msg_content){
 
       default:
         mySendChat(true, "DM Notes", `Command ${commands[0]} not recognized.`)
-
     }
   }
-
   reportPerformance('Function execution time'); 
 }
+});
 
 {try{throw new Error('');}catch(e){API_Meta.DMDashboard.lineCount=(parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/,'$1'),10)-API_Meta.DMDashboard.offset);}}
