@@ -868,7 +868,22 @@ function buildCampaignHealthReports(msg_content) {
     }
   }
 
-  
+  function getHandout(handoutName) {
+    let handout = findObjs({
+        _type: 'handout',
+        name: handoutName
+    })[0];
+
+    if (!handout) {
+        handout = createObj('handout', {
+            name: handoutName,
+            archived: false
+        });
+    }
+    return handout;
+  }
+
+
   // ****************************************************************
   // End of embedded Functions 
   // ****************************************************************
