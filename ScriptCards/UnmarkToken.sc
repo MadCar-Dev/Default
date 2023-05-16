@@ -48,8 +48,13 @@
     --:ENDLOOP|
 
     --+|[br]
-    --+|[c][button]Clear All Marks::~Mule|Markers-Clear[/button][/c]
+    --+|[c][rbutton]Clear All Marks::CLEARALL[/rbutton][/c]
 
+  --X|
+
+  --:CLEARALL|
+    --#hidecard|1
+    --@token-mod|_set statusmarkers|=blue|-blue _ids [&TokenId] _ignore-selected
   --X|
 
   --:UNMARK|
@@ -61,8 +66,9 @@
     --&TokenId|[&Arg1]
     --&SMItem|[&Arg2]
     --~SMItem|string;replace;^^;::;[&SMItem]
+    --~SMItem|string;before;@;[&SMItem]
     --&SMItem|-[&SMItem]
-    --/+Debug-SM|[&SMItem]
+    --/*Debug-SM|[&SMItem]
 
     --@token-mod|_set statusmarkers|[&SMItem] _ids [&TokenId] _ignore-selected
 
