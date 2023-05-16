@@ -5,11 +5,11 @@ API_Meta.CampaignHealth = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 }
 
 on('ready', () => {
-  const version = '0.0.01';
+  const version = '0.0.02';
   log('Campaign Health ' + version + ' is ready! --offset '+ API_Meta.CampaignHealth.offset);
   log(' To start using the mod Campaign Health, in the chat window enter `!campaignhealth`');
   API_Meta.CampaignHealth.version = version;            
-});
+
 
 on('chat:message', async (msg_orig) => {
   let msg = _.clone(msg_orig);
@@ -913,8 +913,8 @@ function buildCampaignHealthReports(msg_content) {
     buildPlayerAccessReport();
     // Notify the GM
     chatMsg = `The Campaign Health and Player Access report handouts have been updated.  Click the links below to view:`;      
-    chatMsg += `<br>&nbsp;<b>[* Campaign Health Report](https://journal.roll20.net/handout/${getHandout('Campaign Health Report').get('_id')})</b>`;      
-    chatMsg += `<br>&nbsp;<b>[* Player Access Report](https://journal.roll20.net/handout/${getHandout('Player Access Report').get('_id')})</b>`;
+    chatMsg += `<br><br>&nbsp;<b>[Campaign Health Report](https://journal.roll20.net/handout/${getHandout('Campaign Health Report').get('_id')})</b>`;      
+    chatMsg += `<br><br>&nbsp;<b>[Player Access Report](https://journal.roll20.net/handout/${getHandout('Player Access Report').get('_id')})</b>`;
     chatMsg += `<br><br>Click ${makeButton('DELETE', '!campaignhealth --deletereports')} to <b>remove</b> the Campaign Health and Player Access reports`
     chatMsg += `<br><br>Click ${makeButton('Refresh', '!campaignhealth')} to <b>rebuild</b> the contents of the Campaign Health and Player Access reports`
 
@@ -958,3 +958,6 @@ function buildCampaignHealthReports(msg_content) {
     }
   } 
 }
+});
+ 
+{try{throw new Error('');}catch(e){API_Meta.CampaignHealth.lineCount=(parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/,'$1'),10)-API_Meta.CampaignHealth.offset);}}
