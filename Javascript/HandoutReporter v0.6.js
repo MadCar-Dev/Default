@@ -4,8 +4,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.17
-// Last Updated: 5.10.2023
+// Version 0.6.18
+// Last Updated: 5.17.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
 //          in the game and user selections.  
@@ -15,6 +15,12 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 //                          For example, from this handout a DM can toggle a token between
 //                          the gmlayer and objects layer, edit a tooltip, make a saving throw
 //                          or adjust the tokens HP.
+//  * DM Status markers -   Works closely with the Turnorder Report. Allows you to quickly
+//                          set and clear token status markers.  Biggest advantage is it makes
+//                          it easy to select multiple tokens and set them all at once.  Can
+//                          also quicky clear all markers.  The mode function toggles between 
+//                          on/off and incrementally adding a counter to the marker selected.
+//
 //  * DM Character Sheet -  Works closely with the Turnorder Report.  The content of this 
 //                          handout allways contains the character or npc at the top of the
 //                          turnorder list.  Most functions, like attacks, checks, saves, 
@@ -32,6 +38,10 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 
 // To get started, type !DMDash into the chat window to create your initial handouts
 // To force the initial build of your DM Notes handout type: !dmnotes --build
+
+//  * Status Markers
+//    *  Add clear all SMs to SM Dialog
+//    *  Figure out why some tokens get a blanck comma in the SM List
 
 //  * Build a page centric Token Lister modeled after the DM Turnorder Report
 //    * Putting on hold right now - may be too big for one report
@@ -57,18 +67,22 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 
 
 // Globals - Need to look into which of these I need to move to state 
-let charMap = new Map();
-let charMapItem = [];
-let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
-let gStartTime = 0;
-let gEndTime = 0;
 
 /******************************
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.16';
+  const version = '0.6.18';
 
+  let charMap = new Map();
+  let charMapItem = [];
+  let foeMap = new Map(); // Stores a Friend/Foe indicator for each token in the TurnOrder
+  let gStartTime = 0;
+  let gEndTime = 0;
+  let gMsg = [];
+  let gSelTokens = [];
+  let smMode = 0;
+  
   log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
   log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
 
@@ -150,12 +164,15 @@ on('ready', () => {
 // and avoid potential performance bottlenecks associated with rapid or frequent
 // function invocations.
 
+  let myCounter = 0;
   const debounced_DMDash_HandleMsg = _.debounce(DMDash_HandleMsg,250)
 
   startPeformanceCheck();
   debounced_DMDash_HandleMsg('!DMDash --TOReport')   
   debounced_DMDash_HandleMsg('!DMNotes --Build')
   debounced_DMDash_HandleMsg('!DMDash --Tracks')
+  debounced_DMDash_HandleMsg('!DMDash --SSM')
+
   reportPerformance('Finished On Ready Event');
   
   on('change:campaign:playerpageid', async () => {
@@ -183,6 +200,16 @@ on('ready', () => {
 
   });
 
+  on ('destroy:graphic', async () => {
+    // log('DM Dashboard Event: change:graphic:bar1_value');
+    debounced_DMDash_HandleMsg('!DMDash --TOReport')   
+  });
+
+  on ('add:graphic', async () => {
+    // log('DM Dashboard Event: change:graphic:bar1_value');
+    debounced_DMDash_HandleMsg('!DMDash --TOReport')   
+  });
+
   on('change:graphic:bar1_value', async () => {
     // log('DM Dashboard Event: change:graphic:bar1_value');
     debounced_DMDash_HandleMsg('!DMDash --TOReport')   
@@ -200,6 +227,7 @@ on('ready', () => {
 
   on('chat:message', async (msg_orig) => {
     let msg = _.clone(msg_orig);
+    gMsg = _.clone(msg_orig);
     
     LogChat(msg)
     if (!/^!DMDash/i.test(msg.content) && !/^!DMNotes/i.test(msg.content) && !/^!DMToken/i.test(msg.content)) {
@@ -727,8 +755,8 @@ function DMDash_HandleMsg(msg_content){
     let output = ''
     for (let key in obj) {
       if (obj.hasOwnProperty(key)) {
-        myDebug(3,`  Field Name: ${key} => ${obj[key]}`);
-        output+= `Field Name: ${key} => ${obj[key]}<br>`
+        myDebug(4,`  Field Name: ${key} => ${obj[key]}`);
+        output+= `  Field Name: ${key} => ${obj[key]}<br>`
       }
     }
     return output;
@@ -1005,6 +1033,7 @@ function DMDash_HandleMsg(msg_content){
         // Start, End, 'Other', TurnOrderId, pr, TokenName, 0,0,0,0,0,0,0,0,0,
         // log('TO:OTHER');
         toToken = getObj("graphic", toObj[toObj.length-1].id);
+        if (!toToken) return;
         cName = toToken.get('name');
         NewData = `OTHER,${prevDate},${currDate},"'${toObj[toObj.length-1].id}",${toObj[toObj.length-1].pr},${cName},0,0,0,0,0,0,0`
         break;
@@ -1810,33 +1839,6 @@ function DMDash_HandleMsg(msg_content){
   // Return the character object or null if not found
   return character || null;
   }
-  function getSMImages(sm) {
-    // Build an array of Token Status Marker images for later use
-    let x = 0;
-    let y = 0;
-    let smList = sm.split(','); // Split the input string into an array of tags
-    let sm_url = '';
-    let sm_Images = '';
-
-    // Moved to the top of HandleMsg to improve performance - no need to load campaign markers every time
-    //const tokenMarkers = JSON.parse(Campaign().get("token_markers"));
-
-    // #### This may be sped up, although, it only becomes a burden if there are a ton of status markers on tokens ###
-    // Loop through the list of tags
-    for (x = 0; x < smList.length; x++) {
-      // Loop through the tokenMarkers array
-      for (y = 0; y < tokenMarkers.length; y++) {
-        // Check if the tag matches an element in the tokenMarkers array
-        if (tokenMarkers[y].tag === smList[x]) {
-          sm_url = tokenMarkers[y].url; // Get the URL associated with the tag
-          break;
-        }
-      }
-      // Concatenate the img element with the corresponding URL
-      sm_Images += `<div title="${smList[x]}"> <img style='max-height: 20px; max-width: 20px; padding: 0px; margin: 0px !important' src='${sm_url}'></img></div>`;
-    }
-    return sm_Images; // Return the final string containing the img elements
-  }
   function AddSign(v){
     if (v>0){
       v='+' + v;
@@ -2225,12 +2227,11 @@ function DMDash_HandleMsg(msg_content){
   function buildTODashBoard(manualRefresh) {
 
     if (manualRefresh || state.DMDashboard.AutoRefreshDashboard) {
-      myDebug(4, `Inititiating build of Turnorder Dashboard - Manual Refresh:${manualRefresh}, Auto Refresh:${state.DMDashboard.AutoRefreshDashboard}`);
+      myDebug(3, `Initiating build of Turnorder Dashboard - Manual Refresh:${manualRefresh}, Auto Refresh:${state.DMDashboard.AutoRefreshDashboard}`);
     } else {
-      myDebug(4, `Automatic Refresh of Turnorder Dashboard turned off - Manual Refresh:${manualRefresh}, Auto Refresh:${state.DMDashboard.AutoRefreshDashboard}`);
+      myDebug(3, `Automatic Refresh of Turnorder Dashboard turned off - Manual Refresh:${manualRefresh}, Auto Refresh:${state.DMDashboard.AutoRefreshDashboard}`);
       return; // Nothing to do here.  
     }
-
 
     // **** Variable Declarations  ****
     let lines = '';
@@ -2363,6 +2364,8 @@ function DMDash_HandleMsg(msg_content){
     let btnCustom = makeButton('Custom', `!DMDash --TO-AddCustom ?{Custom turnorder position|10} "?{Custom turnorder Name|}"`);
     let btnResetStats = makeButton('Reset Stats', `!DMDash --ResetStats`);
     let btnPlayerStats = makeButton('Player Stats', `!DMDash --PlayerStats`);
+    let btnStatusMarkers = makeButton('Status Markers', 'https://journal.roll20.net/handout/' + getHandout('DM Status Markers').get('_id'))
+
     // let btnPlayerAccess = makeButton('Player Access', `!DMDash --PlayerAccess`);
     let btnAddNote = makeButton('GMNote', `!DMDash --AddGMNote "?{Session GM Note?|}"`)
 
@@ -2404,7 +2407,8 @@ function DMDash_HandleMsg(msg_content){
     btns += btnD12 + "  |  "  
     // btns += btnAddNote + " "
     btns += btnResetStats + " " 
-    btns += btnPlayerStats + " "
+    btns += btnPlayerStats + "  |  "
+    btns += btnStatusMarkers
     // btns += btnPlayerAccess
     //btns = openBox + btns + closeBox
     btns = openMenuBox + btns + closeBox
@@ -2413,6 +2417,7 @@ function DMDash_HandleMsg(msg_content){
       turnorder = [];
     } else {
       toObj = JSON.parse(Campaign().get("turnorder"));
+      //dumpObject(toObj)
     }
     
     // Is there at least a couple entries in the turn order, and we are responding to an 
@@ -2448,7 +2453,8 @@ function DMDash_HandleMsg(msg_content){
       switch (tType) {
         case 'OTHER':
 
-          toToken = getObj("graphic", toObj[0].id);                
+          toToken = getObj("graphic", toObj[0].id);
+          if (!toToken){break;}
           tknImg = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;
           tknImg = addTooltip("Ping Me - GM Only", makeButton(tknImg, `!DMDash --PingToken-GM ${toToken.get('_id')}`));
           charHeader 
@@ -3204,7 +3210,8 @@ function DMDash_HandleMsg(msg_content){
 
             toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiAvatar, '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
             toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiImages, '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
-
+            toList += '<span style="font-size: 16px">'+ addTooltip("Rotate through puplic Auras", makeButton(emojiAuara1, '!DMDash --rotateaura-public ' + toToken.get('_id') + ' 0')) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Rotate through GM Auras", makeButton(emojiAuara2, '!DMDash --rotateaura-gm ' + toToken.get('_id') + ' 1')) + '</span>';
             toList+='</td>'
 
             // Col 4 (Health)
@@ -3233,7 +3240,10 @@ function DMDash_HandleMsg(msg_content){
 
             // COL 5 Status Markers (Span 5 (5-9))
             //sm = toToken.get('statusmarkers');
-            sm_Images = getSMImages(toToken.get('statusmarkers'));
+            sm_Images = getSMImages(toToken.get('_id'),1);
+            if (sm_Images == undefined) {
+              sm_Images = ''
+            }            
             toList += '<td ' + tdbase + ' colspan=5>' + sm_Images + '</td>'; //StatusMarkers
 
             // Col 10 (Tooltips)
@@ -3434,6 +3444,9 @@ function DMDash_HandleMsg(msg_content){
           }
           toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiAvatar, '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
           toList += '<span style="font-size: 16px">'+ addTooltip("Show Images", makeButton(emojiImages, '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
+          toList += '<span style="font-size: 16px">'+ addTooltip("Rotate through puplic Auras", makeButton(emojiAuara1, '!DMDash --rotateaura-public ' + toToken.get('_id') + ' 0')) + '</span>';
+          toList += '<span style="font-size: 16px">'+ addTooltip("Rotate through GM Auras", makeButton(emojiAuara2, '!DMDash --rotateaura-gm ' + toToken.get('_id') + ' 1')) + '</span>';
+
           toList += '</td>';
 
           // Col 4 (Health)
@@ -3466,15 +3479,19 @@ function DMDash_HandleMsg(msg_content){
           toList = toList + '<td ' + td_hp + '><c>'+ btnAdjHP + ' (' + hp_pct + '%)</c></td>';
           
           // COL 5 Status Markers
-          sm = toToken.get('statusmarkers');
-          sm_Images = getSMImages(toToken.get('statusmarkers'));
+          // sm = toToken.get('statusmarkers');
+          sm_Images = getSMImages(toToken.get('_id'),1);
+          if (sm_Images == undefined) {
+            sm_Images = ''
+          }
 
-          toList += '<td ' + tdbase + '>' + sm_Images + '</td>'; //StatusMarkers
+          toList += '<td ' + tdbase + '>' + sm_Images + sm + '</td>'; //StatusMarkers
+
 
           //myDebug(3, `Notification for ${toToken.get('name')}: i = ${i} cmd_advance = ${cmd_advance}`);
           if (!isnpc && i == 0 && cmd_advance == 1 && state.DMDashboard.TurnNotification == true){
             let tknImgChat = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;            
-            let msg = html.table(html.tr(html.td(tknImgChat, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) + html.td(`<b>${toToken.get('name')} is up!</b><br>&nbsp;&nbsp;<i>ATPT: ${TO_Avg} Secs / Last: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`) + html.td(sm_Images)), {'background-color' : bg_color, 'border':'0', 'padding': '0', 'border-collapse': 'collapse'});
+            let msg = html.table(html.tr(html.td(tknImgChat, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) + html.td(`<b>${toToken.get('name')} is up!</b><br>&nbsp;&nbsp;<i>ATPT: ${TO_Avg} Secs / Last: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`) + html.td(getSMImages(toToken.get('_id'),0))), {'background-color' : bg_color, 'border':'0', 'padding': '0', 'border-collapse': 'collapse'});
             mySendChat(false, 'Turn Order', msg)
           }
 
@@ -4283,6 +4300,55 @@ function DMDash_HandleMsg(msg_content){
     return;
   }
   
+  function removeStatusMarker(tId, sm){
+
+
+  }
+
+  function rotateAura(tId, type){
+    //type 0: Public/round
+    //type 1: GM/Square
+    let ar = 'aura1_radius';
+    let ac = 'aura1_color';
+    let as = 'aura1_square';
+    let asv = false;
+    let color1 = '#ffff00'
+    let color2 = '#66ff66'
+    let color3 = '#cc0000'
+    let radius = 2;
+
+    let token = getObj("graphic", tId);
+    if (token) {
+      token.set('showplayers_aura1', true) // Players see Aura 1
+      token.set('showplayers_aura2', false) // Only GMs see Aura 2
+      if (type == 1) {
+        ar = 'aura2_radius';
+        ac = 'aura2_color';
+        as = 'aura2_square';
+        asv = true;
+      }
+
+      // Get current color or status
+      if (token.get(ar) < 1) { // Initial state was no aura
+        token.set(ar, radius);
+        token.set(ac, color1);
+        token.set(as, asv);
+      } else if (token.get(ac)==color1) { // Initial state was color 1, Adv to color 2
+        token.set(ar, radius);
+        token.set(ac, color2);
+        token.set(as, asv);
+      } else if (token.get(ac)==color2) { // Initial state was color 2, Adv to color 3
+        token.set(ar, radius);
+        token.set(ac, color3);
+        token.set(as, asv);
+      } else if (token.get(ac)==color3) { // Initial state was color 3, Remove Aura
+        token.set(ar, -1);
+        token.set(ac, color1);
+        token.set(as, asv);
+      }
+    }
+  }
+
   function moveToken(tId, posLeft, posTop){
     let t = getObj("graphic", tId);
     if (t) {
@@ -4528,8 +4594,7 @@ function DMDash_HandleMsg(msg_content){
       tblRows += html.td(t)
 
       // Status Markers
-      //sm = token.get('statusmarkers');
-      tblRows += html.td(getSMImages(token.get('statusmarkers')))
+      tblRows += html.td(getSMImages(token.get('statusmarkers'),1))
 
       // Column ? Tooltips
       t = addTooltip("Edit Tooltip", makeButton(emojiEdit, `!DMToken --TokenSetTooltip ${token.get('_id')} "?{Edit Tooltip|${token.get('tooltip')}"`))
@@ -4558,9 +4623,228 @@ function DMDash_HandleMsg(msg_content){
     if (!tokenHO) {
       tokenHO = createObj("handout", { name: "DM Token Report" });
     }
-  
     // Update the "Player Access" handout content
     tokenHO.set("notes", output);
+  }
+
+  function getSMImages(tId, mode) {
+    // Build an array of Token Status Marker images for later use
+    // Mode 0 adds no functionality
+    // mode 1 adds macro ability to remove tokenmarker
+    let x = 0;
+    let y = 0;
+    let sm = getObjectValue('graphic', tId, 'statusmarkers')
+    if (!sm) return;
+
+    let smList = sm.split(','); // Split the input string into an array of tags
+    let sm_url = '';
+    let sm_Images = '';
+    let sm_tag = ''
+    let sm_name = ''
+    let sm_number = ''    
+    let marker = ''
+    let smFound = false; 
+
+    // Moved to the top of HandleMsg to improve performance - no need to load campaign markers every time
+    //const tokenMarkers = JSON.parse(Campaign().get("token_markers"));
+
+    // #### This may be sped up, although, it only becomes a burden if there are a ton of status markers on tokens ###
+    // Loop through the list of tags
+    for (x = 0; x < smList.length; x++) {
+      // Loop through the tokenMarkers array
+      marker = smList[x].split('@')
+      smFound = false; //
+      for (y = 0; y < tokenMarkers.length; y++) {
+        // Check if the tag matches an element in the tokenMarkers array
+        if (tokenMarkers[y].tag === marker[0]) {
+          sm_url = tokenMarkers[y].url; // Get the URL associated with the tag
+          sm_tag = tokenMarkers[y].tag; // Get the tag associated with
+          sm_name = tokenMarkers[y].name;
+          sm_number = ''
+          if (marker.length > 1){
+            sm_number = '^' + marker[1]
+          }
+          smFound = true;
+          break;
+        }
+      }
+      if (!smFound) {
+        // It could be a static marker
+        staticMarkers.forEach(staticMarker => {
+          if (staticMarker.tag === marker[0]) {
+            sm_url = staticMarker.emoji;
+            sm_tag = staticMarker.tag;
+            sm_name = staticMarker.name;
+            sm_number = ''
+            if (marker.length > 1){
+              sm_number = '^' + marker[1]
+            }
+            smFound = true;
+            //break;
+          }
+        });
+      }
+      // Concatenate the img element with the corresponding URL
+      smUrl = `<img style='max-height: 20px; max-width: 20px; padding: 0px; margin: 0px !important' src='${sm_url}'></img>${sm_number}`;
+      if (mode === 0) {
+        sm_Images += addTooltip(`${sm_name}/(${sm_tag})`, smUrl)
+      } else {
+        sm_Images += addTooltip(`Click to remove ${sm_name} (${sm_tag})`, makeButton(smUrl, `!DMDash --SM-Set ${encodeURIComponent(sm_tag)} ${tId}`))
+      }
+    }
+    return sm_Images; // Return the final string containing the img elements
+  }
+
+
+  function clearStatusMarkers(){
+    if (gMsg.selected) {
+      gSelTokens = [];
+      gMsg.selected.forEach(token => {
+        gSelTokens.push({_id: token._id, _type: token._type})
+      });
+    }
+    for (i = 0; i < gSelTokens.length; i++) {
+      if (gSelTokens[i]._type == "graphic"){
+        token = getObj('graphic', gSelTokens[i]._id)
+        if (token) { // Just in case token was removed and we want to set its status again.
+          token.set('statusmarkers', '');
+        }
+      }
+    }
+  }
+
+  function setStatusMarker(markerName, tId) {
+    markerName = decodeURIComponent(markerName)
+    myDebug(3, `setStatusMarker: ${markerName} Mode: ${smMode}`);
+    let marker = '';
+
+    // Hold onto the Selected tokenids in case they get unselected after 
+    // we apply the new statusmarkers
+    if (gMsg.selected) {
+      gSelTokens = [];
+      gMsg.selected.forEach(token => {
+        gSelTokens.push({_id: token._id, _type: token._type})
+      });
+    }
+
+    if (tId) {
+      gSelTokens = [];
+      gSelTokens.push({_id: tId, _type: 'graphic'})
+    }
+
+    for (i = 0; i < gSelTokens.length; i++) {
+      if (gSelTokens[i]._type == "graphic"){
+        token = getObj('graphic', gSelTokens[i]._id)
+
+        if (token) { // Just in case token was removed and we want to set its status again.
+          myDebug(3, `Status Marker: ${token.get('statusmarkers')} `)
+
+          let cm = token.get('statusmarkers').split(',')
+
+          myDebug(3, `Status Marker: count:${cm.length} cm:${cm}`)
+          // Find the status marker, it may have a @# so need to account for that
+          let ndxMarker = -1;
+          let markerNumber = -1;
+
+          // For each status marker associated wit this token
+          for (j = 0; j<cm.length; j++) { 
+            marker = cm[j].split('@')
+            myDebug(3, `Status marker: ${cm[j]} or ${marker[0]}`)
+            if (marker[0] == markerName){
+              myDebug(3, `Status marker: ${cm[j]} or ${marker[0]} @ ${marker[1]}`)
+              ndxMarker = j;
+              myDebug(3, `Status marker Found at: ${j} marker[0]: ${marker[0]} marker[1]: ${marker[1]}`)
+              if (marker.length > 1) { // There exists a number with the marker
+                markerNumber = marker[1];
+                myDebug(3, `Status marker number ${markerNumber} Found`)
+              }
+              break;
+            }
+          }
+
+          // Whate mode are we in?
+          if (smMode == 0 || markerName == 'dead') { // Can only die once
+            // toggle mode
+            // If marker is already there, remove it from the list
+            if (ndxMarker != -1){
+              // Remove the marker
+              cm.splice(ndxMarker, 1);
+            } else {
+              cm.push(markerName);
+            }
+          } else {
+            // Need to increment the number with the marker
+            if (ndxMarker != -1){
+              markerNumber = Number(markerNumber) + 1;
+              myDebug(3, `SM2: New MarkerNumber ${markerNumber}`)
+              if (markerNumber > 9){
+                cm.splice(ndxMarker,1);
+              } else {
+                cm[ndxMarker] = `${markerName}@${markerNumber}`;
+              }
+            } else {
+              cm.push(markerName);
+            }    
+          }
+          token.set('statusmarkers', cm.join(','));
+        }
+      }
+    }
+  }
+
+  function buildStatusMarkerDialog(msg){
+    let output = ''
+    let rptHeader = html.h2('Status Markers')
+    let rptFooter = 'Footer'
+    let btnMode = '';
+    let btnImg = ''
+    let btnRefresh = ''
+    let btnClear = ''
+    let menu = ''
+
+    //output += `${gMsg.who} ${gMsg.playerid} ${gMsg.type} ${gMsg.content} ${gMsg.selected} <br>`
+    
+    if (gMsg.selected) {
+      gSelTokens = [];
+      gMsg.selected.forEach(token => {
+        gSelTokens.push({_id: token._id, _type: token._type})
+      });
+    }
+
+    // Roll20 static markers
+    staticMarkers.forEach(marker => {
+      btnImg = marker.emoji
+      output += addTooltip(`${marker.name} (${marker.tag})`, makeButton(btnImg, `!DMDash --SM-Set ${marker.tag}`))
+      // myDebug(4, `Add Static Marker: ${marker.name} ${marker.emoji}`) 
+    });
+
+    // Campaign Markers
+    tokenMarkers.forEach(marker => {
+      // output += `${marker.id} ${marker.name} ${marker.tag} <img src='${marker.url}'> <br>`
+      btnImg = `<img style='max-height: 25px; max-width: 25px;' src='${marker.url}'>`
+      output += addTooltip(`${marker.name} (${marker.tag})`, makeButton(btnImg, `!DMDash --SM-Set ${encodeURIComponent(marker.tag)}`))
+    });
+
+    btnRefresh = makeMenuButton('Refresh', `!DMDash --SSM`)
+    btnClear = makeMenuButton('Clear Markers', `!DMDash --SM-Clear`)
+
+    // Place menu at the bottom to conserve space
+    if (smMode == 0) {
+      btnMode = makeMenuButton('Mode: Toggle', '!DMDash --SM-ToggleMode');  // Show All
+    } else {
+      btnMode = makeMenuButton('Mode: Increment', '!DMDash --SM-ToggleMode');  // Show All
+    }
+
+    output = openReport + output + '<hr>' + btnMode + btnClear + closeReport;
+
+    // Check if a "Player Access" handout exists, or create one
+    let handout = findObjs({ type: "handout", name: "DM Status Markers" })[0];
+    if (!handout) {
+      handout = createObj("handout", { name: "DM Status Markers" });
+    }
+    // Update the "Player Access" handout content
+    handout.set("notes", output);
+  
   }
 
   startPeformanceCheck();
@@ -4623,6 +4907,10 @@ function DMDash_HandleMsg(msg_content){
   const emojiImages = '\u{1F5BC}' //🖼
   const emojiFriend = '\u{1F607}' //😇
   const emojiFoe = '\u{1F621}' // 😡
+  const emojiAuara1 = '\u{1F7E2}' // 🟢
+  const emojiAuara2 = '\u{1F7E8}' // 🟨
+  const emojiFire = '\u{1F525}' // 🔥 
+  const emojiSkull = '\u{1F480}' //💀
   const emojiNeutral = '\u{1F4A9}' //💩
   const emojiPlus = '\u{2795}' // ➕
   const emojiMinus = '\u{2796}' // ➖
@@ -4654,6 +4942,15 @@ function DMDash_HandleMsg(msg_content){
   const emojiWallsLayer = '\u{1F9F1}' // 🧱
   const emojiSetDefaultToken = '\u{23F9}' // ⏺️
 
+  let staticMarkers = [];
+  staticMarkers.push({name: 'red', tag: 'red', color: '#C91010', emoji: '\u{1F534}'})
+  staticMarkers.push({name: 'blue', tag: 'blue', color: '#1076c9', emoji: '\u{1F535}'})
+  staticMarkers.push({name: 'green', tag: 'green', color: '#2fc910', emoji: '\u{1F7E2}'})
+  staticMarkers.push({name: 'brown', tag: 'brown', color: '#c97310', emoji: '\u{1F7E4}'})
+  staticMarkers.push({name: 'purple', tag: 'purple', color: '#9510c9', emoji: '\u{1F7E3}'})
+  staticMarkers.push({name: 'pink', tag: 'pink', color: '#eb75e1', emoji: '\u{1F497}'})
+  staticMarkers.push({name: 'pink', tag: 'yellow', color: '#e5eb75', emoji: '\u{1F7E1}'})
+  staticMarkers.push({name: 'dead', tag: 'dead', color: '#cc1010', emoji: '\u{1F480}'})
 
   let chatMsg = '';
 
@@ -4794,6 +5091,13 @@ function DMDash_HandleMsg(msg_content){
         toggleFriendFoe(commands[1]); 
         buildTODashBoard(true);
         break;
+      case 'ROTATEAURA-PUBLIC':
+        rotateAura(commands[1], 0);
+        break;
+      case 'ROTATEAURA-GM':
+        rotateAura(commands[1], 1);
+        break;
+  
       case 'TOKENADJUSTHP':
         tokenAdjHP(commands[1], commands[2]);
         buildTODashBoard(true);
@@ -4857,6 +5161,7 @@ function DMDash_HandleMsg(msg_content){
       case 'OPEN':
       case 'SHOW-HO-DIALOG':
         chatMsg = `<b>&nbsp;&nbsp;[DM Dashboard](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
+        chatMsg += `<br>&nbsp;&nbsp;[DM Status Markers](https://journal.roll20.net/handout/${getHandout('DM Status Markers').get('_id')})`;
         chatMsg += `<br>&nbsp;&nbsp;[DM Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
         chatMsg += `<br>&nbsp;&nbsp;[DM Notes](https://journal.roll20.net/handout/${getHandout('DM Notes').get('_id')})`;      
         chatMsg += `<br>&nbsp;&nbsp;[DM Jukebox](https://journal.roll20.net/handout/${getHandout('DM Jukebox').get('_id')})`;      
@@ -4868,6 +5173,7 @@ function DMDash_HandleMsg(msg_content){
         state.DMDashboard.PrevTO = Campaign().get('turnorder');
         buildJukebox();
         buildDMNotesHandout();
+        buildStatusMarkerDialog();
         break;
 
       case 'FLUSHDATALOG':
@@ -5016,6 +5322,37 @@ function DMDash_HandleMsg(msg_content){
       case 'DELETETOKEN':
         deleteObject('graphic', commands[1]);
         break;
+      case 'SM-SET':
+        // If a tokenID was not included in commands[2], then assume we are apply to all selected tokens in Roll20
+        if (commands.length > 2) {
+          setStatusMarker(commands[1], commands[2]);
+        } else {
+          setStatusMarker(commands[1]);
+        }
+        buildTODashBoard();
+        break;
+      case 'SM-TOGGLEMODE':
+        if (smMode == 0){
+          smMode = 1;
+        } else {
+          smMode = 0;
+        }
+        buildStatusMarkerDialog();
+
+      case 'SM-CLEAR':
+        clearStatusMarkers();
+        buildTODashBoard(); // Remove
+        break;
+
+      case 'SSM': //Show Status Markers Dialog
+        buildStatusMarkerDialog();
+        chatMsg = `Status Marker Handout has been updated.  Click the link bellow to view:`;      
+        chatMsg += `<br>&nbsp;<b>[DM Status Markers](https://journal.roll20.net/handout/${getHandout('DM Status Markers').get('_id')})</b>`;      
+    
+        // sendChat("DM Dashboard", chatMsg);
+        // mySendChat(true, "DM Dashboard", chatMsg)
+
+        break;
 
       default:
         mySendChat(true, "DM Dashboard", `Command ${commands[0]} not recognized.`)
@@ -5027,7 +5364,7 @@ function DMDash_HandleMsg(msg_content){
       case 'BUILD':
       case 'OPEN':
         buildTokenReport();
-        let chatMsg = `Player Access Handout has been updated.  Click the link bellow to view:`;      
+        chatMsg = `Player Access Handout has been updated.  Click the link bellow to view:`;      
         chatMsg += `<br>&nbsp;<b>[DM Token Report](https://journal.roll20.net/handout/${getHandout('DM Token Report').get('_id')})</b>`;      
     
         // sendChat("DM Dashboard", chatMsg);
