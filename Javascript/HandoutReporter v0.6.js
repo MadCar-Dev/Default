@@ -39,10 +39,17 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 // To get started, type !DMDash into the chat window to create your initial handouts
 // To force the initial build of your DM Notes handout type: !dmnotes --build
 
-//  * Status Markers
-//    *  Add clear all SMs to SM Dialog
-//    *  Figure out why some tokens get a blanck comma in the SM List
+// * Add a player Handout that does a party inventory of:
+//    * Consumables
+//      * Potions
+//      * Scrolls
+//    * Gold (and other stuff)
 
+//  * Status Markers
+//    *  Figure out why some tokens get a blanck comma in the SM List
+//
+//
+//
 //  * Build a page centric Token Lister modeled after the DM Turnorder Report
 //    * Putting on hold right now - may be too big for one report
 //    * Default to the current page, but allow user to change the referened page
@@ -164,7 +171,6 @@ on('ready', () => {
 // and avoid potential performance bottlenecks associated with rapid or frequent
 // function invocations.
 
-  let myCounter = 0;
   const debounced_DMDash_HandleMsg = _.debounce(DMDash_HandleMsg,250)
 
   startPeformanceCheck();
@@ -250,7 +256,7 @@ on('ready', () => {
         return;
       }
       if (msg.type != 'api' && msg.content.length < 1000) {
-        logMsg = `${msg.type}: ${msg.who} -> ${msg.target}: ${msg.content}`;
+        logMsg = `${msg.type}: ${msg.who} -> ${msg.target} ${msg.content}`;
         if (msg.type == 'whisper') {
           logMsg = `<b>${logMsg}</b>`
         }
@@ -1331,8 +1337,9 @@ function DMDash_HandleMsg(msg_content){
   }
   const decodeUnicode = (str) => str.replace(/%u[0-9a-fA-F]{2,4}/g, (m) => String.fromCharCode(parseInt(m.slice(2), 16)));  
 
-  function decodeHtmlString(encodedString) {
 
+
+  function decodeHtmlString(encodedString) {
     try{
       if (encodedString.length > 0){
         return decodeURIComponent(encodedString.replace(/\+/g, " "));
@@ -1468,7 +1475,7 @@ function DMDash_HandleMsg(msg_content){
       return 'NPC';
     };
 
-    if (cObj.get('controlledby') == '' && getAttrByName(cObj.get('_id'),'npc','current')==0){
+    if (cObj.get('controlledby') !== '' && getAttrByName(cObj.get('_id'),'npc','current')==0){
       return 'NPC-CHARSHEET';
     };
 
@@ -3311,32 +3318,55 @@ function DMDash_HandleMsg(msg_content){
             } else {
               myDebug(2, `foe4: (foeItem Exists and is Neutral) ${toToken.get('name')}`)              
             }
-
-            
+           
           } else {
+
             // No - Calculate data for the foeMap and load it
             if (tType == 'CHAR') {
               
               // Load CHAR into foe map, do the NPC Calcs now too
-              myDebug(2, `foe5: (New Char to be added) ${toToken.get('name')}`)
+              myDebug(4, `foe5: (New Char to be added) ${toToken.get('name')}`)
 
-              edPartyCount = edPartyCount + 1;
-              edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level');
-              edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
-              if (edCharLevel > 20) {edCharLevel = 20;}
-              if (edCharLevel < 1) {edCharLevel = 1;}
-              let xpThresholdItem = mapXPThresholds.get(edCharLevel)
-              if (Object(xpThresholdItem.keys).length !== 0) {
-                edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
-                edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
-                edHard = Number(edHard) + Number(xpThresholdItem.hard)
-                edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
-                edCR = CharLvl_to_CR(edCharLevel, edSpellCasterLvl)
-                edNPCExp = CR_to_XP(edCR)
-                foeMap.set(toObj[i].id, {id: toObj[i].id, charId: toChar.get('id'), Type: 'CHAR', State:'FRIEND', Level: edCharLevel, SpellCasterLvl: edSpellCasterLvl, Exp: edNPCExp});
+              // This could be an NPC using a Charsheet - "controledby" Is blank
+              if (getAttrByName(toChar.get('_id'), 'npc', 'current') == 1) {
+
+                // PC using an NPC Setup (RARE)
+                myDebug(4, `foe6: (PC in an NPC sheet) ${toToken.get('name')}`)
+                edNPCExp = getAttrByName(toChar.get('_id'),'npc_xp','current');
+                edNPCExpTotal = edNPCExpTotal + edNPCExp;
+                edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level')
+                edCharLevel = CR_to_CharLvl(getAttrByName(toChar.get('_id'), 'npc_challenge'), edSpellCasterLvl)
+                foeMap.set(toObj[i].id, {id: toObj[i].id, 
+                                         charId: toChar.get('id'), 
+                                         Type: 'CHAR', 
+                                         State:'FRIEND', 
+                                         Level: edCharLevel, 
+                                         SpellCasterLvl: edSpellCasterLvl,
+                                         Exp: edNPCExp});
                 foeItem = foeMap.get(toObj[i].id);
+
+
+              } else {
+                edPartyCount = edPartyCount + 1;
+                edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level');
+                edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
+                if (edCharLevel > 20) {edCharLevel = 20;}
+                if (edCharLevel < 1) {edCharLevel = 1;}
+                myDebug(4, `ERR CHECKING: ${edCharLevel} `)
+
+                let xpThresholdItem = mapXPThresholds.get(edCharLevel)
+                myDebug(4, `ERR CHECKING: ${xpThresholdItem} ${edCharLevel} `)
+                if (Object(xpThresholdItem.keys).length !== 0) {
+                  edEasy = Number(edEasy) + Number(xpThresholdItem.easy)
+                  edMedium = Number(edMedium) + Number(xpThresholdItem.medium)
+                  edHard = Number(edHard) + Number(xpThresholdItem.hard)
+                  edDeadly = Number(edDeadly) + Number(xpThresholdItem.deadly)
+                  edCR = CharLvl_to_CR(edCharLevel, edSpellCasterLvl)
+                  edNPCExp = CR_to_XP(edCR)
+                  foeMap.set(toObj[i].id, {id: toObj[i].id, charId: toChar.get('id'), Type: 'CHAR', State:'FRIEND', Level: edCharLevel, SpellCasterLvl: edSpellCasterLvl, Exp: edNPCExp});
+                  foeItem = foeMap.get(toObj[i].id);
+                }
               }
-              
             } else {
               
               //NPC
@@ -4792,7 +4822,7 @@ function DMDash_HandleMsg(msg_content){
     }
   }
 
-  function buildStatusMarkerDialog(msg){
+  function buildStatusMarkerDialog(){
     let output = ''
     let rptHeader = html.h2('Status Markers')
     let rptFooter = 'Footer'
@@ -4841,6 +4871,130 @@ function DMDash_HandleMsg(msg_content){
     let handout = findObjs({ type: "handout", name: "DM Status Markers" })[0];
     if (!handout) {
       handout = createObj("handout", { name: "DM Status Markers" });
+    }
+    // Update the "Player Access" handout content
+    handout.set("notes", output);
+  
+  }
+
+  function buildPlayerHandout(){
+    let output = ''
+    let rptHeader = html.h2('Player Consumables and Gold')
+    let rptFooter = 'Footer'
+    let btnRefresh = ''
+    let menu = ''
+    let tblGP = ''
+    let tblInv = ''
+    let rowData = ''
+    let temp = ''
+    let pStats = ''
+    let ttlCP = 0;
+    let ttlSP = 0;
+    let ttlEP = 0
+    let ttlGP = 0
+    let ttlPP = 0
+    let pCP = 0
+    let pSP = 0
+    let pEP = 0
+    let pGP = 0
+    let pPP = 0
+    let cpRow = ''
+    let spRow = ''
+    let epRow = ''
+    let gpRow = '' 
+    let ppRow = ''
+    let gpEquivRow = ''
+    let ttlGPEquiv = 0
+    let pGPEquiv = 0
+    let playerHeaderRow = ''
+    let isNPC = true;
+
+
+    btnRefresh = makeMenuButton('Refresh', `!DMDash --PlayerHandout`)
+    // for each through all the player character create the following:
+      // * A table of gold and other coin (see player funds report)
+      // * A table of consumables in their inventory
+
+    let pcs = findObjs({
+      type: 'character'
+    }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+    playerHeaderRow += html.th('<b>Coin Type</b>', {'max-width': '50px', 'text-align': 'right'})
+    cpRow += html.td('<b>Copper (CP)</b>', {'max-width': '50px', 'text-align': 'right'})
+    spRow += html.td('<b>Silver (SP)</b>', {'max-width': '50px', 'text-align': 'right'})
+    epRow += html.td('<b>Electrum (EP)</b>', {'max-width': '5px', 'text-align': 'right'})
+    gpRow += html.td('<b>Gold (GP)</b>', {'max-width': '50px', 'text-align': 'right'})
+    ppRow += html.td('<b>Platinum (PP)</b>', {'max-width': '50px', 'text-align': 'right'})
+    gpEquivRow += html.th('<b>Total(GP)</b>', {'max-width': '100px', 'text-align': 'right'})  
+    
+    pStats = html.tr(html.th('Name') + html.th('Avg') + html.th('Secs') + html.th('Count') + html.th('Last'));
+    pcs.forEach(c => {
+      myDebug(4, `buildPlayerHandout: name: ${c.get('name')} controlledby: ${c.get('controlledby')} `)
+      if (c.get("controlledby") !== '' && c.get("controlledby") !== undefined && c.get("controlledby").length > 0){
+
+        let cId = c.get('_id')
+        if (getAttrByName(cId, 'npc') == 0) {
+
+          let pc_name = c.get('name');
+          let to_avg = getAttrByName(cId, 'to_avg');
+          if (to_avg != undefined){
+            let to_secs = getAttrByName(cId, 'to_secs');
+            let to_count = getAttrByName(cId, 'to_count');
+            let to_lastturn = getAttrByName(cId, 'to_lastturn');
+            pStats += html.tr(html.td(pc_name) + html.td(to_avg) + html.td(to_secs) + html.td(to_count) + html.td(to_lastturn));
+          }
+
+          playerHeaderRow += html.th(pc_name , {'max-width': '50px', 'text-align': 'right'})
+          pCP = getAttrByName(cId, 'cp')
+          pSP = getAttrByName(cId, 'sp')
+          pEP = getAttrByName(cId, 'ep')
+          pGP = getAttrByName(cId, 'gp')
+          pPP = getAttrByName(cId, 'pp')
+          pGPEquiv = Number(pCP)/100 + Number(pSP)/10 + Number(pEP)/2 + Number(pGP) + Number(pPP) * 100
+          ttlCP = Number(ttlCP) + Number(pCP)
+          ttlSP = Number(ttlSP) + Number(pSP)
+          ttlEP = Number(ttlEP) + Number(pEP)
+          ttlGP = Number(ttlGP) + Number(pGP)
+          ttlPP = Number(ttlPP) + Number(pPP)
+          ttlGPEquiv = Number(ttlGPEquiv) + Number(pGPEquiv)
+          pGPEquiv = pGPEquiv.toFixed(0)
+
+          cpRow += html.td(pCP, {'max-width': '50px', 'text-align': 'right'})
+          spRow += html.td(pSP, {'max-width': '50px', 'text-align': 'right'})
+          epRow += html.td(pEP, {'max-width': '50px', 'text-align': 'right'})
+          gpRow += html.td(pGP, {'max-width': '50px', 'text-align': 'right'})
+          ppRow += html.td(pPP, {'max-width': '50px', 'text-align': 'right'})
+          gpEquivRow += html.th(pGPEquiv, {'max-width': '50px', 'text-align': 'right'})        
+        }
+      }
+    });
+
+    ttlGPEquiv = ttlGPEquiv.toFixed(0);
+    playerHeaderRow += html.th('Total')
+    cpRow += html.td(ttlCP, {'max-width': '50px', 'text-align': 'right'})
+    spRow += html.td(ttlSP, {'max-width': '50px', 'text-align': 'right'})
+    epRow += html.td(ttlEP, {'max-width': '50px', 'text-align': 'right'})
+    gpRow += html.td(ttlGP, {'max-width': '50px', 'text-align': 'right'})
+    ppRow += html.td(ttlPP, {'max-width': '50px', 'text-align': 'right'})
+    gpEquivRow += html.th(ttlGPEquiv, {'max-width': '50px', 'text-align': 'right'})         
+
+    temp = html.tr(playerHeaderRow)
+    temp += html.tr(cpRow)
+    temp += html.tr(spRow)
+    temp += html.tr(epRow)
+    temp += html.tr(gpRow)
+    temp += html.tr(ppRow)
+    temp += html.tr(gpEquivRow)
+    tblGP = html.table(temp);
+
+    pStats += html.tr(html.td('DM') + html.td(state.DMDashboard.DM_Avg) + html.td(state.DMDashboard.DM_Secs) + html.td(state.DMDashboard.DM_Count) + html.td(state.DMDashboard.DM_LastTurn));
+    pStats = html.table(pStats)
+
+    output = openReport + btnRefresh + '<hr>' + tblGP + '<hr>' + pStats + closeReport;
+
+    // Check if a "Player Access" handout exists, or create one
+    let handout = findObjs({ type: "handout", name: "Player Handout" })[0];
+    if (!handout) {
+      handout = createObj("handout", { name: "Player Handout" });
     }
     // Update the "Player Access" handout content
     handout.set("notes", output);
@@ -5348,12 +5502,15 @@ function DMDash_HandleMsg(msg_content){
         buildStatusMarkerDialog();
         chatMsg = `Status Marker Handout has been updated.  Click the link bellow to view:`;      
         chatMsg += `<br>&nbsp;<b>[DM Status Markers](https://journal.roll20.net/handout/${getHandout('DM Status Markers').get('_id')})</b>`;      
-    
         // sendChat("DM Dashboard", chatMsg);
         // mySendChat(true, "DM Dashboard", chatMsg)
-
         break;
-
+      case 'PLAYERHANDOUT':
+        buildPlayerHandout();
+        chatMsg = `Player Handout has been updated.  Click the link bellow to view:`;      
+        chatMsg += `<br>&nbsp;<b>[Player Handout](https://journal.roll20.net/handout/${getHandout('Player Handout').get('_id')})</b>`;      
+        mySendChat(true, "DM Dashboard", chatMsg)
+        break;
       default:
         mySendChat(true, "DM Dashboard", `Command ${commands[0]} not recognized.`)
     }
@@ -5398,7 +5555,7 @@ function DMDash_HandleMsg(msg_content){
         buildTokenReport();
         break;
       case 'FILTER':
-        if (!commands[1] || commands[1].lenght == 0) {
+        if (!commands[1] || commands[1].length == 0) {
           state.DMDashboard.TokenRpt_Filter = '';
         } else {
           state.DMDashboard.TokenRpt_Filter = commands[1];
