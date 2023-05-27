@@ -4,31 +4,59 @@ API_Meta.myTokenEvents = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.myTokenEvents.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-let gDebug = 1
-let gDebugLvl  = 4
+// This script does a number of automations 
+//   * Updates the Health Status Markers for all tokens, responding to graphic change events
+//   * Enables users to select tokens to follow other tokens
+//   * Tracks movement history. (I hope to add replay logic at some point)
+//   * Generates a master DMTools dialog that encorporates DMDash, Campaign Health and options within this script
+
+// Future enhancement 
+// * Report on movedata
+// * Replay moveData (Back a number of events; between 2 ids; All Tokens or just a select token)
+//   * Limit to only the current page and make sure to End at the Last Position.  
+//   * Need to capture Current Position of every token for the last move.  
+//   * Will need to be able to slow down movement
+
 
 on('ready', () => {
-  const version = '0.0.01';
-  log('HealthCheck ' + version + ' is ready! --offset '+ API_Meta.myTokenEvents.offset);
+  const version = '0.0.03';
+  let gDebug = 0
+  let gDebugLvl  = 4
+  
+  log('>>>-----> MyTokenMovements ' + version + ' is ready! --offset '+ API_Meta.myTokenEvents.offset);
+
+  // state.myTokenEvents = '';
 
   if(!state.myTokenEvents) {
     state.myTokenEvents = {
         version: version,
-        followData: []
+        followData: [],
+        moveData: []
     };
+
+    if (state.myTokenEvents.moveData === undefined) {  
+      state.myTokenEvents.moveData = [];
+    }
+  
   };
 
-  on('change:graphic:bar1_value', function(obj, prev) {
-    // log('DM Dashboard Event: change:graphic:bar1_value');
-    setHealthIndicator(obj)
+  let gMsg = [];
+
+  on('change:campaign:playerpageid', async () => {
+    // Reset Movement data
+    resetMoves()
+    lastPosition = []
+    initPosition = []
   });
 
-  on('change:graphic:bar1_max', function(obj, prev) {
-    // log('DM Dashboard Event: change:graphic:bar1_value');
-    setHealthIndicator(obj)   
-  });
+  on('change:graphic', function(obj, prev) {
 
-  on('change:graphic:left', function(obj, prev) {
+    if (obj.get('bar1_value') !== prev['bar1_value'] || obj.get('bar1_max') !== prev['bar1_max']) {
+      setHealthIndicator(obj)
+    }
+
+    if (obj.get('left') === prev['left'] && obj.get('top') === prev['top']) return;
+
     let followers = getFollowers(obj.get('_id'));
     followers.forEach(f => {
       moveFollower(obj.get('_id'), f.sTokenid)
@@ -39,27 +67,29 @@ on('ready', () => {
       moveMaster(master.mTokenid, obj.get('_id'))
     }
 
-  });
+    if (state.myTokenEvents.moveData === undefined) {
+      log('MoveData not defined!!!')
+    } else {
 
-  on('change:graphic:top', function(obj, prev) {
-    let followers = getFollowers(obj.get('_id'));
-    followers.forEach(f => {
-      moveFollower(obj.get('_id'), f.sTokenid)
-    });
-
-    let master = getMaster(obj.get('_id'));
-    if (master !== undefined) {
-      moveMaster(master.mTokenid, obj.get('_id'))
+      // log(`change:graphic:left: PrevTokenId: ${prevMovementTokenid} prevMovement: ${prevMovement}`)
+      // if (prevMovementTokenid != obj.get('_id') || prevMovement != obj.get('lastmove')) {
+        let mrId = Number(state.myTokenEvents.moveData.length) + 1
+        let moveRec = {'id': mrId, 'pageid': obj.get('_pageid'), 'tokenid': obj.get('_id'), 'lastmove':obj.get('lastmove') }
+        state.myTokenEvents.moveData.push(moveRec)
+        // prevMovement = obj.get('lastmove')
+        // prevMovementTokenid = obj.get('_id')
+      // }
     }
-
 
   });
 
   on('chat:message', async (msg_orig) => {
     let msg = _.clone(msg_orig);
-    if (!/^!Follow/i.test(msg.content) && !/^!HealthCheck/i.test(msg.content) && !/^!DMTools/i.test(msg.content)) {
+    if (!/^!Follow/i.test(msg.content) && !/^!HealthCheck/i.test(msg.content) && !/^!DMTools/i.test(msg.content) && !/^!Replay/i.test(msg.content)) {
       return;
     }
+    gMsg = _.clone(msg_orig);
+    log(`on chat:message: who:${gMsg.who}, playerid:${gMsg.playerid}, type:${gMsg.type}, Selected: ${gMsg.selected}` )
     handleMsg(msg);
     //debounced_HandleMsg(msg);
 
@@ -89,7 +119,7 @@ on('ready', () => {
     if (selected === undefined || selected.length == 0){
       log(`MsgHandler: no token selected`)
     } else {
-      log(`MsgHandler: selected: ${selected[0]._id}`)
+      // log(`MsgHandler: selected: ${selected[0]._id}`)
     }
 
     if (commands.length > 0) {
@@ -123,17 +153,235 @@ on('ready', () => {
           state.myTokenEvents.followData = [];
           break;
 
+        case 'SHOWMOVES':
+        case 'SHOWMOVEMENTS':
+          showTokenMoves();
+          break;
+        case 'CLEARMOVES':
+        case 'CLEARMOVEMENTS':  
+          clearMoves()
+          break;
         case 'DIALOG':
         default:
-          buildUserDialog(selected[0]._id)
+          if (selected !== undefined) {
+            buildUserDialog(selected[0]._id)
+          }
           break;
-
       }
     } else if (masterCmd == '!HEALTHCHECK') {
       setHealthIndicatorsForPage();
     } else if (masterCmd == '!DMTOOLS') {
       buildDMToolsDialog();
+    } else if (masterCmd == '!REPLAY') {
+      switch (commands[0]) {
+        case 'NEXT':
+          gMoveId = nextMove(gMoveid);
+        case 'PREV':
+          gMoveid = prevMove(gMoveid);
+        case 'REWIND':
+          gMoveid = rewindMoves();
+        case 'END':
+          gMoveid = resetMoves();
+  
+        case 'SHOWMOVES':
+        case 'SHOWMOVEMENTS':
+          showTokenMoves();
+          break;
+        case 'CLEARMOVES':
+        case 'CLEARMOVEMENTS':  
+          clearMoves()
+          break;
+      }
     }
+  }
+  
+  function showTokenMoves() {
+    // List moves in a table with options to 
+    //   * Play moves
+    //   * Stop moves (when playing)
+    //   * move next
+    //   * move previous
+    //   * clear moves
+    //   * reset to current state
+    const openReport = "<div style='color: #000; border: 1px solid #000; background-color: #EFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
+    const closeReport = '</div>';
+
+    let output = ''
+    let tbl = ''
+    let pageid = Campaign().get('playerpageid');
+    let page = getObj('page', pageid).get('name');
+    
+    tbl = html.tr(html.th('Id') + html.th('Token Name') + html.th('Last Move'))
+     // moveRec = {'id', 'pageid', 'tokenid', 'lastmove'}
+    state.myTokenEvents.moveData.forEach(moveRec=>{
+      if (pageid === moveRec.pageid){
+        let t = getObj('graphic', moveRec.tokenid)
+        if (t){
+          tbl += html.tr(html.td(moveRec.id) + html.td(t.get('name')) + html.td(moveRec.lastmove))
+        } else {
+          tbl += html.tr(html.td(moveRec.id) + html.td('<b><i>Missing</b></i>') + html.td(moveRec.lastmove))
+        }
+      }
+    });
+
+    tbl = html.table(tbl)
+    output = html.h3('Move History for Page: ' + page)
+    output += tbl
+    tbl = '';
+
+    // Now get current token positions
+    let tokens = findObjs({
+      _type: 'graphic',
+      _subtype: 'token',
+      // controlledby: '',
+      _pageid: pageid
+    }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+
+    tbl = html.tr(html.th('TokenId') + html.th('Token Name') + html.th('Current Positon'))
+    tokens.forEach(t=>{
+      tbl += html.tr(html.td(t.get('_id')) +  html.td(t.get('name')) + html.td(`${t.get('left')}, ${t.get('top')}`))
+    });
+
+    tbl = html.table(tbl)
+
+    output += html.h3('Current Positons')
+    output += tbl
+    output = openReport + output + closeReport
+
+    addTextToHandout(output, 'Move History', 0);
+
+    return
+  }
+
+  let initPosition = []; //{'id': mrId, 'pageid': obj.get('_pageid'), 'tokenid': obj.get('_id'), 'lastmove':obj.get('lastmove') }
+  let lastPosition = []; //`{'tokenid': ${token.get('tokenid')}, 'left':${token.get('left')}, 'top':${token.get('top')}}
+
+
+  function resetMoves() { // Reset moves to their ending positon
+    // for each token in the lastPosition 
+    lastPosition.forEach(lastPosRec =>{
+      let t = getObj('graphic', lastPosRec.tokenid)
+      if (t) {
+        t.set('left', lastPosRec.left)
+        t.set('top', lastPosRec.top)
+      }
+    })
+  }
+
+  function rewindMoves() {
+    let pageid = Campaign().get("playerpageid")
+    initPosition = [];
+    lastPosition = []; // Need to think about when do we reset this.  Don't want ot lose or ending position.
+    
+    // For every token on the current page, catpure their positons in a lastPositoin data array
+      // {id, tokenid, left, top}
+    let tokens = findObjs({
+      _type: 'graphic',
+      _subtype: 'token',
+      _pageid: pageid
+    }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+
+    tokens.forEach(token => {
+      bFound = false;
+      for (let i = 0; i++; i < lastPosition.length){
+        if (token.get('_id') === lastPosition[i].tokenid){
+          bFound = true;
+          break;
+        }
+      }
+      if (!bFound){
+        let rec = `{'tokenid': ${token.get('tokenid')}, 'left':${token.get('left')}, 'top':${token.get('top')}}`
+        lastPosition.push(rec);
+      }
+    });
+
+    // Goto the beginning of the moveData array and find the first entry for this page
+    // Add this tokenid & left,top position to a new initPosition data array
+      // moveRec = {'id', 'pageid', 'tokenid', 'lastmove'}
+      // initPositon = {'moveDataid', 'tokenid', 'lastmove'}
+    state.myTokenEvents.moveData.forEach(moveRec=>{
+      if(moveRec.pageid === pageid) {
+        for (let i = 0; i < initPosition.length; i++) {
+          if (initPosition[i].tokenid === moveRec.tokenid) {
+            bfound = true;
+            break;
+          }
+        }
+        if (!bfound) {
+          // for each record in the initPosition data array - set the tokens left & right values
+          initPosition.push(moveRec);
+          let coord = moveRec.lastmove.split(',');
+          if (coord.length >= 2) {
+            let t = getObj('graphic', moveRec.tokenid)
+            if (t) {
+              t.set('left', coord[0])
+              t.set('right', coord[1])
+            }
+          }
+        }
+      }
+    })
+    return 0;
+  }
+
+  function nextMove(moveid) {
+
+    let pageid = Campaign().get("playerpageid")
+
+    //while moveData[moveid].pageid != playerpageid && and moveid <= movdData.length -1 
+    moveid++;
+    while (state.myTokenEvents.moveData[moveid].pageid != pageid && moveid <= state.myTokenEvents.moveData.length - 1) {
+      moveid++;
+    }
+
+    // Did we find the next move record
+    if (moveid <= state.myTokenEvents.moveData.length - 1) {
+      // Yes - 
+      let coord = state.myTokenEvents.moveData[moveid].lastmove.split(',');
+      if (coord.length >= 2) {
+        let t = getObj('graphic', state.myTokenEvents.moveData[moveid].tokenid)
+        if (t) {
+          t.set('left', coord[0])
+          t.set('right', coord[1])
+        }
+      }
+    } else {
+      moveid = state.myTokenEvents.moveData.length
+    }
+    // return next moveid for this page or moveData.length
+    return moveid;
+  }
+
+  function prevMove() {
+    let pageid = Campaign().get("playerpageid")
+
+    //while moveData[moveid].pageid != playerpageid && and moveid <= movdData.length -1 
+    moveid--;
+    while (state.myTokenEvents.moveData[moveid].pageid != pageid && moveid >= 0) {
+      moveid--;
+    }
+
+    // Did we find the next move record
+    if (moveid >= 0) {
+      // Yes - move the token accordingly
+      let coord = state.myTokenEvents[moveid].lastmove.split(',');
+      if (coord.length >= 2) {
+        let t = getObj('graphic', state.myTokenEvents[moveid].tokenid)
+        if (t) {
+          t.set('left', coord[0])
+          t.set('right', coord[1])
+        }
+      }
+    } else {
+      moveid = 0
+    }
+    // return next moveid for this page or moveData.length
+    return moveid;
+
+  }
+
+  function clearMoves() {
+    state.myTokenEvents.moveData = [];
   }
 
   function addFollower(mTokenid, sTokenid, leftOffset, topOffset){
@@ -145,6 +393,12 @@ on('ready', () => {
     }
     if (topOffset == undefined) {
       topOffset = 0;
+    }
+
+    let whisperTo = ''
+    let player = getObj('player', gMsg.playerid)
+    if (player) {
+      whisperTo = player.get('_displayname')
     }
 
     let mName = getObj('graphic', mTokenid).get('name');
@@ -169,10 +423,17 @@ on('ready', () => {
           fRec = {'pageid':pageid, 'mTokenid':mTokenid, 'sTokenid':sTokenid, 'leftOffset': leftOffset, 'topOffset': topOffset}
           state.myTokenEvents.followData.push(fRec);
           let myMsg = `<b>${mName}</b> has a new follower: <b>${fName}</b>.`
-          msgbox({msg: myMsg, title: 'Add Follower', headercss: { 'background-color': defaultThemeColor1 }})
+
+          let a = `!Follow --delete ${mTokenid} ${sTokenid}`;
+          let bDel = btnAPI({api: a, label: `Del`},{'border-radius': '1px', 'padding': '1px 1px'});
+          a = `!Follow --edit ${mTokenid} ${sTokenid} ?{Left Offset|${leftOffset}} ?{Top Offset|${topOffset}}`;
+          let bEdit = btnAPI({api: a, label: `Edit`},{'border-radius': '1px', 'padding': '1px 1px'});
+          myMsg+= html.p(` ${bDel} ${bEdit} ${fName} offsets: ${leftOffset}, ${topOffset}`, {"font-size": "10px"})
+
+          msgbox({msg: myMsg, whisperto: whisperTo, title: 'Add Follower', headercss: { 'background-color': defaultThemeColor1 }})
         } else {
           let myMsg = `<b>Unable to add follwer:</b> <b>${mName}</b> is already a follower of <b>${fName}</b>!!!`
-          msgbox({msg: myMsg,  title: 'Error: Unable to add Follower', headercss: { 'background-color': defaultThemeColor1 }})
+          msgbox({msg: myMsg, whisperto: whisperTo, title: 'Error: Unable to add Follower', headercss: { 'background-color': defaultThemeColor1 }})
         }
       } else {
         // Yes - there is a different master defined, so lets just move it
@@ -182,7 +443,7 @@ on('ready', () => {
         state.myTokenEvents.followData.push(fRec);
 
         let myMsg = `<b>${fName}</b> has been moved from <b>${oldMaster}</b> to <b>${mName}</b>.`
-        msgbox({msg: myMsg, title: 'Add Follower', headercss: { 'background-color': defaultThemeColor1 }})
+        msgbox({msg: myMsg, whisperto: whisperTo, title: 'Add Follower', headercss: { 'background-color': defaultThemeColor1 }})
       }
     } else {
       // Yes - update the associated informtion
@@ -192,7 +453,15 @@ on('ready', () => {
       state.myTokenEvents.followData.push(fRec);
 
       let myMsg = `Offset positions have been modified for <b>${fName}</b>. New offsets for left is <b>${leftOffset}</b> and top is <b>${topOffset}</b>.`
-      msgbox({msg: myMsg, title: 'Update Follower', headercss: { 'background-color': defaultThemeColor1 }})
+
+      let a = `!Follow --delete ${mTokenid} ${sTokenid}`;
+      let bDel = btnAPI({api: a, label: `Del`},{'border-radius': '1px', 'padding': '1px 1px'});
+      a = `!Follow --edit ${mTokenid} ${sTokenid} ?{Left Offset|${leftOffset}} ?{Top Offset|${topOffset}}`;
+      let bEdit = btnAPI({api: a, label: `Edit`},{'border-radius': '1px', 'padding': '1px 1px'});
+      myMsg+= html.p(` ${bDel} ${bEdit} ${fName} offsets: ${leftOffset}, ${topOffset}`, {"font-size": "10px"})
+
+
+      msgbox({msg: myMsg, whisperto: whisperTo, title: 'Update Follower', headercss: { 'background-color': defaultThemeColor1 }})
     }
     moveFollower(mTokenid, sTokenid)
   }
@@ -202,10 +471,26 @@ on('ready', () => {
    // log(`delFollower: ${mTokenid} ${sTokenid} count: ${state.myTokenEvents.followData.length}`)
     // followDataNew = state.myTokenEvents.followData.filter(item => item.pageid != pageid && item.mTokenid != mTokenid && item.sTokenid != sTokenid)
     let fdNew = []
+
+    let whisperTo = ''
+    let player = getObj('player', gMsg.playerid)
+    if (player) {
+      whisperTo = player.get('_displayname')
+    }
+
     for (let i = 0; i<state.myTokenEvents.followData.length; i++) {
       let item = state.myTokenEvents.followData[i]
       if (item.pageid === pageid && item.mTokenid === mTokenid && item.sTokenid === sTokenid){
         // Filter this record out
+        try {
+          let mName = getObj('graphic', mTokenid).get('name');
+          let fName = getObj('graphic', sTokenid).get('name');
+          let myMsg = `<b>${fName}</b> is no longer following <b>${mName}</b>`
+        msgbox({msg: myMsg, whisperto: whisperTo, title: 'Remove Follower', headercss: { 'background-color': defaultThemeColor1 }})
+        } catch {
+        msgbox({msg: 'Error removing follower', whisperto: whisperTo, title: 'Error', headercss: { 'background-color': defaultThemeColor1 }})
+        }
+
       } else {
         fdNew.push(item)
       }
@@ -213,6 +498,7 @@ on('ready', () => {
    // log(`delFollower: Remaining count: ${fdNew.length}`)
     state.myTokenEvents.followData = fdNew;
   }
+
   function getFollower(mTokenid, sTokenid){
     let pageid = Campaign().get("playerpageid")
    // log(`getFollower: pageid: ${pageid} mTokenid ${mTokenid} sTokenid ${sTokenid}`)  // Why can't I get this item?
@@ -266,13 +552,18 @@ on('ready', () => {
      // log(`${item.leftOffset} ${item.topOffset} ${mToken.get('left')} ${mToken.get('top')}`)
      // log(`Move follower to ${newLeft} and ${newTop}`)
 
+      let PrevPositon = `${sToken.get('left')},${sToken.get('top')}`
       sToken.set('top', newTop)
       sToken.set('left', newLeft)
+
+      let mrId = Number(state.myTokenEvents.moveData.length) + 1
+      let moveRec = {'id': mrId, 'pageid': sToken.get('_pageid'), 'tokenid': sToken.get('_id'), 'lastmove': PrevPositon }
+      state.myTokenEvents.moveData.push(moveRec)
 
     } else {
      // log(`MoveFolloer: Master${mTokenid} or Shaddow${sTokenid} token not found`)
     }
-
+   
     // Move the follower's followers
     let followers = getFollowers(sTokenid);
     followers.forEach(f => {
@@ -292,9 +583,15 @@ on('ready', () => {
      // log(`MoveMaseter: Master${mTokenid}`)
       let newLeft =  (Number(sToken.get('left')) - Number(item.leftOffset))
       let newTop =  (Number(sToken.get('top')) - Number(item.topOffset))
+      let PrevPositon = `${mToken.get('left')},${mToken.get('top')}`
 
       mToken.set('left', newLeft)
       mToken.set('top', newTop)
+
+      let mrId = Number(state.myTokenEvents.moveData.length) + 1
+      let moveRec = {'id': mrId, 'pageid': mToken.get('_pageid'), 'tokenid': mToken.get('_id'), 'lastmove': PrevPositon }
+      state.myTokenEvents.moveData.push(moveRec)
+
 
     } else {
      // log(`moveMaster: Master${mTokenid} or Shaddow${sTokenid} token not found`)
@@ -343,9 +640,10 @@ on('ready', () => {
     btn = btnAPI({api: api, label: `!`});
     tbl += html.tr(html.td(btn) + html.td('Player Handout'))
 
-    api = `!DMDash --playerhandout`;
+    api = `!DMDash --resourcemgt`;
     btn = btnAPI({api: api, label: `!`});
-    tbl += html.tr(html.td(btn) + html.td('Player Handout'))
+    tbl += html.tr(html.td(btn) + html.td('Party Resource Mgt'))
+
 
     api = `!CAMPAIGNHEALTH`;
     btn = btnAPI({api: api, label: `!`});
@@ -360,6 +658,14 @@ on('ready', () => {
     api = `!Follow --show`;
     btn = btnAPI({api: api, label: `!`});
     tbl += html.tr(html.td(btn) + html.td('Show followers on current page'))
+
+    api = `!follow --showmovements`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Token Movements'))
+
+    api = `!follow --clearmovements`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Clear Movement Data'))
 
 
     tbl = html.table(tbl)
@@ -381,10 +687,24 @@ on('ready', () => {
     // List Followers
     tbl = html.tr(html.th("Master") + html.th("Follower"))
 
+    let mName = ''
+    let fName = ''
     state.myTokenEvents.followData.forEach(item => {
-      let mName = getObj('graphic', item.mTokenid).get('name');
-      let fName = getObj('graphic', item.sTokenid).get('name');
-      tbl+=html.tr(html.td(mName)+html.td(fName))
+      try {
+        mName = getObj('graphic', item.mTokenid).get('name');
+      } catch {
+        mName = 'Missing'
+      }
+
+      try{
+        fName = getObj('graphic', item.sTokenid).get('name');
+      } catch {
+        fName = 'Missing'
+      }
+      if (item.pageid === Campaign().get("playerpageid")){
+        tbl+=html.tr(html.td(mName)+html.td(fName))
+      }
+
     })
 
     tbl = html.table(tbl)
@@ -409,6 +729,13 @@ on('ready', () => {
     let myMsg='';
     let selToken = getObj('graphic', selTokenId);
     let selTokenName = ''
+
+    let whisperTo = ''
+    let player = getObj('player', gMsg.playerid)
+    if (player) {
+      whisperTo = player.get('_displayname')
+    }
+
     if (selToken) {
       selTokenName = selToken.get('name');
     }
@@ -444,6 +771,7 @@ on('ready', () => {
     
     msgbox({msg: myMsg, 
           title: 'Manage Followers',
+          whisperto: whisperTo,
           btn: btn, 
           headercss: { 'background-color': defaultThemeColor1 }})
    
@@ -456,7 +784,7 @@ on('ready', () => {
       _pageid: pageid,
       _subtype: 'token'
     })
-    log(`Setting health indicators Count: ${tokens.length}`)
+    // log(`Setting health indicators Count: ${tokens.length}`)
     tokens.forEach(token => {
       if (token.get("bar1_max") !== undefined) {
         if (token.get("bar1_max") > 0) {
@@ -473,7 +801,7 @@ on('ready', () => {
     let hp_max = Number(token.get('bar1_max'))
     hpPct = hp / hp_max * 100; 
     //token.set('bar3_value', hpPct);
-    log(`SetHealthIndicator: ${token.get('name')} pct: ${hpPct} bar1_max: ${hp_max} bar1_value: ${hp}`)
+    // log(`SetHealthIndicator: ${token.get('name')} pct: ${hpPct} bar1_max: ${hp_max} bar1_value: ${hp}`)
 
     removeHealthMarker(token); 
 
@@ -518,11 +846,11 @@ on('ready', () => {
   function setHealthMarker(token, marker){
     let markers = token.get('statusmarkers');
     let newMarkers = '';
-    log (`SetHealthMarker ${token.get('name')} ${marker}`);
+    // log (`SetHealthMarker ${token.get('name')} ${marker}`);
     newMarkers = markers.split(',');
     newMarkers.push(marker);
     newMarkers = newMarkers.join(',');
-    log (`SetHealthMarker ${newMarkers}`);
+    // log (`SetHealthMarker ${newMarkers}`);
     token.set('statusmarkers', newMarkers);
   }
 
@@ -531,7 +859,7 @@ on('ready', () => {
     for (let key in obj) {
       if (obj.hasOwnProperty(key)) {
         output+= `  Field Name: ${key} => ${obj[key]}<br>`
-        log (`  Field Name: ${key} => ${obj[key]}`)
+        // log (`  Field Name: ${key} => ${obj[key]}`)
       }
     }
     return output;
@@ -607,7 +935,7 @@ on('ready', () => {
     // giDebugLvl: 0 - All, 1 - Low Info, 2 - High Info, 3 - Basic Debug, 4 - New Code Debug, 5 - Performance logging
   
     if ((gDebug == 1 || gDebug == 3) && lvl >= gDebugLvl) {
-     // log(txt);
+      log(txt);
     }
     if ((gDebug == 2 || gDebug == 3) && lvl >= gDebugLvl) {
       sendChat('Debug','/w gm '+txt);

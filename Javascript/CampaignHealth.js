@@ -6,8 +6,8 @@ API_Meta.CampaignHealth = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 
 on('ready', () => {
   const version = '0.0.02';
-  log('Campaign Health ' + version + ' is ready! --offset '+ API_Meta.CampaignHealth.offset);
-  log(' To start using the mod Campaign Health, in the chat window enter `!campaignhealth`');
+  log('>>>-----> Campaign Health ' + version + ' is ready! --offset '+ API_Meta.CampaignHealth.offset);
+  log('            To start using the mod Campaign Health, in the chat window enter `!campaignhealth`');
   API_Meta.CampaignHealth.version = version;            
 
 
@@ -630,7 +630,7 @@ function buildCampaignHealthReports(msg_content) {
         let pageWidth = getObjectValue("page", token.get("_pageid"), "width") * 70.0
         let pageHeight = getObjectValue("page", token.get("_pageid"), "height") * 70.0
   
-        if (token.get("left") > pageWidth || token.get("top") > pageHeight){
+        if (token.get("left") > pageWidth || token.get("top") > pageHeight || token.get("left")<0 || token.get("top") < 0) {
           let btnMoveTkn = addTooltip("Move token to Top Left cell (0,0)", makeButton('Move', `!campaignhealth --FixTokenPosition ${token.get("_id")}`)) 
           let btnDeleteTkn = addTooltip("Delete Token", makeButton('Delete', `!campaignhealth --DeleteToken ${token.get("_id")}`)) 
           output += `Token ${addTooltip("Ping Me", makeButton(token.get("name"), `!campaignhealth --PingToken ${token.get("_id")}`))} (${token.get("left")}, ${token.get("top")}) is off the viewing are of page ${getObjectValue("page", token.get("_pageid"), "name")} (${pageWidth}, ${pageHeight}) (${btnMoveTkn}) (${btnDeleteTkn})<br>`

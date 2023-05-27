@@ -4,8 +4,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.18
-// Last Updated: 5.17.2023
+// Version 0.6.20
+// Last Updated: 5.25.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
 //          in the game and user selections.  
@@ -20,7 +20,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 //                          it easy to select multiple tokens and set them all at once.  Can
 //                          also quicky clear all markers.  The mode function toggles between 
 //                          on/off and incrementally adding a counter to the marker selected.
-//
+//  * DM Resource Mgt -     Party Resource Management report for Health, Coin, Potions, Scrolls, Ammo, 
+//                          Other limited inv items, Resources and Spell Slots.  
 //  * DM Character Sheet -  Works closely with the Turnorder Report.  The content of this 
 //                          handout allways contains the character or npc at the top of the
 //                          turnorder list.  Most functions, like attacks, checks, saves, 
@@ -39,17 +40,9 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 // To get started, type !DMDash into the chat window to create your initial handouts
 // To force the initial build of your DM Notes handout type: !dmnotes --build
 
-// * Add a player Handout that does a party inventory of:
-//    * Consumables
-//      * Potions
-//      * Scrolls
-//    * Gold (and other stuff)
+// Future Additions
+//  * Add ability to change Resources from Resource Mgt Handout
 
-//  * Status Markers
-//    *  Figure out why some tokens get a blanck comma in the SM List
-//
-//
-//
 //  * Build a page centric Token Lister modeled after the DM Turnorder Report
 //    * Putting on hold right now - may be too big for one report
 //    * Default to the current page, but allow user to change the referened page
@@ -79,7 +72,7 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 ***     Event Management    ***  
 *******************************/
 on('ready', () => {
-  const version = '0.6.18';
+  const version = '0.6.20';
 
   let charMap = new Map();
   let charMapItem = [];
@@ -90,8 +83,8 @@ on('ready', () => {
   let gSelTokens = [];
   let smMode = 0;
   
-  log('DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
-  log(' To start using the DM Dashboard, in the chat window enter `!DMDash`');
+  log('>>>-----> DM Dashboard ' + version + ' is ready! --offset '+ API_Meta.DMDashboard.offset);
+  log('          To start using the DM Dashboard, in the chat window enter `!DMDash`');
 
   API_Meta.DMDashboard.version = version;
 
@@ -178,6 +171,7 @@ on('ready', () => {
   debounced_DMDash_HandleMsg('!DMNotes --Build')
   debounced_DMDash_HandleMsg('!DMDash --Tracks')
   debounced_DMDash_HandleMsg('!DMDash --SSM')
+  debounced_DMDash_HandleMsg('!DMDash --ResourceMgt-refresh')
 
   reportPerformance('Finished On Ready Event');
   
@@ -902,23 +896,24 @@ function DMDash_HandleMsg(msg_content){
       if (JSON.stringify(prev_to_json) == curr_to) {
         // If they are equivalent, then the only change was because the turn changed
         // log('TO Change: TOs are equal: ');
-        myDebug(4, `didTOAdvance: they are equivalent`);
+        myDebug(3, `didTOAdvance: they are equivalent`);
         cmd_advance = 1;
         AddToTurnorderLog();
       } else {
-        myDebug(4, `didTOAdvance: the arenot equivalent prev:${JSON.stringify(prev_to_json)} curr:${curr_to}`);
+        myDebug(3, `didTOAdvance: the arenot equivalent prev:${JSON.stringify(prev_to_json)} curr:${curr_to}`);
         // log('TO Change: TOs are not equal:');
         // log('Prev_To:' + JSON.stringify(prev_to_json));
         // log('Curr_To:' + curr_to);
       }
     } else {
-      myDebug(4, `didTOAdvance: prev_to and curr_to are different lengths`);
+      myDebug(3, `didTOAdvance: prev_to and curr_to are different lengths`);
     }
     // log('didTOAdvance: ' + cmd_advance);
     return cmd_advance;  
   };
   function GetSystemUTCDate() {
     let d = new Date();
+    d = d.toLocaleString('en-US',{timeZone: 'America/Chicago', hour12: true });
     let utcDate = `${d.getUTCMonth().toString().padStart(2,'0')}/${d.getUTCDate().toString().padStart(2,'0')}/${d.getUTCFullYear()} ${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')}:${d.getUTCSeconds().toString().padStart(2,'0')}`;
     return utcDate;
   };
@@ -1749,7 +1744,7 @@ function DMDash_HandleMsg(msg_content){
       minwidth =`width:${minwidth}`
     }
 
-    if (!name) {
+    if (!name && name !==0 && name !=='0') {
       name = "untitled"
     }
 
@@ -1880,6 +1875,49 @@ function DMDash_HandleMsg(msg_content){
     // log('Date Time: ' + d.getUTCDate() + ' '  + d.getUTCHours() + ':' + d.getUTCMinutes() + ':' + d.getUTCSeconds())
     return s;
   }
+
+  function setAttrbyName(cId, attr, value, value_type) {
+    value_type = value_type || 'current';
+    myDebug(4, `setAttrbyName: (cId: ${cId}, attr: ${attr}, value: ${value}, value_type: ${value_type}`)
+    try {
+      let attribute = findObjs({
+        type: 'attribute',
+        characterid: cId,
+        name: attr
+      }, {caseInsensitive: true})[0];
+      if (attribute) {
+        attribute.set(value_type, value);
+      } else {
+        myDebug(4, `Error: setAttrbyName(cId: ${cId}, attr: ${attr}, value: ${value}, value_type: ${value_type}) err.msg: Unable to find Attribute`)  
+      }
+    } catch(err) {
+      myDebug(4, `Error: setAttrbyName(cId: ${cId}, attr: ${attr}, value: ${value}, value_type: ${value_type}) err.msg: ${err.message}`)
+    }
+  }
+
+  function setAttrbyId(attrId, value, value_type) {
+    value_type = value_type || 'current';
+    try {
+      let attribute = getObj('attribute', attrId)
+      attribute.set(value_type, value);
+    } catch {
+      myDebug(4, `Error: setAttrById(attrId: ${attrId}, value: ${value}, value_type: ${value_type})`)
+    }
+  }
+
+  function getAttrIdByName(character_id, attribute_name) {
+    let attribute = findObjs({
+      type: 'attribute',
+      characterid: character_id,
+      name: attribute_name
+    }, {caseInsensitive: true})[0];
+    if (attribute) {
+      return attribute.get('_id');
+    } else {
+      return undefined;
+    }
+  }
+
   function resetAttributeValue(attr, def) {
     findObjs({ _type: 'attribute', name: attr }).forEach((attr) => {
       attr.set('current', def);
@@ -2515,7 +2553,7 @@ function DMDash_HandleMsg(msg_content){
                             html.td(`${tknImg}`, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) +
                             html.td(html.table( 
                                 html.tr(html.td(`<b>${toToken.get('name')}</b>`, {'border':'0'})) +
-                                html.tr(html.td(`<i>(${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>`, {'border':'0'})) +
+                                html.tr(html.td(`<i>${getAttrByName(toChar.get('_id'),'alignment','current')} ${getAttrByName(toChar.get('_id'),'class_display','current')} (${getAttrByName(toChar.get('_id'),'race_display','current')})</i>`, {'border':'0'})) +
                                 html.tr(html.td(`<i>Avg Turn: ${TO_Avg}secs Total Secs: ${TO_Secs} Turns: ${TO_Count}</i>`, {'border':'0'})), {'border': '0'}), {'vertical-align':'middle', 'border':'0'}) +
                             html.td(trackTbl, {'vertical-align':'middle', 'border':'1'})+
                             html.td(`<span id=EncDiff>1</span>`, {'vertical-align':'middle', 'border':'0'})), {'background-color': '#404040' , 'color': '#fff'});
@@ -3325,13 +3363,13 @@ function DMDash_HandleMsg(msg_content){
             if (tType == 'CHAR') {
               
               // Load CHAR into foe map, do the NPC Calcs now too
-              myDebug(4, `foe5: (New Char to be added) ${toToken.get('name')}`)
+              myDebug(3, `foe5: (New Char to be added) ${toToken.get('name')}`)
 
               // This could be an NPC using a Charsheet - "controledby" Is blank
               if (getAttrByName(toChar.get('_id'), 'npc', 'current') == 1) {
 
                 // PC using an NPC Setup (RARE)
-                myDebug(4, `foe6: (PC in an NPC sheet) ${toToken.get('name')}`)
+                myDebug(3, `foe6: (PC in an NPC sheet) ${toToken.get('name')}`)
                 edNPCExp = getAttrByName(toChar.get('_id'),'npc_xp','current');
                 edNPCExpTotal = edNPCExpTotal + edNPCExp;
                 edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level')
@@ -3521,7 +3559,12 @@ function DMDash_HandleMsg(msg_content){
           //myDebug(3, `Notification for ${toToken.get('name')}: i = ${i} cmd_advance = ${cmd_advance}`);
           if (!isnpc && i == 0 && cmd_advance == 1 && state.DMDashboard.TurnNotification == true){
             let tknImgChat = `<img style = 'max-height: 60px; max-width: 60px; padding: 0px; margin: 0px !important' src = '${toToken.get('imgsrc')}'</img>`;            
-            let msg = html.table(html.tr(html.td(tknImgChat, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) + html.td(`<b>${toToken.get('name')} is up!</b><br>&nbsp;&nbsp;<i>ATPT: ${TO_Avg} Secs / Last: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`) + html.td(getSMImages(toToken.get('_id'),0))), {'background-color' : bg_color, 'border':'0', 'padding': '0', 'border-collapse': 'collapse'});
+            
+            sm_Images = getSMImages(toToken.get('_id'),0)
+            if (sm_Images == undefined) {
+              sm_Images = ''
+            }            
+            let msg = html.table(html.tr(html.td(tknImgChat, {'vertical-align':'middle', 'width': '60px', 'border':'0'}) + html.td(`<b>${toToken.get('name')} is up!</b><br>&nbsp;&nbsp;<i>ATPT: ${TO_Avg} Secs / Last: ${getAttrByName(toChar.get('_id'),'to_lastturn','current')}</i>`) + html.td(sm_Images)), {'background-color' : bg_color, 'border':'0', 'padding': '0', 'border-collapse': 'collapse'});
             mySendChat(false, 'Turn Order', msg)
           }
 
@@ -3554,7 +3597,9 @@ function DMDash_HandleMsg(msg_content){
           toList += '<td ' + tdbase + '>👣' + speed + '</td>'; //Speed
 
           // Col 9 (Senses)
-          toList += '<td ' + tdbase + '><table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse;"><tr style="border: 0px; padding: 0;><td ' + tdbase + '>' + senses + '</td>'; //Senses
+          toList += '<td ' + tdbase + '>'
+          toList +=   '<table style="border: 0px; padding: 0;background-color:#404040; border-collapse: collapse;">'
+          toList +=      '<tr style="border: 0px; padding: 0;><td ' + tdbase + '>' + senses + '</td></tr>'; //Senses
 
           btnSaves = makeButton('Str', `!&#13;&#64;{${toChar.get('name')}|strength_save_roll}`) + ' '
           btnSaves += makeButton('Dex', `!&#13;&#64;{${toChar.get('name')}|dexterity_save_roll}`) + ' '
@@ -3563,7 +3608,9 @@ function DMDash_HandleMsg(msg_content){
           btnSaves += makeButton('Int', `!&#13;&#64;{${toChar.get('name')}|intelligence_save_roll}`) + ' '
           btnSaves += makeButton('Cha', `!&#13;&#64;{${toChar.get('name')}|charisma_save_roll}`)
 
-          toList += '<tr><td ' + tdbase + '>' +  btnSaves + '</td></tr></table></td>'; //Saves
+          toList +=      '<tr><td ' + tdbase + '>' +  btnSaves + '</td></tr>'
+          //toList +=      '<tr><td ' + tdbase + '>' +  toToken.get('lastmove') + '</td></tr>'
+          toList += '</table></td>'; //Saves
           
           //toList += '<td ' + tdbase + '>' + senses + '</td>'; //Senses
 
@@ -3772,7 +3819,9 @@ function DMDash_HandleMsg(msg_content){
     //Test area
     gEndTime = new Date().getTime();
     let runTime = gEndTime - gStartTime;
-    toList += `Execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`
+    let lastRefresh = new Date().toLocaleString('en-US',{timeZone: 'America/Chicago', hour12: true });;
+    
+    toList += `Last refresh: ${lastRefresh}   Execution time: ${runTime.toFixed(2)} milliseconds (Version: ${state.DMDashboard.version})`
 
     // Write out the results back to a handout.
     if (toList) {
@@ -4714,6 +4763,8 @@ function DMDash_HandleMsg(msg_content){
           }
         });
       }
+
+      myDebug(3, `getSMImages: ${sm_url} ${sm_number}`);
       // Concatenate the img element with the corresponding URL
       smUrl = `<img style='max-height: 20px; max-width: 20px; padding: 0px; margin: 0px !important' src='${sm_url}'></img>${sm_number}`;
       if (mode === 0) {
@@ -4722,6 +4773,7 @@ function DMDash_HandleMsg(msg_content){
         sm_Images += addTooltip(`Click to remove ${sm_name} (${sm_tag})`, makeButton(smUrl, `!DMDash --SM-Set ${encodeURIComponent(sm_tag)} ${tId}`))
       }
     }
+    if (sm_Images == undefined) sm_Images = ''
     return sm_Images; // Return the final string containing the img elements
   }
 
@@ -4825,7 +4877,7 @@ function DMDash_HandleMsg(msg_content){
   function buildStatusMarkerDialog(){
     let output = ''
     let rptHeader = html.h2('Status Markers')
-    let rptFooter = 'Footer'
+    let rptFooter = ''
     let btnMode = '';
     let btnImg = ''
     let btnRefresh = ''
@@ -4906,11 +4958,27 @@ function DMDash_HandleMsg(msg_content){
     let gpEquivRow = ''
     let ttlGPEquiv = 0
     let pGPEquiv = 0
+    let dCSSl = {'max-width': '50px', 'text-align': 'left'};
+    let dCSSr = {'max-width': '50px', 'text-align': 'right'};
+
+
+    let tblStats = ''
+    let tblStatRow = ''
+
     let playerHeaderRow = ''
     let isNPC = true;
 
+    let to_secs = 0;
+    let to_count = 0;
+    let to_lastturn = 0;
 
-    btnRefresh = makeMenuButton('Refresh', `!DMDash --PlayerHandout`)
+    btnRefresh = makeMenuButton('Refresh', `!DMDash --PlayerHandout-refresh`)
+    //let lastRefresh = GetSystemUTCDate()
+    let lastRefresh = new Date();
+    lastRefresh = lastRefresh.toLocaleString('en-US',{timeZone: 'America/Chicago', hour12: true });
+    btnRefresh += `  <i>Last Refreshed by ${gMsg.who} on ${lastRefresh}.`
+
+
     // for each through all the player character create the following:
       // * A table of gold and other coin (see player funds report)
       // * A table of consumables in their inventory
@@ -4918,17 +4986,25 @@ function DMDash_HandleMsg(msg_content){
     let pcs = findObjs({
       type: 'character'
     }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
-    playerHeaderRow += html.th('<b>Coin Type</b>', {'max-width': '50px', 'text-align': 'right'})
-    cpRow += html.td('<b>Copper (CP)</b>', {'max-width': '50px', 'text-align': 'right'})
-    spRow += html.td('<b>Silver (SP)</b>', {'max-width': '50px', 'text-align': 'right'})
-    epRow += html.td('<b>Electrum (EP)</b>', {'max-width': '5px', 'text-align': 'right'})
-    gpRow += html.td('<b>Gold (GP)</b>', {'max-width': '50px', 'text-align': 'right'})
-    ppRow += html.td('<b>Platinum (PP)</b>', {'max-width': '50px', 'text-align': 'right'})
-    gpEquivRow += html.th('<b>Total(GP)</b>', {'max-width': '100px', 'text-align': 'right'})  
+    playerHeaderRow += html.th(html.h4('Coin Type'), dCSSl)
+    cpRow += html.td('<b>Copper (CP)</b>', dCSSl)
+    spRow += html.td('<b>Silver (SP)</b>', dCSSl)
+    epRow += html.td('<b>Electrum (EP)</b>', {'max-width': '5px', 'text-align': 'left'})
+    gpRow += html.td('<b>Gold (GP)</b>', dCSSl)
+    ppRow += html.td('<b>Platinum (PP)</b>', dCSSl)
+    gpEquivRow += html.th('<b>Total(GP)</b>', {'max-width': '100px', 'text-align': 'left'})  
     
-    pStats = html.tr(html.th('Name') + html.th('Avg') + html.th('Secs') + html.th('Count') + html.th('Last'));
+    tblStats = html.td(html.table(html.tr(html.td('<b>Last Turn</b>'), {'max-width': '100px', 'text-align': 'left'}) + 
+                                html.tr(html.td('<b>Turn Count</b>'), {'max-width': '100px', 'text-align': 'left'}) + 
+                                html.tr(html.td('<b>Total Seconds</b>'), {'max-width': '100px', 'text-align': 'left'}) +
+                                html.tr(html.td('<b>Average</b>'), {'max-width': '100px', 'text-align': 'left'})))
+
+    tblInv = html.td(html.h4('Consumables'),dCSSl) // Blank First Column
+
+    let rowStatsHdr = html.th(html.h4('Statistic (Secs)'),dCSSl)
+
     pcs.forEach(c => {
-      myDebug(4, `buildPlayerHandout: name: ${c.get('name')} controlledby: ${c.get('controlledby')} `)
+      myDebug(3, `buildPlayerHandout: name: ${c.get('name')} controlledby: ${c.get('controlledby')} `)
       if (c.get("controlledby") !== '' && c.get("controlledby") !== undefined && c.get("controlledby").length > 0){
 
         let cId = c.get('_id')
@@ -4937,13 +5013,24 @@ function DMDash_HandleMsg(msg_content){
           let pc_name = c.get('name');
           let to_avg = getAttrByName(cId, 'to_avg');
           if (to_avg != undefined){
-            let to_secs = getAttrByName(cId, 'to_secs');
-            let to_count = getAttrByName(cId, 'to_count');
-            let to_lastturn = getAttrByName(cId, 'to_lastturn');
-            pStats += html.tr(html.td(pc_name) + html.td(to_avg) + html.td(to_secs) + html.td(to_count) + html.td(to_lastturn));
+            to_secs = getAttrByName(cId, 'to_secs');
+            to_count = getAttrByName(cId, 'to_count');
+            to_lastturn = getAttrByName(cId, 'to_lastturn');
+          } else {
+            to_secs = 'n/a'
+            to_count = 'n/a'
+            to_lastturn = 'n/a'
+            to_avg = 'n/a'
           }
 
-          playerHeaderRow += html.th(pc_name , {'max-width': '50px', 'text-align': 'right'})
+          rowStatsHdr += html.th(pc_name, dCSSr)
+          tblStats += html.td(html.table(html.tr(html.td(to_lastturn, dCSSr)) + 
+                                       html.tr(html.td(to_count, dCSSr)) + 
+                                       html.tr(html.td(to_secs, dCSSr)) +
+                                       html.tr(html.td(`<b>${to_avg}</b>`, dCSSr))))
+
+          playerHeaderRow += html.th(pc_name , dCSSr)
+
           pCP = getAttrByName(cId, 'cp')
           pSP = getAttrByName(cId, 'sp')
           pEP = getAttrByName(cId, 'ep')
@@ -4958,24 +5045,73 @@ function DMDash_HandleMsg(msg_content){
           ttlGPEquiv = Number(ttlGPEquiv) + Number(pGPEquiv)
           pGPEquiv = pGPEquiv.toFixed(0)
 
-          cpRow += html.td(pCP, {'max-width': '50px', 'text-align': 'right'})
-          spRow += html.td(pSP, {'max-width': '50px', 'text-align': 'right'})
-          epRow += html.td(pEP, {'max-width': '50px', 'text-align': 'right'})
-          gpRow += html.td(pGP, {'max-width': '50px', 'text-align': 'right'})
-          ppRow += html.td(pPP, {'max-width': '50px', 'text-align': 'right'})
-          gpEquivRow += html.th(pGPEquiv, {'max-width': '50px', 'text-align': 'right'})        
+          cpRow += html.td(pCP, dCSSr)
+          spRow += html.td(pSP, dCSSr)
+          epRow += html.td(pEP, dCSSr)
+          gpRow += html.td(pGP, dCSSr)
+          ppRow += html.td(pPP, dCSSr)
+          gpEquivRow += html.th(pGPEquiv, dCSSr)        
+
+          //Potions and Scrolls
+          // Define the repeating section identifier
+          repeatingSection = 'repeating_inventory';  //Prefix
+          repeatingName = 'itemname'               //Suffix 
+
+          // Get the values of the repeating section
+          repeatingValues = findObjs({_type: "attribute", _characterid: cId})
+            .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+
+          rowData = ''
+          // Loop through the values in the repeating section
+          for (let rowId in repeatingValues) {
+            row = repeatingValues[rowId];
+            repeatingField = row.get('name').slice(0,-9);
+            // log(`Repeating info: ${rowId}. ${row.get('name')}: ${row.get('current')}; rf:${repeatingField}`);
+            let itemName = getAttrByName(cId,repeatingField + '_itemname','current')
+            let itemCount = getAttrByName(cId,repeatingField + '_itemcount','current')
+            let itemNameLC = itemName.toLowerCase();
+
+            if (itemNameLC.includes('flask') || 
+                itemNameLC.includes('oil') || 
+                itemNameLC.includes('potion') || 
+                itemNameLC.includes('scroll') || 
+                itemNameLC.includes('dust') || 
+                itemNameLC.includes('rations') || 
+                itemNameLC.includes('bottle') || 
+                itemNameLC.includes('arrow') || 
+                itemNameLC.includes('bolt') || 
+                itemNameLC.includes('torch') || 
+                itemNameLC.includes('candle') || 
+                itemNameLC.includes('piton')){
+
+              rowData += html.tr(html.td(itemName) + html.td(itemCount))
+            }
+          }
+          tblInv += html.td(html.table(rowData), dCSSr)
         }
       }
     });
 
+    // DM Column
+    rowStatsHdr += html.th('DM', dCSSr)
+    rowStatsHdr = html.tr(rowStatsHdr); // Tied together in a row
+    tblStats += html.td(html.table(html.tr(html.td(state.DMDashboard.DM_LastTurn, dCSSr)) + 
+                                  html.tr(html.td(state.DMDashboard.DM_Count, dCSSr)) + 
+                                  html.tr(html.td(state.DMDashboard.DM_Secs, dCSSr)) +
+                                  html.tr(html.td(`<b>${state.DMDashboard.DM_Avg}</b>`, dCSSr))))
+    tblStats = html.tr(tblStats);
+
+    tblInv +=html.td('') // Total Column
+    //tblInv = html.table(html.tr(tblInv));
+
     ttlGPEquiv = ttlGPEquiv.toFixed(0);
     playerHeaderRow += html.th('Total')
-    cpRow += html.td(ttlCP, {'max-width': '50px', 'text-align': 'right'})
-    spRow += html.td(ttlSP, {'max-width': '50px', 'text-align': 'right'})
-    epRow += html.td(ttlEP, {'max-width': '50px', 'text-align': 'right'})
-    gpRow += html.td(ttlGP, {'max-width': '50px', 'text-align': 'right'})
-    ppRow += html.td(ttlPP, {'max-width': '50px', 'text-align': 'right'})
-    gpEquivRow += html.th(ttlGPEquiv, {'max-width': '50px', 'text-align': 'right'})         
+    cpRow += html.td(ttlCP, dCSSr)
+    spRow += html.td(ttlSP, dCSSr)
+    epRow += html.td(ttlEP, dCSSr)
+    gpRow += html.td(ttlGP, dCSSr)
+    ppRow += html.td(ttlPP, dCSSr)
+    gpEquivRow += html.th(ttlGPEquiv, dCSSr)         
 
     temp = html.tr(playerHeaderRow)
     temp += html.tr(cpRow)
@@ -4984,17 +5120,273 @@ function DMDash_HandleMsg(msg_content){
     temp += html.tr(gpRow)
     temp += html.tr(ppRow)
     temp += html.tr(gpEquivRow)
+    temp += tblInv  // HTML is contained with in 1 row
+    temp += rowStatsHdr //
+    temp += tblStats // HTML is contained with in 1 row
     tblGP = html.table(temp);
 
-    pStats += html.tr(html.td('DM') + html.td(state.DMDashboard.DM_Avg) + html.td(state.DMDashboard.DM_Secs) + html.td(state.DMDashboard.DM_Count) + html.td(state.DMDashboard.DM_LastTurn));
-    pStats = html.table(pStats)
-
-    output = openReport + btnRefresh + '<hr>' + tblGP + '<hr>' + pStats + closeReport;
+    
+    // rptFooter = html.p(`Last Refreshed by ${gMsg.who} on ${lastRefresh}.`)
+    
+    output = html.h2('Party Coins and Consumables')
+    output = openReport + btnRefresh + output + tblGP + rptFooter + closeReport;
 
     // Check if a "Player Access" handout exists, or create one
     let handout = findObjs({ type: "handout", name: "Player Handout" })[0];
     if (!handout) {
       handout = createObj("handout", { name: "Player Handout" });
+    }
+    // Update the "Player Access" handout content
+    handout.set("notes", output);
+  }
+
+  function buildResourceMgt(){
+    let output = ''
+    let btnRefresh = ''
+    let btn = ''
+    let itemName = ''
+    let itemCount = 0
+    let itemMax = 0
+    let tblMaster = ''
+    let temp = ''
+    let pCP = 0
+    let pSP = 0
+    let pEP = 0
+    let pGP = 0
+    let pPP = 0
+    let pGPEquiv = 0
+    let repeatingSection = ''
+    let repeatingName = ''
+    let repeatingValues = []
+    let repeatingField = ''
+    let repeatingValue = 0
+    let repeatingMax = 0
+    let row = ''
+    let dCSSl = {'max-width': '50px', 'text-align': 'left'};
+    let dCSSr = {'max-width': '50px', 'text-align': 'right'};
+
+    // Track and adjust the following resources
+    //  Health- HP, TempHP, Hit Dice (Short Rest)
+    //  Coin
+    //  Ammo (Arrows, Bolts, Darts, Javelins, Daggers,...)
+    //  Potions/Scrolls
+    //  Other -- Pitons, Rations, Water, ...
+    //  Resources
+    //  Spell Slots
+
+    // Nested Tables: Master (Each row is a Character Header, or one of the consumables)
+    //                Player Inv/Res Container 
+    // Headers:  Column 1 lists the consumable Types
+    //           Row 1 lists the players
+
+    btnRefresh = makeMenuButton('Refresh', `!DMDash --ResourceMgt-refresh`)
+    let lastRefresh = new Date();
+    lastRefresh = lastRefresh.toLocaleString('en-US',{timeZone: 'America/Chicago', hour12: true });
+    btnRefresh += `  <i>Last Refreshed by ${gMsg.who} on ${lastRefresh}.`
+
+    let pcs = findObjs({
+      type: 'character'
+    }).sort((a, b) => (a.get("name") > b.get("name") ? 1 : -1));
+
+    // Build Headers for each Row
+    let rowHealth = html.th(html.h4('Health'), {"transform": "rotate(90deg)", "transform-origin": "left top 0"}) 
+    let rowCoin = html.th(html.h4('Coin Type'), {"transform": "rotate(90deg)", "transform-origin": "left top 0"})
+    let rowAmmo = html.th(html.h4('Ammo'),{"transform": "rotate(90deg)", "transform-origin": "left top 0"}) 
+    let rowPS = html.th(html.h4('Potions/Scrolls'),{"transform": "rotate(90deg)", "transform-origin": "left top 0"}) 
+    let rowOther = html.th(html.h4('Other'),{"transform": "rotate(90deg)", "transform-origin": "left top 0"}) 
+    let rowRes = html.th(html.h4('Resources'),{"transform": "rotate(90deg)", "transform-origin": "left top 0"}) 
+    let rowSS = html.th(html.h4('Spell Slots'),{"transform": "rotate(90deg)", "transform-origin": "left top 0"}) 
+    let rowplayerHdr = html.th('') // Top left cell is blank
+
+    pcs.forEach(c => {
+      myDebug(3, `buildPlayerHandout: name: ${c.get('name')} controlledby: ${c.get('controlledby')} `)
+      if (c.get("controlledby") !== '' && c.get("controlledby") !== undefined && c.get("controlledby").length > 0){
+
+        let cId = c.get('_id')
+        if (getAttrByName(cId, 'npc') == 0) {
+
+          let pc_name = c.get('name');
+          rowplayerHdr += html.th(pc_name , dCSSr)
+
+          // Health hp, hp_max, hp_temp, hit_dice, hit_dice_max
+          itemCount = getAttrByName(cId, 'hp')
+          btn = makeButton('hp: ' + itemCount, `!DMDash --setattrbyname ${cId} hp ?{Set new hp current value:?|${itemCount}} current`)
+          temp = html.tr(html.td(btn, dCSSr))
+
+          itemCount = getAttrByName(cId, 'hp', 'max')
+          btn = makeButton('max: ' + itemCount, `!DMDash --setattrbyname ${cId} hp ?{Set new hp maximum value:?|${itemCount}} max`)
+          temp+= html.tr(html.td(btn, dCSSr))
+
+          itemCount = getAttrByName(cId, 'hp_temp')
+          btn = makeButton('temp: ' + itemCount, `!DMDash --setattrbyname ${cId} hp_temp ?{Set new temporaty hitpoints value:?|${itemCount}} max`)
+          temp+= html.tr(html.td(btn, dCSSr))
+
+          itemCount = getAttrByName(cId, 'hit_dice')
+          btn = makeButton('hit dice: ' + itemCount, `!DMDash --setattrbyname ${cId} hp ?{Set new hit dice value:?|${itemCount}} max`)
+          temp+= html.tr(html.td(btn, dCSSr))
+
+          itemCount = getAttrByName(cId, 'hit_dice', 'max')
+          btn = makeButton('hit dice max: ' + itemCount, `!DMDash --setattrbyname ${cId} hp ?{Set new hit dice max value:?|${itemCount}} max`)
+          temp+= html.tr(html.td(btn, dCSSr))
+          
+          //temp = html.table(html.tr(html.td(`hp:${getAttrByName(cId, 'hp')}`,dCSSr)) + html.tr(html.td(`max:${getAttrByName(cId, 'hp', 'max')}`,dCSSr)) + html.tr(html.td(`tmp:${getAttrByName(cId, 'hp_temp')}`,dCSSr)) + html.tr(html.td(`hd:${getAttrByName(cId, 'hit_dice')}`,dCSSr)) + html.tr(html.td(`hdm:${getAttrByName(cId, 'hit_dice', 'max')}`,dCSSr)))
+          rowHealth += html.td(html.table(temp))
+         
+          pCP = Number(getAttrByName(cId, 'cp')) + 0
+          pSP = Number(getAttrByName(cId, 'sp')) + 0
+          pEP = Number(getAttrByName(cId, 'ep'))+ 0
+          pGP = Number(getAttrByName(cId, 'gp'))+ 0
+          pPP = Number(getAttrByName(cId, 'pp'))+ 0
+          let btnCP = makeButton(`${pCP}cp`, `!DMDash --setattrbyname ${cId} cp ?{Set new CP?|${pCP}} current`)          
+          let btnSP = makeButton(`${pSP}sp`, `!DMDash --setattrbyname ${cId} sp ?{Set new SP?|${pSP}} current`)
+          let btnEP = makeButton(`${pEP}ep`, `!DMDash --setattrbyname ${cId} ep ?{Set new EP?|${pEP}} current`)
+          let btnGP = makeButton(`${pGP}gp`, `!DMDash --setattrbyname ${cId} gp ?{Set new GP?|${pGP}} current`)
+          let btnPP = makeButton(`${pPP}pp`, `!DMDash --setattrbyname ${cId} pp ?{Set new PP?|${pPP}} current`)
+
+          pGPEquiv = Number(pCP)/100 + Number(pSP)/10 + Number(pEP)/2 + Number(pGP) + Number(pPP) * 100
+          pGPEquiv = pGPEquiv.toFixed(0)
+          temp = html.table(html.tr(html.td(`${btnCP}`, dCSSr)) + html.tr(html.td(`${btnSP}`, dCSSr)) + html.tr(html.td(`${btnEP}`, dCSSr)) + html.tr(html.td(`${btnGP}`, dCSSr)) + html.tr(html.td(`${btnPP}`, dCSSr)) + html.tr(html.th(`<b>${pGPEquiv}gp(equiv)</b>`, dCSSr)));
+          rowCoin +=html.td(temp)
+
+          //Potions and Scrolls, Ammo, Other
+          // Define the repeating section identifier
+
+          repeatingSection = 'repeating_inventory';  //Prefix
+          repeatingName = 'itemname'               //Suffix 
+          let tAmmo = ''
+          let tPS = ''
+          let tOther = ''
+
+          // Get the values of the repeating section
+          repeatingValues = findObjs({_type: "attribute", _characterid: cId})
+            .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+
+          rowData = ''
+          // Loop through the values in the repeating section
+          for (let rowId in repeatingValues) {
+            row = repeatingValues[rowId];
+            repeatingField = row.get('name').slice(0,-9);
+            // log(`Repeating info: ${rowId}. ${row.get('name')}: ${row.get('current')}; rf:${repeatingField}`);
+            itemName = getAttrByName(cId,repeatingField + '_itemname','current')
+            itemCount = getAttrByName(cId,repeatingField + '_itemcount','current')
+            btn = makeButton(itemCount, `!DMDash --setattrbyname ${cId} ${repeatingField}_itemcount ?{Set new inventory amount for ${itemName}?|${itemCount}} current`)
+            let itemNameLC = itemName.toLowerCase();
+
+            // Ammo
+            if (itemNameLC.includes('arrow') || 
+                itemNameLC.includes('bolt') || 
+                itemNameLC.includes('dart')){
+              tAmmo += html.tr(html.td(itemName,dCSSr) + html.td(btn,dCSSr))
+            // Potions / Scrolls
+            } else if (itemNameLC.includes('potion') || 
+                       itemNameLC.includes('scroll') || 
+                       itemNameLC.includes('dust')){
+              tPS += html.tr(html.td(itemName,dCSSr) + html.td(btn,dCSSr))
+            // Other
+            } else if (itemNameLC.includes('flask') || 
+                       itemNameLC.includes('oil') || 
+                       itemNameLC.includes('Ball Bearing') || 
+                       itemNameLC.includes('rations') || 
+                       itemNameLC.includes('waterskin') || 
+                       itemNameLC.includes('rope') || 
+                       itemNameLC.includes('bottle') || 
+                       itemNameLC.includes('candle') || 
+                       itemNameLC.includes('piton')){
+              tOther += html.tr(html.td(itemName,dCSSr) + html.td(btn,dCSSr))
+            }
+          } // Each Inv Item 
+          rowAmmo += html.td(html.table(tAmmo))
+          rowPS += html.td(html.table(tPS))
+          rowOther += html.td(html.table(tOther))
+
+          // Resources
+          itemCount = Number(getAttrByName(cId,'class_resource','current')) + 0
+          log('itemCount: '+ itemCount)
+          itemMax = Number(getAttrByName(cId,'class_resource','max')) + 0
+          itemName = getAttrByName(cId,'class_resource_name','current')
+          btn = makeButton(itemCount, `!DMDash --setattrbyname ${cId} class_resource ?{Set new resource amount for ${itemName}?|${itemCount}} current`)
+          temp = html.tr(html.td(`<b>${itemName}</b>`,dCSSr))
+          temp += html.tr(html.td(btn + ' of ' + itemMax,dCSSr))
+
+          itemCount = Number(getAttrByName(cId,'other_resource','current'))+0
+          itemMax = Number(getAttrByName(cId,'other_resource','max')) +0 
+          itemName = getAttrByName(cId,'other_resource_name','current')
+          btn = makeButton(itemCount, `!DMDash --setattrbyname ${cId} other_resource ?{Set new resource amount for ${itemName}?|${itemCount}} current`)
+          temp += html.tr(html.td(`<b>${itemName}</b>`,dCSSr))
+          temp += html.tr(html.td(btn + ' of ' + itemMax,dCSSr))
+
+
+          repeatingSection = 'repeating_resource';  //Prefix
+          repeatingName = 'resource_left_name';  //Suffix 
+          repeatingValues = findObjs({_type: "attribute", _characterid: cId})
+            .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+          // Loop through the values in the repeating section
+          for (let rowId in repeatingValues) {
+            row = repeatingValues[rowId];
+            repeatingName = getAttrByName(cId,row.get('name'),'current')
+            repeatingField = row.get('name').slice(0,-19);
+            repeatingValue = getAttrByName(cId,repeatingField + '_resource_left','current')  || 0
+            repeatingMax = getAttrByName(cId,repeatingField + '_resource_left','current')  || 0
+            //temp += html.tr(html.td(`<b>${repeatingName}</b>`,dCSSr))
+            //temp += html.tr(html.td(repeatingValue + ' of ' + repeatingMax,dCSSr))
+            btn = makeButton(`${repeatingValue} of ${repeatingMax}`, `!DMDash --setattrbyname ${cId} ${repeatingField}_resource_left ?{Set new resource amount for ${repeatingName}?|${repeatingValue}} current`)
+            temp += html.tr(html.td(`<b>${repeatingName}</b>`,dCSSr))
+            temp += html.tr(html.td(btn,dCSSr))
+          }
+
+          repeatingName = 'resource_right_name';  //Suffix 
+          repeatingValues = findObjs({_type: "attribute", _characterid: cId})
+            .filter(attribute => attribute.get("name").startsWith(`${repeatingSection}_`) && attribute.get("name").endsWith(`_${repeatingName}`));
+          // Loop through the values in the repeating section
+          for (let rowId in repeatingValues) {
+            row = repeatingValues[rowId];
+            repeatingName = getAttrByName(cId,row.get('name'),'current')
+            repeatingField = row.get('name').slice(0,-20);
+            repeatingValue = getAttrByName(cId,repeatingField + '_resource_right','current')  || 0
+            repeatingMax = getAttrByName(cId,repeatingField + '_resource_right','current')  || 0
+            //temp += html.tr(html.td(`<b>${repeatingName}</b>`,dCSSr))
+            //temp += html.tr(html.td(repeatingValue + ' of ' + repeatingMax,dCSSr))
+            btn = makeButton(repeatingValue, `!DMDash --setattrbyname ${cId} ${repeatingField}_resource_right ?{Set new resource amount for ${repeatingName}?|${repeatingValue}} current`)
+            temp += html.tr(html.td(`<b>${repeatingName}</b>`,dCSSr))
+            temp += html.tr(html.td(btn + ' of ' + repeatingMax,dCSSr))
+          }
+          rowRes += html.td(html.table(temp));
+
+          // Spell Slots
+          temp = ''
+          let spell_lvls = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+          spell_lvls.forEach(spell_lvl => {
+            let slots = Number(getAttrByName(cId,`lvl${spell_lvl}_slots_total`,'current'))
+            let slots_remaining = Number(getAttrByName(cId,`lvl${spell_lvl}_slots_expended`,'current'));
+            if (slots >0){
+
+              btn = makeButton(slots_remaining, `!DMDash --setattrbyname ${cId} lvl${spell_lvl}_slots_expended ?{Set new resource amount for ${repeatingName}?|${repeatingValue}} current`)
+              temp += html.tr(html.td(`Lvl ${spell_lvl}: ${btn} of ${slots}`,dCSSr))
+            }
+          });
+          rowSS += html.td(html.table(temp));
+
+        } // Not an NPC Sheet
+      } // Controlled by exists
+    }); // For Each PC Loop
+
+    temp = html.tr(rowplayerHdr)
+    temp += html.tr(rowHealth);
+    temp += html.tr(rowCoin);
+    temp += html.tr(rowAmmo);
+    temp += html.tr(rowPS)
+    temp += html.tr(rowOther);
+    temp += html.tr(rowRes);
+    temp += html.tr(rowSS);
+    tblMaster = html.table(temp);
+  
+    output = html.h2('Party Resource Mgt')
+    output = openReport + btnRefresh + output + tblMaster + closeReport;
+
+    // Check if a "Player Access" handout exists, or create one
+    let handout = findObjs({ type: "handout", name: "DM Resource Mgt" })[0];
+    if (!handout) {
+      handout = createObj("handout", { name: "DM Resource Mgt" });
     }
     // Update the "Player Access" handout content
     handout.set("notes", output);
@@ -5022,8 +5414,8 @@ function DMDash_HandleMsg(msg_content){
   const openChat = `<div style="border-radius: 10px ; border: none ; background-color: ; overflow: hidden ; width: 100%"><div style = "border-radius: 10px ; border: 2px solid #000000 ; background-color:  #00000000; overflow: hidden ; margin: 0px 16px 16px 0px ; box-shadow: 5px 8px 8px #888888">`
   const closeChat= `<\div><\div>`;
   const tblChatStyle = `width: 100% ; margin: 0 auto ; border-collapse: collapse ; font-size: 12px;`
-  const trhChatStyle = `border-bottom: 1px solid #000000 ; font-weight: bold ; line-height: 22px ; background-color: #521e10 ; color: #ffffff;`
-  const tdChatStyle = `padding: 4px ; min-width: 10px;`
+  const trhChatStyle = `border-bottom: 1px solid #000000 ; font-weight: bold ; line-height: 16px ; background-color: #521e10 ; color: #ffffff;`
+  const tdChatStyle = `padding: 3px ; min-width: 10px;`
   const tdButtonAreaStyle = `padding: 8px ; min-width: 10px ; background-color: #ffebd6; text-align: right ; margin: 4px 4px 8px;`
 
   const openBox = "<div style='margin-top: 40px;color: #000; border: 1px solid #000; background-color: #FFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 2px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
@@ -5128,7 +5520,6 @@ function DMDash_HandleMsg(msg_content){
 
   commands[0] = commands[0].toUpperCase();
   myDebug(3, `MsgHandler: commands[0]: ${commands[0]}`)  
-  
 
   let masterCmd = args[0].toUpperCase()
 
@@ -5312,11 +5703,19 @@ function DMDash_HandleMsg(msg_content){
         setSBHeights(commands[1], commands[2]);  // Character Box Height, Turnorder Box Height
         buildTODashBoard(true);
         break;
+      case 'SETATTRBYID':
+        setAttrbyId(commands[1], commands[2], commands[3]); // AttrId, Value, current/max
+        break
+      case 'SETATTRBYNAME':
+        setAttrbyName(commands[1], commands[2], commands[3], commands[4]); // CharacterId, Attr Name, Value, current/max
+        break
+  
       case 'OPEN':
       case 'SHOW-HO-DIALOG':
         chatMsg = `<b>&nbsp;&nbsp;[DM Dashboard](https://journal.roll20.net/handout/${getHandout('DM Turnoder List').get('_id')})`;
         chatMsg += `<br>&nbsp;&nbsp;[DM Status Markers](https://journal.roll20.net/handout/${getHandout('DM Status Markers').get('_id')})`;
         chatMsg += `<br>&nbsp;&nbsp;[DM Character Sheet](https://journal.roll20.net/handout/${getHandout('DM Character Sheet').get('_id')})`;
+        chatMsg += `<br>&nbsp;&nbsp;[DM Resource Mgt](https://journal.roll20.net/handout/${getHandout('DM Resource Mgt').get('_id')})`;              
         chatMsg += `<br>&nbsp;&nbsp;[DM Notes](https://journal.roll20.net/handout/${getHandout('DM Notes').get('_id')})`;      
         chatMsg += `<br>&nbsp;&nbsp;[DM Jukebox](https://journal.roll20.net/handout/${getHandout('DM Jukebox').get('_id')})`;      
         chatMsg += `<br>&nbsp;&nbsp;[DM Turnorder Log](https://journal.roll20.net/handout/${getHandout('DM Turnorder Log').get('_id')})</b>`;      
@@ -5332,7 +5731,7 @@ function DMDash_HandleMsg(msg_content){
 
       case 'FLUSHDATALOG':
         flushDataLog();
-        state.DMDashboard.NotesRpt_FavsAry = [];
+        //state.DMDashboard.NotesRpt_FavsAry = [];
         break;
 
       case 'DATALOGGING':
@@ -5441,10 +5840,10 @@ function DMDash_HandleMsg(msg_content){
         ndx = state.DMDashboard.JB_AmbianceFavs.indexOf(commands[1]);
         if (ndx<0) {
           state.DMDashboard.JB_AmbianceFavs.push(commands[1]);
-          myDebug(4, `AmbTrack On: ${commands[1]} count: ${state.DMDashboard.JB_AmbianceFavs.length}`);
+          myDebug(3, `AmbTrack On: ${commands[1]} count: ${state.DMDashboard.JB_AmbianceFavs.length}`);
         } else {
           state.DMDashboard.JB_AmbianceFavs.splice(ndx,1);
-          myDebug(4, `AmbTrackOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.JB_AmbianceFavs.length}`);
+          myDebug(3, `AmbTrackOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.JB_AmbianceFavs.length}`);
         }
         buildJukebox();        
         break;
@@ -5453,10 +5852,10 @@ function DMDash_HandleMsg(msg_content){
         ndx = state.DMDashboard.JB_EffectsFavs.indexOf(commands[1]);
         if (ndx<0) {
           state.DMDashboard.JB_EffectsFavs.push(commands[1]);
-          myDebug(4, `AmbTrackOn: ${commands[1]} count: ${state.DMDashboard.JB_EffectsFavs.length}`);
+          myDebug(3, `AmbTrackOn: ${commands[1]} count: ${state.DMDashboard.JB_EffectsFavs.length}`);
         } else {
           state.DMDashboard.JB_EffectsFavs.splice(ndx,1);
-          myDebug(4, `AmbTrackOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.JB_EffectsFavs.length}`);
+          myDebug(3, `AmbTrackOff: ndx:${ndx} ${commands[1]} count: ${state.DMDashboard.JB_EffectsFavs.length}`);
         }
         buildJukebox();        
       break;
@@ -5504,6 +5903,18 @@ function DMDash_HandleMsg(msg_content){
         chatMsg += `<br>&nbsp;<b>[DM Status Markers](https://journal.roll20.net/handout/${getHandout('DM Status Markers').get('_id')})</b>`;      
         // sendChat("DM Dashboard", chatMsg);
         // mySendChat(true, "DM Dashboard", chatMsg)
+        break;
+      case 'RESOURCEMGT-REFRESH':
+          buildResourceMgt();
+          break;
+      case 'RESOURCEMGT':
+        buildResourceMgt();
+        chatMsg = `Resource Mgt Handout has been updated.  Click the link bellow to view:`;      
+        chatMsg += `<br>&nbsp;<b>[DM Resource Mgt](https://journal.roll20.net/handout/${getHandout('DM Resource Mgt').get('_id')})</b>`;      
+        mySendChat(true, "DM Dashboard", chatMsg)
+        break;
+      case 'PLAYERHANDOUT-REFRESH':
+        buildPlayerHandout();
         break;
       case 'PLAYERHANDOUT':
         buildPlayerHandout();
@@ -5617,7 +6028,7 @@ function DMDash_HandleMsg(msg_content){
         buildDMNotesHandout();
         break;
       case 'FILTER':
-        if (!commands[1] || commands[1].lenght == 0) {
+        if (!commands[1] || commands[1].length == 0) {
           state.DMDashboard.NotesRpt_Filter = '';
         } else {
           state.DMDashboard.NotesRpt_Filter = commands[1];
