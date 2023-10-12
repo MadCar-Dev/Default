@@ -4,8 +4,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.25
-// Last Updated: 10.12.2023
+// Version 0.6.20
+// Last Updated: 5.25.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
 //          in the game and user selections.  
@@ -914,9 +914,9 @@ function DMDash_HandleMsg(msg_content){
   function GetSystemUTCDate() {
     let d = new Date();
     d = d.toLocaleString('en-US',{timeZone: 'America/Chicago', hour12: true });
-    return d;
     //let utcDate = `${d.getUTCMonth().toString().padStart(2,'0')}/${d.getUTCDate().toString().padStart(2,'0')}/${d.getUTCFullYear()} ${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')}:${d.getUTCSeconds().toString().padStart(2,'0')}`;
-    //return utcDate;
+    return d
+    return utcDate;
   };
   function AddToTurnorderLog(){
 

@@ -11,16 +11,15 @@ API_Meta.myTokenEvents = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
 //   * Generates a master DMTools dialog that encorporates DMDash, Campaign Health and options within this script
 
 // Future enhancement 
-// * Add Kill Script that moves dead players off, but replaces them with blood stains on the map layer.
-// * Report on movedata
 // * Replay moveData (Back a number of events; between 2 ids; All Tokens or just a select token)
 //   * Limit to only the current page and make sure to End at the Last Position.  
 //   * Need to capture Current Position of every token for the last move.  
 //   * Will need to be able to slow down movement
+// * Add Patrol features
 
 
 on('ready', () => {
-  const version = '0.0.04';
+  const version = '0.0.05'; // Patrol version (not yet ready)
   let gDebug = 0
   let gDebugLvl  = 4
   
@@ -32,18 +31,25 @@ on('ready', () => {
     state.myTokenEvents = {
         version: version,
         followData: [],
-        moveData: []
+        moveData: [],
+        patrolData: []
     };
+  }
 
-    if (!state.myTokenEvents.hasOwnProperty('followData') || state.myTokenEvents.followData === undefined) {  
-      state.myTokenEvents.followData = [];
-    }
+  if (!state.myTokenEvents.hasOwnProperty('followData') || state.myTokenEvents.followData === undefined) {  
+    state.myTokenEvents.followData = [];
+  }
 
-    if (!state.myTokenEvents.hasOwnProperty('moveData') || state.myTokenEvents.moveData === undefined) {  
-      state.myTokenEvents.moveData = [];
-    }
+  if (!state.myTokenEvents.hasOwnProperty('moveData') || state.myTokenEvents.moveData === undefined) {  
+    state.myTokenEvents.moveData = [];
+  }
+
+  if (!state.myTokenEvents.hasOwnProperty('patrolData') || state.myTokenEvents.patrolData === undefined) {  
+    state.myTokenEvents.patrolData = [];
+  }
+
+    
   
-  };
 
   let gMsg = [];
 
@@ -98,6 +104,7 @@ on('ready', () => {
         !/^!Replay/i.test(msg.content) && 
         !/^!Kill/i.test(msg.content) && 
         !/^!UnKill/i.test(msg.content) && 
+        !/^!Patrol/i.test(msg.content) && 
         !/^!TokenInfo/i.test(msg.content)) {
       return;
     }
@@ -199,6 +206,48 @@ on('ready', () => {
       }
     } else if (masterCmd == '!DMTOOLS') {
       buildDMToolsDialog();
+    } else if (masterCmd == '!PATROL') {
+      switch (commands[0]) {
+        case 'ADDWAYPOINT':
+          if (selected !== undefined) {
+            selected.forEach(tkn => {
+              patrol_AddWayPoint(tkn._id)  
+            })
+          }
+          break;
+        case 'RESET': //Only resets tokens on the selected page
+          patrol_Reset();
+          break;
+        case 'NEXT':
+          patrol_Next(1);          
+          break;
+        case 'PREV':
+          patrol_Next(-1);          
+          break;
+        case 'REPORT':
+          patrol_Report();
+          break;
+        case 'CLR-TOKEN-WPS':
+          if (selected !== undefined) {
+            selected.forEach(tkn => {
+              patrol_ClearTokenWPs(tkn._id)
+            });
+          }
+          break;
+        case 'CLR-PAGE-WPS':
+          patrol_ClearPageWPs();
+          break;
+        case 'CLR-ALL-WPS':
+          patrol_ClearAllWPs();
+          break;
+        case 'SET-MODE': // Circular, Once, Patrol (back/forth)
+          patrol_SetMode(commands[1], commands[2]);
+          break;
+        case 'DIALOG':
+        default:
+          patrol_Dialog();
+      }
+
     } else if (masterCmd == '!REPLAY') {
       switch (commands[0]) {
         case 'NEXT':
@@ -230,6 +279,285 @@ on('ready', () => {
   //     * Notify the DM and Notify the player/caster
   //     * Allow for a roll from the notification
   //  * Remove concentration
+
+
+  function patrol_AddWayPoint(tokenid){
+    // Data Structure for Token WayPoints
+      // TokenId
+      // PageId
+      // Mode (Once, Circular, Patrol (Default))
+      // Waypoints: string of x,y coordinates, similar to the path field
+      // CurrentWP: current wp position (starts at zeor)
+      // Direction: Indicates the direction for patrol mode
+      // Footsteps: audio file to play (Future)
+    let t = getObj('graphic', tokenid)
+    if (!t) return;
+
+    let pageid = t.get('_pageid')
+    let wpMode = 'Patrol'
+    let wp = `${t.get('left')},${t.get('top')}`
+    let bFound = false
+    let new_patrolRec = ''
+    let newPatrolData = [];
+
+    // Attempt to find a Waypoint record for this Token/Pageid combination
+    for (let i = 0; i<state.myTokenEvents.patrolData.length; i++) {
+      let patrolRec = state.myTokenEvents.patrolData[i]
+
+      if(patrolRec.tokenid === tokenid) {
+        bFound = true
+        wp = patrolRec.waypoints + ',' + wp
+        new_patrolRec = {'tokenid': patrolRec.tokenid, 'pageid': patrolRec.pageid, 'mode': patrolRec.mode, 'waypoints': wp, 'currWP': patrolRec.currWP, 'direction': patrolRec.direction, 'footsteps': patrolRec.footsteps}
+        newPatrolData.push(new_patrolRec)
+      } else {
+        newPatrolData.push(patrolRec)
+      }
+    };
+
+    // if not found - Add new WP record
+    if (!bFound) {
+      new_patrolRec = {'tokenid': tokenid, 'pageid': pageid, 'mode': wpMode, 'waypoints': wp, 'currWP': 0, 'direction': 1, 'footsteps':''}
+      newPatrolData.push(new_patrolRec)
+    }
+    state.myTokenEvents.patrolData = newPatrolData;
+  }
+
+  function patrol_Reset(tokenid) {
+    // Reset all tokens to 1st patrol position on the current page
+    let pageid = '';
+    let newPatrolData = [];
+    if (tokenid) {
+      let t = getObj('graphic', tokenid)
+      if (!t) return;
+      pageid = t.get('_pageid')
+    } else {
+      pageid = Campaign().get('playerpageid');
+    }
+
+    for (let i = 0; i<state.myTokenEvents.patrolData.length; i++) {
+      let patrolRec = state.myTokenEvents.patrolData[i]
+      if(patrolRec.pageid === pageid) {
+        let wps = patrolRec.waypoints.split(',')
+
+        // Get the first waypoionts reset the wp counter
+        let t = getObj('graphic', patrolRec.tokenid)
+        if (t) {
+          t.set('left', Number(wps[0]))
+          t.set('top', Number(wps[1]))
+        }
+        let new_patrolRec = {'tokenid': patrolRec.tokenid, 'pageid': patrolRec.pageid, 'mode': patrolRec.mode, 'waypoints': patrolRec.waypoints, 'currWP': 0, 'direction': patrolRec.direction, 'footsteps': patrolRec.footsteps}
+        newPatrolData.push(new_patrolRec)
+      } else {
+        newPatrolData.push(patrolRec)
+      }
+    };
+    state.myTokenEvents.patrolData = newPatrolData;
+  }
+
+  function patrol_Next(moveDir) {
+  // Move to the next position for all tokens on the current page
+    // Reset all tokens to 1st patrol position on the current page
+
+    if (!moveDir || moveDir === undefined){
+      movDir = 1;
+    }
+    let pageid = Campaign().get('playerpageid');
+    let currWP = 0;
+    let direction = 1;
+    let newPatrolData = [];
+
+    for (let i = 0; i<state.myTokenEvents.patrolData.length; i++) {
+      let patrolRec = state.myTokenEvents.patrolData[i]
+      if(patrolRec.pageid === pageid) {
+
+        // Get the associated token
+        let t = getObj('graphic', patrolRec.tokenid)
+        if (t) {
+
+          let wps = patrolRec.waypoints.split(',')
+          log(`wps.length: ${wps.length}`)
+
+          // Are we at the end of the wps? 
+          let ndx = (Number(patrolRec.currWP) + (Number(moveDir) * Number(patrolRec.direction))) * 2
+          log(`ndx: ${ndx} currWP: ${patrolRec.currWP} moveDir: ${moveDir} direction: ${patrolRec.direction}`)
+          if (ndx > (wps.length -1) || ndx < 0){
+
+            //What mode are we in?
+            if (patrolRec.mode === 'Patrol') {
+              direction = -1 * patrolRec.direction // Toggle the direction
+              currWP = patrolRec.currWP + direction;
+            } else if (patrolRec.mode === 'Circular') {
+              direction = patrolRec.direction
+              currWP = 0; // Back to start
+            } else {  // Assume we are stopping at the end --- Nothing to do
+              direction = patrolRec.direction
+              currWP = patrolRec.currWP
+            }
+            ndx = Number(currWP) * 2
+            let left = Number(wps[ndx])
+            let top = Number(wps[ndx + 1])
+            log(`ndx: ${ndx} left: ${left} top: ${top}`)
+
+            t.set('left', left)
+            t.set('top', top)
+          } else {
+            let left = wps[ndx]
+            let top = wps[ndx + 1]
+            log(`ndx: ${ndx} left: ${left} top: ${top}`)
+            t.set('left', left)
+            t.set('top', top)
+            direction = patrolRec.direction
+            currWP = Number(ndx) / Number(2)
+          }
+        }
+        let new_patrolRec = {'tokenid': patrolRec.tokenid, 'pageid': patrolRec.pageid, 'mode': patrolRec.mode, 'waypoints': patrolRec.waypoints, 'currWP': currWP, 'direction': direction, 'footsteps': patrolRec.footsteps}
+        newPatrolData.push(new_patrolRec)
+      } else {
+        newPatrolData.push(patrolRec)
+      }
+    };
+    state.myTokenEvents.patrolData = newPatrolData;
+
+  }
+
+  function patrol_Prev() {
+    patrol_Next(-1);
+  }
+
+  function patrol_Report() {
+    // List waypoints in a table with options to 
+    //   * Clear all patrols/waypoints
+    //   * Change patrol mode
+    const openReport = "<div style='color: #000; border: 1px solid #000; background-color: #EFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
+    const closeReport = '</div>';
+
+    btnRefresh = makeMenuButton('Refresh', `!patrol --report`)
+    btnClear = makeMenuButton('Clear All Waypoints', `!patrol --CLR-ALL-WPS`)
+
+    let output = ''
+    let tbl = ''
+
+    tbl = html.tr(html.th('Page') + html.th('Token') + html.th('Mode') + html.th('WayPoints') + html.th('Current WP') + html.th('Direction') + html.th('Footsteps Track'))
+     // moveRec = {'id', 'pageid', 'tokenid', 'lastmove'}
+     for (let i = 0; i<state.myTokenEvents.patrolData.length; i++) {
+      let patrolRec = state.myTokenEvents.patrolData[i]
+
+      let page = getObj('page', patrolRec.pageid).get('name');
+      let t = getObj('graphic', patrolRec.tokenid)
+      if (t){
+        // Add logic to allow for changing mode here:
+        tbl += html.tr(html.td(page) + html.td(t.get('name')) + html.td(patrolRec.mode) + html.td(patrolRec.waypoints) + html.td(patrolRec.currWP) + html.td(patrolRec.direction) + html.td(patrolRec.footsteps) )
+      } else {
+        tbl += html.tr(html.td(page) + html.td('<b><i>Missing</b></i>') + html.td(patrolRec.mode) + html.td(patrolRec.waypoints) + html.td(patrolRec.currWP) + html.td(patrolRec.direction) + html.td(patrolRec.footsteps) )
+      }
+    }
+
+    tbl = html.table(tbl)
+
+    output += html.h3('Patrol Data')
+    output += tbl
+
+    output = openReport + btnRefresh + btnClear + output + closeReport
+    addTextToHandout(output, 'Patrol Data', 0);
+    return;
+  }
+
+  function patrol_Dialog() {
+
+    let myMsg = ''
+    let tbl = ''
+    let msgHandouts = '';
+    let api = ''
+    let btn = ''
+
+    myMsg= html.p('Commands to facilitate token patrols', {'font-size': '11px'})
+
+    tbl = html.tr(html.th("Run") + html.th("Description"))
+
+    api = `!patrol --ADDWAYPOINT`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Add Waypoint'))
+
+    api = `!patrol --next`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Next'))
+
+    api = `!patrol --prev`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Prev'))
+
+    api = `!patrol --reset`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Reset'))
+
+    api = `!patrol --report`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Refresh Report'))
+
+    api = `!patrol --CLR-TOKEN-WPS`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Clear Token Patrols'))
+
+    api = `!patrol --CLR-PAGE-WPS`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Clear Page Patrols'))
+
+    api = `!patrol --CLR-ALL-WPS`;
+    btn = btnAPI({api: api, label: `!`});
+    tbl += html.tr(html.td(btn) + html.td('Clear All Patrols'))
+    
+    tbl = html.table(tbl)
+
+    myMsg+=tbl
+
+    msgbox({msg: myMsg, 
+          title: 'Patrol Dialog',
+          whisperto: `GM`,          
+          headercss: { 'background-color': defaultThemeColor1 }})
+    
+  }
+
+  function patrol_ClearTokenWPs(tokenid) {
+    let newPatrolData = [];
+    for (let i = 0; i<state.myTokenEvents.patrolData.length; i++) {
+      let patrolRec = state.myTokenEvents.patrolData[i]
+      if(patrolRec.tokenid !== tokenid) {
+        newPatrolData.push(patrolRec)
+      }
+    };
+    state.myTokenEvents.patrolData = newPatrolData;
+  }
+
+  function patrol_ClearPageWPs() {
+    let newPatrolData = [];
+    let pageid = Campaign().get('playerpageid');
+    for (let i = 0; i<state.myTokenEvents.patrolData.length; i++) {
+      let patrolRec = state.myTokenEvents.patrolData[i]
+      if(patrolRec.pageid !== pageid) {
+        newPatrolData.push(patrolRec)
+      }
+    };
+    state.myTokenEvents.patrolData = newPatrolData;
+  }
+
+  function patrol_ClearAllWPs() {
+    state.myTokenEvents.patrolData = [];
+  }
+
+  function patrol_SetMode(tokenid, mode) {
+    let newPatrolData = [];
+    for (let i = 0; i<state.myTokenEvents.patrolData.length; i++) {
+      let patrolRec = state.myTokenEvents.patrolData[i]
+
+      if(patrolRec.tokenid !== tokenid) {
+        newPatrolData.push(patrolRec)
+      } else {
+        let new_patrolRec = {'tokenid': patrolRec.tokenid, 'pageid': patrolRec.pageid, 'mode': mode, 'waypoints': patrolRec.waypoints, 'currWP': patrolRec.currWP, 'direction': patrolRec.direction, 'footsteps': patrolRec.footsteps}
+        newPatrolData.push(new_patrolRec);
+      }
+    };
+    state.myTokenEvents.patrolData = newPatrolData;
+  }
 
   function killToken(tokenid) {
 
@@ -330,7 +658,7 @@ on('ready', () => {
       t.remove() 
     })
 
-    // Delete all blood splatter tokens
+    // Find all dead Tokens
     tokens = findObjs({
       _type: 'graphic',
       _subtype: 'token',
@@ -338,6 +666,7 @@ on('ready', () => {
       _pageid: pageid
     })
   
+    // When a token is killed, this routine places its X,Y properties in the bar3_max value
     tokens.forEach(t => {
       let coord = t.get('bar3_max').split(',')
       if (coord.length >= 2) {
@@ -362,7 +691,6 @@ on('ready', () => {
         }
     return;
   };
-
 
   function dumpToken(tId){
 
@@ -465,6 +793,9 @@ on('ready', () => {
     const openReport = "<div style='color: #000; border: 1px solid #000; background-color: #EFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
     const closeReport = '</div>';
 
+    btnRefresh = makeMenuButton('Refresh', `!follow --showmoves`)
+    btnClear = makeMenuButton('Clear Movements', `!follow --clearmoves`)
+
     let output = ''
     let tbl = ''
     let pageid = Campaign().get('playerpageid');
@@ -505,7 +836,7 @@ on('ready', () => {
 
     output += html.h3('Current Positons')
     output += tbl
-    output = openReport + output + closeReport
+    output = openReport + btnRefresh + btnClear + output + closeReport
 
     addTextToHandout(output, 'Move History', 0);
 
@@ -800,29 +1131,33 @@ on('ready', () => {
    // log(`moveFollower: mTokenid: ${mTokenid} sTokenid: ${sTokenid}`)
     let item = getFollower(mTokenid, sTokenid)
     if (item === undefined) return;
-    dumpObject(item);
+    // dumpObject(item);
     
     let mToken = getObj('graphic', mTokenid)
     let sToken = getObj('graphic', sTokenid)
 
-    if ((mToken) || (sToken)){
-      let newLeft = Number(item.leftOffset) + Number(mToken.get('left'))
-      let newTop = Number(item.topOffset) + Number(mToken.get('top'))
-     // log(`${item.leftOffset} ${item.topOffset} ${mToken.get('left')} ${mToken.get('top')}`)
-     // log(`Move follower to ${newLeft} and ${newTop}`)
+    try {    
+      if ((mToken) || (sToken)){
+        let newLeft = Number(item.leftOffset) + Number(mToken.get('left'))
+        let newTop = Number(item.topOffset) + Number(mToken.get('top'))
+      // log(`${item.leftOffset} ${item.topOffset} ${mToken.get('left')} ${mToken.get('top')}`)
+      // log(`Move follower to ${newLeft} and ${newTop}`)
 
-      let PrevPositon = `${sToken.get('left')},${sToken.get('top')}`
-      sToken.set('top', newTop)
-      sToken.set('left', newLeft)
+        let PrevPositon = `${sToken.get('left')},${sToken.get('top')}`
+        sToken.set('top', newTop)
+        sToken.set('left', newLeft)
 
-      let mrId = Number(state.myTokenEvents.moveData.length) + 1
-      let moveRec = {'id': mrId, 'pageid': sToken.get('_pageid'), 'tokenid': sToken.get('_id'), 'lastmove': PrevPositon }
-      state.myTokenEvents.moveData.push(moveRec)
+        let mrId = Number(state.myTokenEvents.moveData.length) + 1
+        let moveRec = {'id': mrId, 'pageid': sToken.get('_pageid'), 'tokenid': sToken.get('_id'), 'lastmove': PrevPositon }
+        state.myTokenEvents.moveData.push(moveRec)
 
-    } else {
-     // log(`MoveFolloer: Master${mTokenid} or Shaddow${sTokenid} token not found`)
+      } else {
+      // log(`MoveFolloer: Master${mTokenid} or Shaddow${sTokenid} token not found`)
+      }
+    } catch (err) {
+      myDebug(4, `moveFolloer: ${err.message}`);
     }
-   
+  
     // Move the follower's followers
     let followers = getFollowers(sTokenid);
     followers.forEach(f => {
@@ -838,23 +1173,28 @@ on('ready', () => {
     let mToken = getObj('graphic', mTokenid)
     let sToken = getObj('graphic', sTokenid)
 
-    if ((mToken) || (sToken)){
-     // log(`MoveMaseter: Master${mTokenid}`)
-      let newLeft =  (Number(sToken.get('left')) - Number(item.leftOffset))
-      let newTop =  (Number(sToken.get('top')) - Number(item.topOffset))
-      let PrevPositon = `${mToken.get('left')},${mToken.get('top')}`
+    try{
+      if ((mToken) || (sToken)){
+      // log(`MoveMaseter: Master${mTokenid}`)
+        let newLeft =  (Number(sToken.get('left')) - Number(item.leftOffset))
+        let newTop =  (Number(sToken.get('top')) - Number(item.topOffset))
+        let PrevPositon = `${mToken.get('left')},${mToken.get('top')}`
 
-      mToken.set('left', newLeft)
-      mToken.set('top', newTop)
+        mToken.set('left', newLeft)
+        mToken.set('top', newTop)
 
-      let mrId = Number(state.myTokenEvents.moveData.length) + 1
-      let moveRec = {'id': mrId, 'pageid': mToken.get('_pageid'), 'tokenid': mToken.get('_id'), 'lastmove': PrevPositon }
-      state.myTokenEvents.moveData.push(moveRec)
+        let mrId = Number(state.myTokenEvents.moveData.length) + 1
+        let moveRec = {'id': mrId, 'pageid': mToken.get('_pageid'), 'tokenid': mToken.get('_id'), 'lastmove': PrevPositon }
+        state.myTokenEvents.moveData.push(moveRec)
 
 
-    } else {
-     // log(`moveMaster: Master${mTokenid} or Shaddow${sTokenid} token not found`)
+      } else {
+      // log(`moveMaster: Master${mTokenid} or Shaddow${sTokenid} token not found`)
+      }
+    } catch (err) {
+      myDebug(4, `moveMaster: ${err.message}`);
     }
+
   }
 
   function buildDMToolsDialog(){
@@ -1111,6 +1451,41 @@ on('ready', () => {
     newMarkers = newMarkers.join(',');
     // log (`SetHealthMarker ${newMarkers}`);
     token.set('statusmarkers', newMarkers);
+  }
+
+  function makeMenuButton(name, link, selected, minwidth) {
+    // let buttonStyle = `background-color: red; color:yellow !important; font-weight:normal; border-radius: 1px; padding: 1px; margin: 1px 1px 1px 0px; display: inline-block`;  
+    // let buttonStyle = `display: flex; flex-direction: column; align-items: center; padding: 6px 14px; font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif; border-radius: 6px; border: none; background: #6E6D70; box-shadow: 0px 0.5px 1px rgba(0, 0, 0, 0.1), inset 0px 0.5px 0.5px rgba(255, 255, 255, 0.5), 0px 0px 0px 0.5px rgba(0, 0, 0, 0.12); color: #DFDEDF; user-select: none; -webkit-user-select: none; touch-action: manipulation;`
+    let buttonStyle = `background-color: #521E10; border: 1px; color: white; text-align: center; display: inline-block; font-size: 11px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
+
+    if (selected == true || selected == 1){
+      buttonStyle = `background-color: #FFAD00; border: 1px; color: black; text-align: center; display: inline-block; font-size: 11px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
+    }
+
+    if (minwidth === "f") {
+      minwidth = "100%"
+    } else {
+      if (!minwidth) {
+        minwidth = 'NONE'
+      }
+      minwidth = minwidth + "px"
+    }
+
+    if (minwidth == 'NONE'){
+      minwidth = '';
+    } else {
+      minwidth =`width:${minwidth}`
+    }
+
+    if (!name) {
+      name = "untitled"
+    }
+
+    if (link) {
+      return `<a style = '${buttonStyle}; ${minwidth} !important' href='${link}'>${name}</a>`;
+    } else {
+      return `<div style = '${buttonStyle}; ${minwidth}; display:inline-block !important'>${name}</div>`;
+    }
   }
 
   function dumpObject(obj){

@@ -583,6 +583,17 @@ function buildCampaignHealthReports(msg_content) {
       });
       //output += `<b>${cnt} orphanned token from characters found.</b><br><br>`
   
+      cnt = 0;
+      objs.forEach(token => {
+        if (token.get("imgsrc").length == 0){
+            log (`CH: ${token.get("name")} ${token.get("_id")} ${token.get("imgsrc")} ${token.get("imgsrc").length}`) ;
+            let btnDeleteTkn = addTooltip("Delete Token", makeButton('Delete', `!campaignhealth --DeleteToken ${token.get("_id")}`)) ;
+            output += `Tokens with no Image (empty imgsrc field): ${addTooltip("Ping Me", makeButton(token.get("name"), `!campaignhealth --PingToken ${token.get("_id")}`))} on page <b><i>${getObjectValue("page", token.get("_pageid"), "name")}</i></b> (${btnDeleteTkn})<br>`;
+            cnt++;
+        }
+      });
+      output += `<b>${cnt} Tokens with no Image.</b><br><br>`
+
       cnt=0;
       objs.forEach(token => {
         if (token.get("bar1_link")){

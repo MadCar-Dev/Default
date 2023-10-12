@@ -4,8 +4,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.25
-// Last Updated: 10.12.2023
+// Version 0.6.20
+// Last Updated: 5.25.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
 //          in the game and user selections.  
@@ -914,9 +914,8 @@ function DMDash_HandleMsg(msg_content){
   function GetSystemUTCDate() {
     let d = new Date();
     d = d.toLocaleString('en-US',{timeZone: 'America/Chicago', hour12: true });
-    return d;
-    //let utcDate = `${d.getUTCMonth().toString().padStart(2,'0')}/${d.getUTCDate().toString().padStart(2,'0')}/${d.getUTCFullYear()} ${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')}:${d.getUTCSeconds().toString().padStart(2,'0')}`;
-    //return utcDate;
+    let utcDate = `${d.getUTCMonth().toString().padStart(2,'0')}/${d.getUTCDate().toString().padStart(2,'0')}/${d.getUTCFullYear()} ${d.getUTCHours().toString().padStart(2,'0')}:${d.getUTCMinutes().toString().padStart(2,'0')}:${d.getUTCSeconds().toString().padStart(2,'0')}`;
+    return utcDate;
   };
   function AddToTurnorderLog(){
 
@@ -1120,12 +1119,10 @@ function DMDash_HandleMsg(msg_content){
     if (!token){
       return;
     }
-    if (token.get('showname')){
+    if (token.get('showplayers_name')){
       token.set('showplayers_name',false);
-      token.set('showname',false);
     } else {
-      token.set('showplayers_name',false);
-      token.set('showname',true);      
+      token.set('showplayers_name',true);
     }
   }
   function toggleFriendFoe(tId){
@@ -1447,45 +1444,37 @@ function DMDash_HandleMsg(msg_content){
     let tObj = []; //Token
 
     if (toId == -1) {
-      // log(`gtt: Custom`)
       return 'CUSTOM';
     }
 
     tObj = getObj("graphic", toId);
     if (!tObj) {
-      // log(`gtt: OTHER 1`)
       return 'OTHER';
     }
 
     if(tObj.get("represents") == ""){
-      // log(`gtt: OHTER 2 ${tObj.get("name")}`)
       return 'OTHER';
     }
 
     cObj = getObj("character", tObj.get('represents'));
     if (!cObj){
-      // log(`gtt: OHTER 3 ${tObj.get("name")}`)      
       return 'OTHER';
     }
 
     // Ignore Tokens tied to DM Functionality
     if (myGetAttrByName(cObj.get('_id'),'Init_Ignore','current')==1){
-      // log(`gtt: UTILITY ${tObj.get("name")}`)      
       return 'UTILITY';
     }
 
     if (cObj.get('controlledby') == '' && getAttrByName(cObj.get('_id'),'npc','current')==1){
-      // log(`gtt: NPC ${tObj.get("name")}`)            
       return 'NPC';
     };
 
-    if (cObj.get('controlledby') == '' && getAttrByName(cObj.get('_id'),'npc','current')==0){
-      // log(`gtt: NPC-CHARSHEET ${tObj.get("name")}`)            
+    if (cObj.get('controlledby') !== '' && getAttrByName(cObj.get('_id'),'npc','current')==0){
       return 'NPC-CHARSHEET';
     };
 
     // If we got all here - then this Turnorder Id is associated with a player controlled 
-    // log(`gtt: CHAR ${tObj.get("name")}`)      
     return 'CHAR';
   };
   function getGMPlayerID() {
@@ -1576,7 +1565,29 @@ function DMDash_HandleMsg(msg_content){
     turnOrder.unshift(last_turn);
     Campaign().set('turnorder', JSON.stringify(turnOrder));
   }
+  function to_AddCustom(itemName, position, formula) {
+    const turnorder = JSON.parse(Campaign().get('turnorder') || '[]');
+    let newItem = [];
+    if (formula){
+      newItem = {
+        id: "-1",
+        pr: position, // Set the desired initiative value (default: 0)
+        formula: formula, 
+        custom: itemName,
+        _pageid: Campaign().get("playerpageid")
+      };
+    } else {
+      newItem = {
+        id: "-1",
+        pr: position, // Set the desired initiative value (default: 0)
+        custom: itemName,
+        _pageid: Campaign().get("playerpageid")
+      };    
+    }
 
+    turnorder.unshift(newItem);
+    Campaign().set('turnorder', JSON.stringify(turnorder));
+  }
   function to_Sort() {
     let turnOrder = JSON.parse(Campaign().get('turnorder'));
     if (!turnOrder || turnOrder.length === 0) {
@@ -1636,31 +1647,6 @@ function DMDash_HandleMsg(msg_content){
     Campaign().set('turnorder', JSON.stringify(turnOrder));
     // log(`to_Remove: Item with ID "${itemId}" has been removed from the turn order.`);
   }
-
-  function to_AddCustom(itemName, position, formula) {
-    const turnorder = JSON.parse(Campaign().get('turnorder') || '[]');
-    let newItem = [];
-    if (formula){
-      newItem = {
-        id: "-1",
-        pr: position, // Set the desired initiative value (default: 0)
-        formula: formula, 
-        custom: itemName,
-        _pageid: Campaign().get("playerpageid")
-      };
-    } else {
-      newItem = {
-        id: "-1",
-        pr: position, // Set the desired initiative value (default: 0)
-        custom: itemName,
-        _pageid: Campaign().get("playerpageid")
-      };    
-    }
-
-    turnorder.unshift(newItem);
-    Campaign().set('turnorder', JSON.stringify(turnorder));
-  }
-
   function to_RemoveCustom(ndx){
     const turnOrder = JSON.parse(Campaign().get('turnorder'));
     if (!turnOrder || turnOrder.length === 0) {
@@ -1675,7 +1661,6 @@ function DMDash_HandleMsg(msg_content){
     Campaign().set('turnorder', JSON.stringify(turnOrder));
     // log(`to_RemoveCustom: Item with Index Position of "${ndx}" has been removed from the turn order.`);
   }
-  
   const getRepeatingSectionAttrs = function (charid, prefix) {
     // #### Not Used - Could be moved to my Library of functions ###
     // Input
@@ -3262,10 +3247,10 @@ function DMDash_HandleMsg(msg_content){
             } else {
               toList += '<span style="font-size: 16px">'+ addTooltip("Lock Token Movement", makeButton(emojiUnlock, '!DMDash --TokenToggleLock ' + toToken.get('_id')))+ '</span>'; 
             }
-            if (toToken.get('showname')){
-              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
+            if (toToken.get('showplayers_name')){
+              toList += '<span style="font-size: 16px">'+  addTooltip("Hide Nameplate for Players", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))+'</span>';
             } else {
-              toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+              toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate for Players", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
             }
 
             toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiAvatar, '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
@@ -3519,11 +3504,11 @@ function DMDash_HandleMsg(msg_content){
             toList += '<span style="font-size: 16px">'+ addTooltip("Unlock token Movement", makeButton(emojiUnlock, '!DMDash --TokenToggleLock ' + toToken.get('_id'))) + '</span>'; 
           }
 
-          if (toToken.get('showname')){
+          if (toToken.get('showplayers_name')){
             //toList += addTooltip("Hide Nameplate for Players", makeButton('📛', '!DMDash --TokenNameplate ' + toToken.get('_id'))) ;
-            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Hide Nameplate to Players", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id'))) + '</span>';
           } else {
-            toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))  + '</span>';
+            toList += '<span style="font-size: 16px">'+ addTooltip("Show Nameplate to Players", makeButton(emojiNameplate, '!DMDash --TokenToggleNameplate ' + toToken.get('_id')))  + '</span>';
           }
           toList += '<span style="font-size: 16px">'+ addTooltip("Show Avatar", makeButton(emojiAvatar, '!DMDash --showAvatar ' + toToken.get('_id') + ' 1 1')) + '</span>'; 
           toList += '<span style="font-size: 16px">'+ addTooltip("Show Images", makeButton(emojiImages, '!DMDash --showImage ' + toToken.get('_id') + ' -1 1 1')) + '</span>';
@@ -5316,7 +5301,7 @@ function DMDash_HandleMsg(msg_content){
 
           // Resources
           itemCount = Number(getAttrByName(cId,'class_resource','current')) + 0
-          // log('itemCount: '+ itemCount)
+          log('itemCount: '+ itemCount)
           itemMax = Number(getAttrByName(cId,'class_resource','max')) + 0
           itemName = getAttrByName(cId,'class_resource_name','current')
           btn = makeButton(itemCount, `!DMDash --setattrbyname ${cId} class_resource ?{Set new resource amount for ${itemName}?|${itemCount}} current`)
@@ -5516,11 +5501,11 @@ function DMDash_HandleMsg(msg_content){
   let chatMsg = '';
 
   // Parse Args and Commands
-  let args = msg_content.split(/\s+--/);
+  let args = msg_content.split(/\s--/);
   //let commands = args[1].split(/\s+/);
   let commands = [];
   if (args.length > 1) {
-    commands = args[1].match(/(?:[^\s+"']+|"[^"]*")+/g);
+    commands = args[1].match(/(?:[^\s"']+|"[^"]*")+/g);
     commands = commands.map(item => item.replace(/^"|"+$/g, ''));
   } else {
     commands.push('OPEN');

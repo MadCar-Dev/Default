@@ -49,16 +49,16 @@ on('ready', () => {
 
   on('change:campaign:playerpageid', async () => {
     // Reset Movement data
-    resetMoves()
-    lastPosition = []
-    initPosition = []
+    // resetMoves()
+    // lastPosition = []
+    // initPosition = []
   });
 
   on('change:graphic', function(obj, prev) {
 
     if (obj.get('bar1_value') !== prev['bar1_value'] || obj.get('bar1_max') !== prev['bar1_max']) {
       setHealthIndicator(obj)
-      checkConcentration(obj)
+      // checkConcentration(obj)
     }
 
     if (obj.get('left') === prev['left'] && obj.get('top') === prev['top']) return;
@@ -80,9 +80,11 @@ on('ready', () => {
 
       // log(`change:graphic:left: PrevTokenId: ${prevMovementTokenid} prevMovement: ${prevMovement}`)
       // if (prevMovementTokenid != obj.get('_id') || prevMovement != obj.get('lastmove')) {
-        let mrId = Number(state.myTokenEvents.moveData.length) + 1
-        let moveRec = {'id': mrId, 'pageid': obj.get('_pageid'), 'tokenid': obj.get('_id'), 'lastmove':obj.get('lastmove') }
-        state.myTokenEvents.moveData.push(moveRec)
+      
+        //* Commenting Out for Now
+        // let mrId = Number(state.myTokenEvents.moveData.length) + 1
+        // let moveRec = {'id': mrId, 'pageid': obj.get('_pageid'), 'tokenid': obj.get('_id'), 'lastmove':obj.get('lastmove') }
+        // state.myTokenEvents.moveData.push(moveRec)
         // prevMovement = obj.get('lastmove')
         // prevMovementTokenid = obj.get('_id')
       // }
@@ -101,8 +103,9 @@ on('ready', () => {
         !/^!TokenInfo/i.test(msg.content)) {
       return;
     }
+
     gMsg = _.clone(msg_orig);
-    log(`on chat:message: who:${gMsg.who}, playerid:${gMsg.playerid}, type:${gMsg.type}, Selected: ${gMsg.selected}` )
+    // log(`on chat:message: who:${gMsg.who}, playerid:${gMsg.playerid}, type:${gMsg.type}, Selected: ${gMsg.selected}` )
     handleMsg(msg);
     //debounced_HandleMsg(msg);
 
@@ -122,7 +125,7 @@ on('ready', () => {
     let args = msg.content.split(/\s--/);
     let commands = [];
     if (args.length > 1) {
-      commands = args[1].match(/(?:[^\s"']+|"[^"]*")+/g);
+      commands = args[1].match(/(?:[^\s+"']+|"[^"]*")+/g);
       commands = commands.map(item => item.replace(/^"|"+$/g, ''));
     } else {
 
@@ -149,7 +152,7 @@ on('ready', () => {
             if (commands[3] !== undefined) leftOffset = commands[3];
             if (commands[4] !== undefined) topOffset = commands[4];
             addFollower(commands[1], commands[2], leftOffset, topOffset)
-            dumpFollowData()
+            //dumpFollowData()
           break;
         case 'DELETE':
           delFollower(commands[1], commands[2])
@@ -157,7 +160,7 @@ on('ready', () => {
         case 'SHOW':
         case 'SHOWFOLLOWERS':
           showFollowers();
-          dumpFollowData();
+          //dumpFollowData();
           break;
         case 'DUMPDATA':
           dumpFollowData();
@@ -287,8 +290,8 @@ on('ready', () => {
         baseObj.isdrawing = true
         baseObj.tooltip = `${t.get('name')} remains.`
 
-        log(`Dumping Blood Splatter Base Object`);
-        dumpObject(baseObj);
+        //log(`Dumping Blood Splatter Base Object`);
+        //dumpObject(baseObj);
 
         bs = createObj('graphic', baseObj);
 
@@ -362,7 +365,6 @@ on('ready', () => {
         }
     return;
   };
-
 
   function dumpToken(tId){
 
@@ -465,6 +467,9 @@ on('ready', () => {
     const openReport = "<div style='color: #000; border: 1px solid #000; background-color: #EFEBD6; box-shadow: 0 0 3px #000; display: block; text-align: left; font-size: 13px; padding: 5px; margin-bottom: 2px; font-family: sans-serif; white-space: pre-wrap;'>";
     const closeReport = '</div>';
 
+    btnRefresh = makeMenuButton('Refresh', `!follow --showmoves`)
+    btnClear = makeMenuButton('Clear Movements', `!follow --clearmoves`)
+
     let output = ''
     let tbl = ''
     let pageid = Campaign().get('playerpageid');
@@ -505,7 +510,7 @@ on('ready', () => {
 
     output += html.h3('Current Positons')
     output += tbl
-    output = openReport + output + closeReport
+    output = openReport + btnRefresh + btnClear + output + closeReport
 
     addTextToHandout(output, 'Move History', 0);
 
@@ -837,23 +842,26 @@ on('ready', () => {
     if (item === undefined) return
     let mToken = getObj('graphic', mTokenid)
     let sToken = getObj('graphic', sTokenid)
+    try{
+      if ((mToken) || (sToken)){
+      // log(`MoveMaseter: Master${mTokenid}`)
+        let newLeft =  (Number(sToken.get('left')) - Number(item.leftOffset))
+        let newTop =  (Number(sToken.get('top')) - Number(item.topOffset))
+        let PrevPositon = `${mToken.get('left')},${mToken.get('top')}`
 
-    if ((mToken) || (sToken)){
-     // log(`MoveMaseter: Master${mTokenid}`)
-      let newLeft =  (Number(sToken.get('left')) - Number(item.leftOffset))
-      let newTop =  (Number(sToken.get('top')) - Number(item.topOffset))
-      let PrevPositon = `${mToken.get('left')},${mToken.get('top')}`
+        mToken.set('left', newLeft)
+        mToken.set('top', newTop)
 
-      mToken.set('left', newLeft)
-      mToken.set('top', newTop)
-
-      let mrId = Number(state.myTokenEvents.moveData.length) + 1
-      let moveRec = {'id': mrId, 'pageid': mToken.get('_pageid'), 'tokenid': mToken.get('_id'), 'lastmove': PrevPositon }
-      state.myTokenEvents.moveData.push(moveRec)
+        let mrId = Number(state.myTokenEvents.moveData.length) + 1
+        let moveRec = {'id': mrId, 'pageid': mToken.get('_pageid'), 'tokenid': mToken.get('_id'), 'lastmove': PrevPositon }
+        state.myTokenEvents.moveData.push(moveRec)
 
 
-    } else {
-     // log(`moveMaster: Master${mTokenid} or Shaddow${sTokenid} token not found`)
+      } else {
+      // log(`moveMaster: Master${mTokenid} or Shaddow${sTokenid} token not found`)
+      }
+    } catch (err) {
+      myDebug(4, `moveMaster: ${err.message}`);
     }
   }
 
@@ -1111,6 +1119,41 @@ on('ready', () => {
     newMarkers = newMarkers.join(',');
     // log (`SetHealthMarker ${newMarkers}`);
     token.set('statusmarkers', newMarkers);
+  }
+
+  function makeMenuButton(name, link, selected, minwidth) {
+    // let buttonStyle = `background-color: red; color:yellow !important; font-weight:normal; border-radius: 1px; padding: 1px; margin: 1px 1px 1px 0px; display: inline-block`;  
+    // let buttonStyle = `display: flex; flex-direction: column; align-items: center; padding: 6px 14px; font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif; border-radius: 6px; border: none; background: #6E6D70; box-shadow: 0px 0.5px 1px rgba(0, 0, 0, 0.1), inset 0px 0.5px 0.5px rgba(255, 255, 255, 0.5), 0px 0px 0px 0.5px rgba(0, 0, 0, 0.12); color: #DFDEDF; user-select: none; -webkit-user-select: none; touch-action: manipulation;`
+    let buttonStyle = `background-color: #521E10; border: 1px; color: white; text-align: center; display: inline-block; font-size: 11px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
+
+    if (selected == true || selected == 1){
+      buttonStyle = `background-color: #FFAD00; border: 1px; color: black; text-align: center; display: inline-block; font-size: 11px; margin: 2px 1px; cursor: pointer; padding: 3px 6px; border-radius: 4px;`
+    }
+
+    if (minwidth === "f") {
+      minwidth = "100%"
+    } else {
+      if (!minwidth) {
+        minwidth = 'NONE'
+      }
+      minwidth = minwidth + "px"
+    }
+
+    if (minwidth == 'NONE'){
+      minwidth = '';
+    } else {
+      minwidth =`width:${minwidth}`
+    }
+
+    if (!name) {
+      name = "untitled"
+    }
+
+    if (link) {
+      return `<a style = '${buttonStyle}; ${minwidth} !important' href='${link}'>${name}</a>`;
+    } else {
+      return `<div style = '${buttonStyle}; ${minwidth}; display:inline-block !important'>${name}</div>`;
+    }
   }
 
   function dumpObject(obj){

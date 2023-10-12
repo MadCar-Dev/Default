@@ -4,8 +4,8 @@ API_Meta.DMDashboard = { offset: Number.MAX_SAFE_INTEGER, lineCount: -1 };
   try { throw new Error(''); } catch (e) { API_Meta.DMDashboard.offset = (parseInt(e.stack.split(/\n/)[1].replace(/^.*:(\d+):.*$/, '$1'), 10) - (4)); }
 }
 
-// Version 0.6.25
-// Last Updated: 10.12.2023
+// Version 0.6.20
+// Last Updated: 5.25.2023
 // Purpose: Provides DM/GMs with a set of tools to improve their game management.
 //          These tools are based on Handouts programmed to refresh as events occur 
 //          in the game and user selections.  
