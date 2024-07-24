@@ -1445,6 +1445,7 @@ function DMDash_HandleMsg(msg_content){
 
     let cObj = []; //Character
     let tObj = []; //Token
+    let bIsGM = false; //
 
     if (toId == -1) {
       // log(`gtt: Custom`)
@@ -1474,12 +1475,17 @@ function DMDash_HandleMsg(msg_content){
       return 'UTILITY';
     }
 
-    if (cObj.get('controlledby') == '' && getAttrByName(cObj.get('_id'),'npc','current')==1){
+    if (cObj.get('controlledby') != ''){
+      bIsGM = playerIsGM(cObj.get('controlledby'));  
+    }
+    myDebug(1, `cb:${cObj.get('controlledby')} isGM: ${bIsGM} NPC:${getAttrByName(cObj.get('_id'),'npc','current')} Name: ${tObj.get('name')} `)
+
+    if ((cObj.get('controlledby') == '' || bIsGM) && getAttrByName(cObj.get('_id'),'npc','current')==1){
       // log(`gtt: NPC ${tObj.get("name")}`)            
       return 'NPC';
     };
 
-    if (cObj.get('controlledby') == '' && getAttrByName(cObj.get('_id'),'npc','current')==0){
+    if ((cObj.get('controlledby') == '' || bIsGM) && getAttrByName(cObj.get('_id'),'npc','current')==0){
       // log(`gtt: NPC-CHARSHEET ${tObj.get("name")}`)            
       return 'NPC-CHARSHEET';
     };
@@ -3365,9 +3371,10 @@ function DMDash_HandleMsg(msg_content){
 
             } else if (foeItem.State == 'FOE'){
               //Foe
-              myDebug(2, `foe3: (foeItem Exists and is Foe) ${toToken.get('name')}`)              
               edFoeCount = edFoeCount + 1;
-              edNPCExpTotal = edNPCExpTotal + foeItem.Exp;
+              edNPCExpTotal = Number(edNPCExpTotal) + Number(foeItem.Exp);
+              myDebug(1, `foe3: ${toToken.get('name')} FoeExp: ${foeItem.Exp} FoeExpTtl: ${edNPCExpTotal}`)              
+
             } else {
               myDebug(2, `foe4: (foeItem Exists and is Neutral) ${toToken.get('name')}`)              
             }
@@ -3435,7 +3442,7 @@ function DMDash_HandleMsg(msg_content){
                 edCharLevel = getAttrByName(toChar.get('_id'),'level','current');
                 edCR = CharLvl_to_CR(edCharLevel, edSpellCasterLvl)
                 edNPCExp = CR_to_XP(edCR);
-                edNPCExpTotal = edNPCExpTotal + edNPCExp;
+                edNPCExpTotal = Number(edNPCExpTotal) + Number(edNPCExp);
                 foeMap.set(toObj[i].id, {id: toObj[i].id, 
                                          charId: toChar.get('id'), 
                                          Type: 'NPC', 
@@ -3444,12 +3451,14 @@ function DMDash_HandleMsg(msg_content){
                                          SpellCasterLvl: edSpellCasterLvl,
                                          Exp: edNPCExp});
                 foeItem = foeMap.get(toObj[i].id);
+                myDebug(4, `foe7: ${toToken.get('name')} FoeExp: ${edNPCExp} FoeExpTtl: ${edNPCExpTotal}`)              
+
 
               } else {
                 // It is a NPC using a traditional NPC setup
                 myDebug(2, `foe8: (New Traditional NPC) ${toToken.get('name')}`)
                 edNPCExp = getAttrByName(toChar.get('_id'),'npc_xp','current');
-                edNPCExpTotal = edNPCExpTotal + edNPCExp;
+                edNPCExpTotal = Number(edNPCExpTotal) + Number(edNPCExp);
                 edSpellCasterLvl = getAttrByName(toChar.get('_id'), 'caster_level')
                 edCharLevel = CR_to_CharLvl(getAttrByName(toChar.get('_id'), 'npc_challenge'), edSpellCasterLvl)
                 foeMap.set(toObj[i].id, {id: toObj[i].id, 
@@ -3460,6 +3469,9 @@ function DMDash_HandleMsg(msg_content){
                                          SpellCasterLvl: edSpellCasterLvl,
                                          Exp: edNPCExp});
                 foeItem = foeMap.get(toObj[i].id);
+
+                myDebug(4, `foe8: ${toToken.get('name')} FoeExp: ${edNPCExp} FoeExpTtl: ${edNPCExpTotal}`)              
+
 
               }
             }
@@ -3729,7 +3741,7 @@ function DMDash_HandleMsg(msg_content){
       }
     }
 
-    edEncounterExp = edNPCExpTotal * edDiffMult;
+    edEncounterExp = Number(edNPCExpTotal) * Number(edDiffMult);
     if (edEncounterExp < edEasy) {
       edDifficulty = 'Trivial';
       edColor = '#ced9e0';
@@ -3801,6 +3813,7 @@ function DMDash_HandleMsg(msg_content){
         if(ndx<0){
           let tImg = `<img style = 'max-height: 40px; max-width: 40px; padding: 0px; margin: 0px !important' src = '${t.get('imgsrc')}'</img>`;
           let btn_ping = makeButton(tImg, `!DMDash --PingToken-GM ${t.id}`);
+          myDebug(1, `TType:${tType} Id:${t.get('_id')} Name: ${t.get('name')} `)
           if (tType == 'NPC') {
             btnNPCs += btn_ping + t.get('name') + makeButton(emojiPlus, `!DMDash --Initiative ${t.get('_id')}`);
             btnAddAllNPCs += t.get('_id') + ',';
